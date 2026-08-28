@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ArtistOS.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d702c029b699c2accd22ac7306d3fb56d50a10d8")]
 [assembly: System.Reflection.AssemblyProductAttribute("ArtistOS.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ArtistOS.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

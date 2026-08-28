@@ -120,3 +120,4 @@ C:\Users\ACER\Documents\WEB_PROJECT\Artist_OS\ArtistOS\ArtistOS.Api\bin\Debug\ne
 C:\Users\ACER\Documents\WEB_PROJECT\Artist_OS\ArtistOS\ArtistOS.Api\bin\Debug\net10.0\tr\Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll
 C:\Users\ACER\Documents\WEB_PROJECT\Artist_OS\ArtistOS\ArtistOS.Api\bin\Debug\net10.0\zh-Hans\Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll
 C:\Users\ACER\Documents\WEB_PROJECT\Artist_OS\ArtistOS\ArtistOS.Api\bin\Debug\net10.0\zh-Hant\Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll
+C:\Users\ACER\Documents\WEB_PROJECT\Artist_OS\ArtistOS\ArtistOS.Api\obj\Debug\net10.0\ArtistOS.Api.sourcelink.json
