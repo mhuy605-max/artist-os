@@ -134,7 +134,13 @@ export interface SongTask {
 
 export function getSongTasks(songId: string): SongTask[] {
   return [
-    { id: `${songId}-t1`, label: "Final mix approval", due: "2026-09-02", owner: "VS", done: false },
+    {
+      id: `${songId}-t1`,
+      label: "Final mix approval",
+      due: "2026-09-02",
+      owner: "VS",
+      done: false,
+    },
     {
       id: `${songId}-t2`,
       label: "Cover artwork delivery",

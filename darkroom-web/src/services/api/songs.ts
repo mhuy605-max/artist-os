@@ -43,7 +43,7 @@ export const songsApi = {
       return song;
     } catch (error) {
       if (error instanceof ApiUnreachableError) {
-        const found = fallback().find((s) => s.id === id);
+        const found = fallback().find((s) => String(s.id) === id);
         if (!found) throw new Error("Song not found");
         return found;
       }
@@ -73,13 +73,13 @@ export const songsApi = {
 
   async updateSong(id: string, payload: SongPayload): Promise<Song> {
     try {
-      const song = await http.put<Song>(`/api/songs/${id}`, payload);
+      await http.put<void>(`/api/songs/${id}`, payload);
       usingFallback = false;
-      return song;
+      return await this.getSong(id);
     } catch (error) {
       if (error instanceof ApiUnreachableError) {
         const store = fallback();
-        const index = store.findIndex((s) => s.id === id);
+        const index = store.findIndex((s) => String(s.id) === id);
         if (index < 0) throw new Error("Song not found");
         const existing = store[index]!;
         const next: Song = { ...existing, title: payload.title, status: payload.status };
@@ -97,7 +97,7 @@ export const songsApi = {
     } catch (error) {
       if (error instanceof ApiUnreachableError) {
         const store = fallback();
-        const index = store.findIndex((s) => s.id === id);
+        const index = store.findIndex((s) => String(s.id) === id);
         if (index >= 0) store.splice(index, 1);
         return;
       }

@@ -29,7 +29,7 @@ const CHECKLIST_ITEMS = [
 export function getRelease(songId: string): ReleaseInfo {
   const index = mockSongs.findIndex((s) => s.id === songId);
   const meta = getSongMeta(songId);
-  const doneCount = index >= 0 ? CHECKLIST_DONE[index] ?? 0 : 0;
+  const doneCount = index >= 0 ? (CHECKLIST_DONE[index] ?? 0) : 0;
 
   return {
     songId,

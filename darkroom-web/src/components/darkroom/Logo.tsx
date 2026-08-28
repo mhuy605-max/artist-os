@@ -1,4 +1,4 @@
-import logoAsset from "@/assets/darkroom-logo.png.asset.json";
+import logoSrc from "@/assets/darkroom-logo.png";
 import { cn } from "@/lib/utils";
 
 /**
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export function Logo({ className }: { className?: string }) {
   return (
     <img
-      src={logoAsset.url}
+      src={logoSrc}
       alt="DARKROOM SYSTEM"
       className={cn("h-auto w-full select-none object-contain", className)}
       draggable={false}

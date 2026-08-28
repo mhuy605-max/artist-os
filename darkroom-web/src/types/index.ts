@@ -41,7 +41,7 @@ export const SONG_LIFECYCLE: SongStatus[] = [
 
 /** Song as returned by the real ASP.NET Core API. */
 export interface Song {
-  id: string;
+  id: string | number;
   title: string;
   status: string;
   createdAt: string;
@@ -85,12 +85,7 @@ export interface AudioAsset {
 }
 
 export type VisualCategory =
-  | "Cover Art"
-  | "Music Video"
-  | "Visualizer"
-  | "Spotify Canvas"
-  | "Promo Assets"
-  | "Social Content";
+  "Cover Art" | "Music Video" | "Visualizer" | "Spotify Canvas" | "Promo Assets" | "Social Content";
 
 export type AssetState = "Missing" | "In Progress" | "Review" | "Approved" | "Final";
 
@@ -131,13 +126,7 @@ export type ContentType =
   | "Artwork Post";
 
 export type ContentStage =
-  | "Idea"
-  | "Planned"
-  | "In Production"
-  | "Editing"
-  | "Ready"
-  | "Scheduled"
-  | "Published";
+  "Idea" | "Planned" | "In Production" | "Editing" | "Ready" | "Scheduled" | "Published";
 
 export interface ContentItem {
   id: string;
@@ -202,12 +191,7 @@ export interface TeamMember {
 }
 
 export type CalendarEventKind =
-  | "Release"
-  | "Teaser"
-  | "Artwork"
-  | "Music Video"
-  | "Content"
-  | "Milestone";
+  "Release" | "Teaser" | "Artwork" | "Music Video" | "Content" | "Milestone";
 
 export interface CalendarEvent {
   id: string;

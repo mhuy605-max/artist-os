@@ -158,6 +158,6 @@ const FALLBACK_META: Omit<SongMeta, "songId"> = {
 /** Deterministic mock metadata for any song id, including newly created ones. */
 export function getSongMeta(songId: string): SongMeta {
   const index = mockSongs.findIndex((s) => s.id === songId);
-  const base = index >= 0 ? META[index] ?? FALLBACK_META : FALLBACK_META;
+  const base = index >= 0 ? (META[index] ?? FALLBACK_META) : FALLBACK_META;
   return { songId, ...base };
 }
