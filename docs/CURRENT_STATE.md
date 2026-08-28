@@ -6,7 +6,7 @@ Last updated: 2026-08-29
 
 Phase 1 - Backend Foundation.
 
-Current focus: stabilize the first backend API around the `Song` entity before starting React or later domain areas.
+Current focus: keep the Song API stable, clear, and safe before starting React or later domain areas.
 
 ## Completed
 
@@ -20,8 +20,13 @@ Current focus: stabilize the first backend API around the `Song` entity before s
 - Initial EF Core migration created and applied.
 - Local PostgreSQL connectivity confirmed.
 - Song CRUD API implemented and manually verified.
+- Song API hardened with request/response DTOs.
+- Basic Song validation implemented and manually verified.
+- Song `CreatedAt` is now server-controlled.
+- Database max-length constraints added for Song `Title` and `Status`.
 - Project workflow/rules captured in `AGENTS.md`.
 - Long-term plan captured in `docs/PROJECT_PLAN.md`.
+- Root README created for project presentation.
 
 ## Current Implementation
 
@@ -40,9 +45,15 @@ ArtistOS.Api/
 │   └── WeatherForecastController.cs
 ├── Data/
 │   └── AppDbContext.cs
+├── Dtos/
+│   ├── CreateSongRequest.cs
+│   ├── SongResponse.cs
+│   └── UpdateSongRequest.cs
 ├── Migrations/
 │   ├── 20260828171115_InitialCreate.cs
 │   ├── 20260828171115_InitialCreate.Designer.cs
+│   ├── 20260828180003_AddSongValidationConstraints.cs
+│   ├── 20260828180003_AddSongValidationConstraints.Designer.cs
 │   └── AppDbContextModelSnapshot.cs
 ├── Models/
 │   └── Song.cs
@@ -62,7 +73,7 @@ The current API uses this simple architecture:
 Controller -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ```
 
-No repository or service layer has been introduced yet. This is intentional because current Song CRUD does not contain enough business logic to justify those abstractions.
+No repository or service layer has been introduced yet. This is intentional because current Song CRUD and validation do not contain enough business logic to justify those abstractions.
 
 ## Current Song Model
 
@@ -70,11 +81,31 @@ No repository or service layer has been introduced yet. This is intentional beca
 public class Song
 {
     public int Id { get; set; }
+
+    [MaxLength(200)]
     public string Title { get; set; } = string.Empty;
+
+    [MaxLength(40)]
     public string Status { get; set; } = "Demo";
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 ```
+
+## Current DTOs
+
+The Song API now uses DTOs instead of exposing the EF entity directly as the API contract.
+
+- `CreateSongRequest`
+- `UpdateSongRequest`
+- `SongResponse`
+
+DTOs are used now because they solve current API contract problems:
+
+- prevent clients from setting `Id`
+- prevent clients from setting or changing `CreatedAt`
+- provide focused request validation
+- keep response shape explicit
 
 ## Current Endpoints
 
@@ -90,14 +121,50 @@ DELETE /api/songs/{id}
 
 Current endpoint behavior:
 
-- `GET /api/songs` returns all songs ordered by `Id`.
-- `GET /api/songs/{id}` returns a song or `404 Not Found`.
+- `GET /api/songs` returns `SongResponse` objects ordered by `Id`.
+- `GET /api/songs/{id}` returns a `SongResponse` or `404 Not Found`.
+- `POST /api/songs` accepts `CreateSongRequest`.
 - `POST /api/songs` creates a song and returns `201 Created`.
-- `PUT /api/songs/{id}` updates `Title`, `Status`, and `CreatedAt`.
-- `PUT /api/songs/{id}` returns `400 Bad Request` when the route id and body id do not match.
+- `POST /api/songs` ignores client-supplied `Id` and `CreatedAt`.
+- `PUT /api/songs/{id}` accepts `UpdateSongRequest`.
+- `PUT /api/songs/{id}` uses the route id instead of requiring an id in the body.
+- `PUT /api/songs/{id}` updates `Title` and `Status`.
+- `PUT /api/songs/{id}` does not change `CreatedAt`.
+- `PUT /api/songs/{id}` returns `204 No Content` on success.
+- `PUT /api/songs/{id}` returns `400 Bad Request` for invalid input.
 - `PUT /api/songs/{id}` returns `404 Not Found` when the song does not exist.
 - `DELETE /api/songs/{id}` deletes a song and returns `204 No Content`.
 - `DELETE /api/songs/{id}` returns `404 Not Found` when the song does not exist.
+
+## Validation / Normalization
+
+Current validation rules:
+
+- `Title` is required.
+- `Title` is trimmed before saving.
+- Empty or whitespace-only `Title` values are rejected.
+- `Title` max length is `200`.
+- `Status` is required.
+- `Status` is trimmed before saving.
+- Empty or whitespace-only `Status` values are rejected.
+- `Status` max length is `40`.
+- `Status` must match one of the allowed values below.
+
+Allowed Song statuses:
+
+```text
+Idea
+Demo
+Recording
+Mixing
+Mastering
+ReleasePreparation
+ContentCampaign
+Released
+Analytics
+```
+
+Status input is matched case-insensitively and normalized to the canonical casing above before saving.
 
 ## Database / Migrations
 
@@ -114,17 +181,18 @@ Current database tables:
 - `Songs`
 - `__EFMigrationsHistory`
 
-Applied migration:
+Applied migrations:
 
 ```text
 20260828171115_InitialCreate
+20260828180003_AddSongValidationConstraints
 ```
 
-Current `Songs` schema from the migration:
+Current `Songs` schema:
 
 - `Id` integer primary key, generated by PostgreSQL identity.
-- `Title` text, required.
-- `Status` text, required.
+- `Title` character varying(200), required.
+- `Status` character varying(40), required.
 - `CreatedAt` timestamp with time zone, required.
 
 ## Packages
@@ -135,21 +203,14 @@ Current project packages:
 - `Microsoft.EntityFrameworkCore.Design` version `10.0.11`
 - `Npgsql.EntityFrameworkCore.PostgreSQL` version `10.0.3`
 
-## Validation / Error Handling Status
+The project also has a `UserSecretsId`, allowing local connection strings to be stored outside tracked config files.
 
-Current validation is minimal:
-
-- ASP.NET model binding is active through `[ApiController]`.
-- No explicit validation attributes exist on `Song`.
-- No DTOs exist yet.
-- `Title` and `Status` are non-nullable C# strings and required in the generated database schema.
-- Empty or whitespace-only `Title` values are not currently blocked.
-- Maximum lengths are not currently enforced.
+## Error Handling Status
 
 Current expected API errors:
 
+- Invalid request body validation returns `400 Bad Request` through normal ASP.NET Core `[ApiController]` behavior.
 - Missing song returns `404 Not Found`.
-- Mismatched id during update returns `400 Bad Request`.
 
 No custom global exception handling has been added yet.
 
@@ -158,9 +219,9 @@ No custom global exception handling has been added yet.
 Automated tests:
 
 - No test project exists yet.
-- Simple CRUD is currently verified pragmatically with manual HTTP requests.
+- Song API behavior is currently verified pragmatically with manual HTTP requests.
 
-Verification run during the latest state sync:
+Verification run during the latest milestone:
 
 ```text
 dotnet build
@@ -174,33 +235,46 @@ Build succeeded.
 0 errors.
 ```
 
-Manual endpoint verification was also run against `http://localhost:5178/api/songs`:
+Manual endpoint verification was run against `http://localhost:5178/api/songs`:
 
-- `POST /api/songs` created a temporary song.
-- `GET /api/songs` returned the song in the list.
-- `GET /api/songs/{id}` returned the song.
-- `PUT /api/songs/{id}` returned `204 No Content` and updated the song.
+- `POST /api/songs` with valid input returned `201 Created`.
+- Client-supplied `Id` was ignored on create.
+- Client-supplied `CreatedAt` was ignored on create.
+- `Title` was trimmed before saving.
+- `Status` was trimmed and normalized before saving.
+- `POST /api/songs` with empty `Title` returned `400 Bad Request`.
+- `POST /api/songs` with whitespace-only `Title` returned `400 Bad Request`.
+- `POST /api/songs` with a `Title` longer than `200` characters returned `400 Bad Request`.
+- `POST /api/songs` with invalid `Status` returned `400 Bad Request`.
+- `GET /api/songs/{id}` returned the created song.
+- `PUT /api/songs/{id}` with valid input returned `204 No Content`.
+- `PUT /api/songs/{id}` did not change `CreatedAt`.
+- `PUT /api/songs/{id}` with invalid `Title` returned `400 Bad Request`.
+- `PUT /api/songs/{id}` with invalid `Status` returned `400 Bad Request`.
+- `PUT /api/songs/{id}` for a missing song returned `404 Not Found`.
 - `DELETE /api/songs/{id}` returned `204 No Content`.
 - `GET /api/songs/{id}` after delete returned `404 Not Found`.
 
 The temporary verification row was deleted.
 
-## Git Status
+## Security / Secrets Status
 
-This folder currently does not appear to be inside a Git repository. Running git status from the ArtistOS root reported:
+- `appsettings.json` does not currently contain the local database password.
+- The README shows a placeholder `YOUR_PASSWORD` value for setup.
+- No real PostgreSQL password, API key, OAuth credential, or token was found in tracked project docs/config during the latest check.
 
-```text
-fatal: not a git repository (or any of the parent directories): .git
-```
+## Git Status Notes
+
+Before the Song validation/API hardening milestone, the working tree was clean.
+
+After build and verification, generated `bin/` and `obj/` files appear modified because they are currently tracked by Git. This is repository hygiene technical debt, not application source behavior.
 
 ## Known Technical Debt
 
-- `appsettings.json` currently contains a local PostgreSQL password. Move this to .NET User Secrets or environment variables before committing to source control or sharing the project.
 - The default template `WeatherForecastController.cs` and `WeatherForecast.cs` still exist.
-- `Song` currently exposes the EF entity directly through the API. This is acceptable for the current simple milestone, but DTOs should be introduced when validation/API contract needs become clearer.
-- `CreatedAt` can currently be supplied or changed by the client during POST/PUT.
-- Song status is a free-form string, so invalid statuses are not currently blocked.
+- `Status` values are enforced in DTO validation but still stored as a string; this is fine for the current stage, but a future domain model may use a stronger type when workflows become richer.
 - There is no automated test project yet.
+- Generated `bin/` and `obj/` artifacts appear to be tracked by Git.
 - There is no frontend yet.
 
 ## Not Yet Implemented
@@ -221,12 +295,11 @@ fatal: not a git repository (or any of the parent directories): .git
 
 ## Recommended Next Milestone
 
-Add basic Song validation without expanding into later product phases.
+Clean up backend project hygiene before starting React.
 
 Suggested scope:
 
-- Require a non-empty `Title`.
-- Add reasonable maximum lengths for `Title` and `Status`.
-- Decide whether `CreatedAt` should be server-controlled.
-- Create and inspect an EF Core migration only if database constraints change.
-- Rebuild and manually verify the Song API after the validation change.
+- Remove default weather template files and endpoint.
+- Add or verify `.gitignore` coverage for `bin/` and `obj/`.
+- Stop tracking generated build artifacts if they are already committed.
+- Rebuild and verify the Song API still works.
