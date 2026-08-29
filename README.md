@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Audio Asset Metadata Foundation
+GitHub Actions CI Foundation
 ```
 
 Implemented and verified:
@@ -48,6 +48,7 @@ Implemented and verified:
 - Nested AudioAsset metadata API
 - Real browser-based Audio tab metadata create/read/update/delete
 - Automated backend integration tests for current Song and AudioAsset API behavior
+- GitHub Actions CI workflow for backend build/tests and frontend lint/build
 
 Planned, not implemented yet:
 
@@ -59,7 +60,7 @@ Planned, not implemented yet:
 - Backend release/content pipeline
 - Backend credits/collaboration features
 - Backend analytics
-- CI/CD and production deployment
+- CD and production deployment
 
 ## Current Implemented Frontend
 
@@ -276,6 +277,17 @@ Current backend packages:
 - xUnit
 - ASP.NET Core `WebApplicationFactory`
 - EF Core SQLite in-memory test database
+
+### CI
+
+GitHub Actions is configured to verify pushes to `main` and pull requests targeting `main`.
+
+The CI workflow checks:
+
+- Backend restore, build, and tests
+- Frontend dependency install, lint, and build
+
+No PostgreSQL credentials or production secrets are required for the CI foundation. Backend tests use an isolated in-memory SQLite database.
 
 ## Development URLs
 
@@ -512,7 +524,8 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 
 - [ ] Google Drive integration
 - [ ] YouTube analytics
-- [ ] CI/CD and deployment
+- [x] GitHub Actions CI foundation
+- [ ] CD and production deployment
 
 ## Development Principles
 

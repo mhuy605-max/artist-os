@@ -4,9 +4,9 @@ Last updated: 2026-08-29
 
 ## Current Phase
 
-Audio Asset Metadata Foundation.
+GitHub Actions CI Foundation.
 
-Current focus: the first automated backend test foundation now covers current Song and AudioAsset API behavior. Actual audio file upload, playback, waveform processing, and Google Drive storage remain future work.
+Current focus: GitHub Actions CI is now configured to verify the current backend and frontend foundations. Actual audio file upload, playback, waveform processing, and Google Drive storage remain future work.
 
 ## Completed
 
@@ -49,6 +49,7 @@ Current focus: the first automated backend test foundation now covers current So
 - xUnit backend test project added under `tests/ArtistOS.Api.Tests/`.
 - Song API CRUD and validation covered by automated integration-style tests.
 - AudioAsset API CRUD, validation, and Song relationship behavior covered by automated integration-style tests.
+- GitHub Actions CI workflow added for backend restore/build/test and frontend install/lint/build.
 
 ## Current Implementation
 
@@ -68,6 +69,12 @@ Backend test project:
 
 ```text
 tests/ArtistOS.Api.Tests/
+```
+
+CI workflow:
+
+```text
+.github/workflows/ci.yml
 ```
 
 Current backend architecture:
@@ -390,6 +397,19 @@ Current frontend foundation includes:
 - Radix/shadcn-style UI primitives
 - Lucide icons
 
+Current CI foundation:
+
+- Workflow file: `.github/workflows/ci.yml`
+- Workflow name: `DARKROOM SYSTEM CI`
+- Runs on pushes to `main`.
+- Runs on pull requests targeting `main`.
+- Backend and frontend jobs run independently on Ubuntu runners.
+- Backend job uses .NET `10.0.x`.
+- Frontend job uses Node `24.x`.
+- Frontend dependency cache uses `darkroom-web/package-lock.json`.
+- No PostgreSQL database or database secrets are required.
+- No deployment, artifact publishing, Docker image build, or production hosting is configured.
+
 Current backend test packages:
 
 - `Microsoft.AspNetCore.Mvc.Testing` version `10.0.11`
@@ -429,11 +449,14 @@ Automated tests:
 - Song API behavior has both automated test coverage and earlier pragmatic manual HTTP verification.
 - AudioAsset API behavior has both automated test coverage and earlier pragmatic manual HTTP/browser verification.
 
-Verification run during the latest backend test foundation milestone:
+Verification run during the latest CI foundation milestone:
 
 ```text
 dotnet build
 dotnet test
+npm ci
+npm run lint
+npm run build
 ```
 
 Results:
@@ -441,6 +464,9 @@ Results:
 ```text
 dotnet build: succeeded, 0 warnings, 0 errors.
 dotnet test: succeeded, 35 passed, 0 failed, 0 skipped.
+npm ci: succeeded, 0 vulnerabilities.
+npm run lint: completed with 0 errors and 8 warnings.
+npm run build: succeeded.
 ```
 
 Automated backend coverage now includes:
@@ -531,9 +557,13 @@ Latest Playwright browser checks confirmed:
 
 ## Git Status Notes
 
-Current AudioAsset metadata foundation work is uncommitted.
+Current CI foundation work is uncommitted.
 
 The frontend build generated route/output artifacts as expected. Build output remains ignored.
+
+Remote GitHub Actions status:
+
+- No remote GitHub Actions run has been observed yet for `.github/workflows/ci.yml`.
 
 ## Known Technical Debt
 
@@ -556,7 +586,6 @@ The frontend build generated route/output artifacts as expected. Build output re
 - Backend content calendar or campaign tools.
 - Backend credits management.
 - Backend analytics.
-- CI/CD.
 - Production deployment.
 
 ## Recommended Next Milestone
