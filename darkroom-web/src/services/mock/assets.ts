@@ -1,8 +1,8 @@
-import type { AudioAsset, VisualAsset, AudioStage, VisualCategory } from "@/types";
+import type { MockAudioAsset, VisualAsset, AudioAssetType, VisualCategory } from "@/types";
 import { mockSongs } from "./songs";
 
 /** MOCK audio assets. Real files will later come from Google Drive. */
-const AUDIO_TEMPLATE: Omit<AudioAsset, "id" | "songId">[] = [
+const AUDIO_TEMPLATE: Omit<MockAudioAsset, "id" | "songId">[] = [
   {
     stage: "Demo",
     filename: "demo_voicememo_01.wav",
@@ -85,9 +85,9 @@ const AUDIO_TEMPLATE: Omit<AudioAsset, "id" | "songId">[] = [
   },
 ];
 
-export const AUDIO_STAGES: AudioStage[] = ["Demo", "Recording", "Mix", "Master"];
+export const AUDIO_STAGES: AudioAssetType[] = ["Demo", "Recording", "Mix", "Master"];
 
-export function getAudioAssets(songId: string): AudioAsset[] {
+export function getAudioAssets(songId: string): MockAudioAsset[] {
   const index = mockSongs.findIndex((s) => s.id === songId);
   if (index < 0) return [];
   // Earlier lifecycle songs simply have fewer assets.

@@ -15,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -46,14 +47,10 @@ import {
   formatDate,
   formatNumber,
 } from "@/components/darkroom/Primitives";
+import { audioAssetsApi } from "@/services/api/audioAssets";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
 import { getAnalytics, workspacePerformance } from "@/services/mock/analytics";
-import {
-  AUDIO_STAGES,
-  getAudioAssets,
-  getVisualAssets,
-  VISUAL_CATEGORIES,
-} from "@/services/mock/assets";
+import { getVisualAssets, VISUAL_CATEGORIES } from "@/services/mock/assets";
 import { calendarEvents } from "@/services/mock/calendar";
 import { getContentItems } from "@/services/mock/content";
 import { getCredits } from "@/services/mock/credits";
@@ -67,9 +64,15 @@ import {
 import { getSongMeta } from "@/services/mock/songs";
 import { teamMembers, getSongTeam } from "@/services/mock/team";
 import {
+  AUDIO_ASSET_STATUSES,
+  AUDIO_ASSET_TYPES,
   SONG_LIFECYCLE,
   SONG_STATUS_LABELS,
   SONG_STATUSES,
+  type AudioAsset,
+  type AudioAssetPayload,
+  type AudioAssetStatus,
+  type AudioAssetType,
   type Song,
   type SongPayload,
   type SongStatus,
@@ -77,6 +80,10 @@ import {
 import { cn } from "@/lib/utils";
 
 const songsQueryKey = ["songs"];
+
+function audioAssetsQueryKey(songId: string) {
+  return ["songs", songId, "audio-assets"];
+}
 
 function useSongs() {
   return useQuery({
@@ -691,34 +698,396 @@ function OverviewTab({ song }: { song: Song }) {
   );
 }
 
-function AudioTab({ songId }: { songId: string }) {
-  const assets = getAudioAssets(songId);
+function useAudioAssetMutations(songId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: audioAssetsQueryKey(songId) });
+
+  return {
+    create: useMutation({
+      mutationFn: (payload: AudioAssetPayload) => audioAssetsApi.createAudioAsset(songId, payload),
+      onSuccess: invalidate,
+    }),
+    update: useMutation({
+      mutationFn: ({
+        audioAssetId,
+        payload,
+      }: {
+        audioAssetId: string;
+        payload: AudioAssetPayload;
+      }) => audioAssetsApi.updateAudioAsset(songId, audioAssetId, payload),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: (audioAssetId: string) => audioAssetsApi.deleteAudioAsset(songId, audioAssetId),
+      onSuccess: invalidate,
+    }),
+  };
+}
+
+function isAudioAssetType(value: string): value is AudioAssetType {
+  return AUDIO_ASSET_TYPES.includes(value as AudioAssetType);
+}
+
+function isAudioAssetStatus(value: string): value is AudioAssetStatus {
+  return AUDIO_ASSET_STATUSES.includes(value as AudioAssetStatus);
+}
+
+function validateAudioAssetPayload(payload: AudioAssetPayload) {
+  const fileName = payload.fileName.trim();
+  if (!fileName) return "File name is required.";
+  if (fileName.length > 255) return "File name must be 255 characters or fewer.";
+  if (!isAudioAssetType(payload.type)) return "Choose a valid type.";
+  if (!Number.isInteger(payload.version) || payload.version < 1) {
+    return "Version must be a positive whole number.";
+  }
+  if (!isAudioAssetStatus(payload.status)) return "Choose a valid status.";
+  if (payload.durationSeconds != null && payload.durationSeconds < 0) {
+    return "Duration must be zero or greater.";
+  }
+  if (payload.fileSizeBytes != null && payload.fileSizeBytes < 0) {
+    return "File size must be zero or greater.";
+  }
+  return "";
+}
+
+function formatDuration(seconds?: number | null) {
+  if (seconds == null) return "No duration";
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
+function formatFileSize(bytes?: number | null) {
+  if (bytes == null) return "No file size";
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function numberOrNull(value: string) {
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function AudioAssetFormDialog({
+  songId,
+  asset,
+  defaultType = "Demo",
+  trigger,
+}: {
+  songId: string;
+  asset?: AudioAsset;
+  defaultType?: AudioAssetType;
+  trigger: ReactNode;
+}) {
+  const mode = asset ? "edit" : "create";
+  const [open, setOpen] = useState(false);
+  const [fileName, setFileName] = useState(asset?.fileName ?? "");
+  const [type, setType] = useState<AudioAssetType>(asset?.type ?? defaultType);
+  const [version, setVersion] = useState(String(asset?.version ?? 1));
+  const [status, setStatus] = useState<AudioAssetStatus>(asset?.status ?? "Draft");
+  const [durationSeconds, setDurationSeconds] = useState(
+    asset?.durationSeconds == null ? "" : String(asset.durationSeconds),
+  );
+  const [fileSizeMb, setFileSizeMb] = useState(
+    asset?.fileSizeBytes == null ? "" : (asset.fileSizeBytes / 1024 / 1024).toFixed(1),
+  );
+  const [isCurrent, setIsCurrent] = useState(asset?.isCurrent ?? false);
+  const [error, setError] = useState("");
+  const mutations = useAudioAssetMutations(songId);
+  const mutation = mode === "create" ? mutations.create : mutations.update;
+
+  async function submit() {
+    const fileSizeMbValue = numberOrNull(fileSizeMb);
+    const payload: AudioAssetPayload = {
+      type,
+      fileName: fileName.trim(),
+      version: Number(version),
+      status,
+      durationSeconds: numberOrNull(durationSeconds),
+      fileSizeBytes: fileSizeMbValue == null ? null : Math.round(fileSizeMbValue * 1024 * 1024),
+      isCurrent,
+    };
+    const validationError = validateAudioAssetPayload(payload);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      if (mode === "create") {
+        await mutations.create.mutateAsync(payload);
+        setFileName("");
+        setType(defaultType);
+        setVersion("1");
+        setStatus("Draft");
+        setDurationSeconds("");
+        setFileSizeMb("");
+        setIsCurrent(false);
+      } else if (asset) {
+        await mutations.update.mutateAsync({
+          audioAssetId: String(asset.id),
+          payload,
+        });
+      }
+      setError("");
+      setOpen(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The audio asset could not be saved.");
+    }
+  }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {AUDIO_STAGES.map((stage) => {
-        const scoped = assets.filter((asset) => asset.stage === stage);
-        return (
-          <Panel key={stage} title={stage} label="Mock audio assets">
-            {scoped.length ? (
-              scoped.map((asset) => (
-                <FileRow
-                  key={asset.id}
-                  title={asset.filename}
-                  meta={`${asset.version} / ${asset.duration} / ${asset.sizeMb} MB`}
-                  status={asset.status}
-                  detail={asset.note}
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="border-border bg-background">
+        <DialogHeader>
+          <DialogTitle className="uppercase">
+            {mode === "create" ? "Add audio asset" : "Edit audio asset"}
+          </DialogTitle>
+          <DialogDescription>
+            This saves metadata only. Actual audio file upload and external storage are planned for
+            a later milestone.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="label-tech" htmlFor={`${mode}-audio-file-name-${asset?.id ?? "new"}`}>
+              File name
+            </label>
+            <Input
+              id={`${mode}-audio-file-name-${asset?.id ?? "new"}`}
+              value={fileName}
+              maxLength={255}
+              onChange={(event) => setFileName(event.target.value)}
+              className="mt-2"
+              placeholder="mix_v7.wav"
+            />
+          </div>
+          <div>
+            <label className="label-tech">Type</label>
+            <Select value={type} onValueChange={(value) => setType(value as AudioAssetType)}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AUDIO_ASSET_TYPES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-audio-version-${asset?.id ?? "new"}`}>
+              Version
+            </label>
+            <Input
+              id={`${mode}-audio-version-${asset?.id ?? "new"}`}
+              type="number"
+              min={1}
+              step={1}
+              value={version}
+              onChange={(event) => setVersion(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div>
+            <label className="label-tech">Status</label>
+            <Select value={status} onValueChange={(value) => setStatus(value as AudioAssetStatus)}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AUDIO_ASSET_STATUSES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-audio-duration-${asset?.id ?? "new"}`}>
+              Duration seconds
+            </label>
+            <Input
+              id={`${mode}-audio-duration-${asset?.id ?? "new"}`}
+              type="number"
+              min={0}
+              step={1}
+              value={durationSeconds}
+              onChange={(event) => setDurationSeconds(event.target.value)}
+              className="mt-2"
+              placeholder="198"
+            />
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-audio-size-${asset?.id ?? "new"}`}>
+              File size MB
+            </label>
+            <Input
+              id={`${mode}-audio-size-${asset?.id ?? "new"}`}
+              type="number"
+              min={0}
+              step="0.1"
+              value={fileSizeMb}
+              onChange={(event) => setFileSizeMb(event.target.value)}
+              className="mt-2"
+              placeholder="61.7"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+            <Checkbox
+              checked={isCurrent}
+              onCheckedChange={(checked) => setIsCurrent(checked === true)}
+            />
+            Current version
+          </label>
+          {error ? <p className="text-sm text-muted-foreground sm:col-span-2">{error}</p> : null}
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={mutation.isPending}>
+              {mutation.isPending ? "Saving" : "Save"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AudioAssetRow({ songId, asset }: { songId: string; asset: AudioAsset }) {
+  const mutations = useAudioAssetMutations(songId);
+
+  return (
+    <div className="border border-border bg-background p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{asset.fileName}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            v{asset.version} / {formatDuration(asset.durationSeconds)} /{" "}
+            {formatFileSize(asset.fileSizeBytes)}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {asset.isCurrent ? (
+            <span className="border border-border px-2 py-1 text-xs">Current</span>
+          ) : null}
+          <StatusBadge status={asset.status} />
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">Added {formatDate(asset.uploadedAt)}</p>
+        <div className="flex gap-2">
+          <AudioAssetFormDialog
+            songId={songId}
+            asset={asset}
+            trigger={
+              <Button variant="outline" size="sm">
+                Edit
+              </Button>
+            }
+          />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete audio asset metadata</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes only the saved metadata record. No external audio file will be
+                  deleted because file storage is not implemented yet.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => mutations.remove.mutate(String(asset.id))}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AudioTab({ songId }: { songId: string }) {
+  const audioAssets = useQuery({
+    queryKey: audioAssetsQueryKey(songId),
+    queryFn: () => audioAssetsApi.getAudioAssets(songId),
+  });
+
+  if (audioAssets.isLoading) {
+    return <LoadingState label="Loading audio metadata" />;
+  }
+
+  if (audioAssets.isError) {
+    return (
+      <ErrorState
+        detail="Audio asset metadata could not be loaded from the backend."
+        onRetry={() => audioAssets.refetch()}
+      />
+    );
+  }
+
+  const assets = audioAssets.data ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Panel title="Audio metadata" label="Real backend data">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Metadata is persisted through the ASP.NET API. Actual file upload, playback, and
+            waveform generation are planned for later.
+          </p>
+          <AudioAssetFormDialog
+            songId={songId}
+            trigger={
+              <Button>
+                <Plus className="h-4 w-4" />
+                Add asset
+              </Button>
+            }
+          />
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {AUDIO_ASSET_TYPES.map((type) => {
+          const scoped = assets.filter((asset) => asset.type === type);
+          return (
+            <Panel key={type} title={type} label="Real metadata">
+              <div className="mb-3 h-16 border border-border bg-background p-3">
+                <MiniBars
+                  values={scoped.length ? [18, 42, 28, 64, 35, 52, 24, 46] : [8, 8, 8, 8]}
                 />
-              ))
-            ) : (
-              <EmptyState
-                title={`No ${stage.toLowerCase()} uploaded`}
-                detail="Google Drive file association will arrive in a later milestone."
-              />
-            )}
-          </Panel>
-        );
-      })}
+              </div>
+              {scoped.length ? (
+                <div className="space-y-3">
+                  {scoped.map((asset) => (
+                    <AudioAssetRow key={asset.id} songId={songId} asset={asset} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title={`No ${type.toLowerCase()} metadata`}
+                  detail="Add an asset metadata record now. Google Drive file association will arrive in a later milestone."
+                />
+              )}
+            </Panel>
+          );
+        })}
+      </div>
     </div>
   );
 }

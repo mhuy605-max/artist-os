@@ -13,4 +13,6 @@ public class Song
     public string Status { get; set; } = "Demo";
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<AudioAsset> AudioAssets { get; set; } = [];
 }

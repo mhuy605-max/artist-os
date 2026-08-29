@@ -1,14 +1,10 @@
-# Artist OS
+# Artist OS / DARKROOM SYSTEM
 
 Artist OS is a full-stack music workflow platform for managing songs, production assets, release planning, content campaigns, credits, and analytics in one workspace.
 
-The project is currently in early backend development. The implemented system is an ASP.NET Core Web API connected to PostgreSQL with a working Song CRUD API.
+DARKROOM SYSTEM is the current React frontend experience for Artist OS.
 
-## Overview
-
-Music projects often spread across drive folders, local files, spreadsheets, message threads, content calendars, and analytics dashboards. Artist OS is designed to bring those pieces into one focused workspace for artists and music teams.
-
-Artist OS is not a streaming service, Spotify clone, e-commerce app, generic file manager, or social network. The long-term product is a creative operations workspace centered around the lifecycle of a song.
+The product is not a streaming service, Spotify clone, e-commerce app, generic file manager, or social network. The long-term goal is a creative operations workspace centered around the lifecycle of a song.
 
 ## Core Workflow
 
@@ -33,44 +29,112 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Phase 1 - Backend Foundation
+Audio Asset Metadata Foundation
 ```
 
 Implemented and verified:
 
 - ASP.NET Core Web API backend
 - PostgreSQL connection through EF Core and Npgsql
-- Initial EF Core migration for `Song`
+- EF Core migrations for `Song`
 - `AppDbContext`
-- `Song` model
-- Song CRUD API
-- OpenAPI mapping in development
+- `Song` model with validation constraints
+- Song CRUD API with request/response DTOs
+- Development OpenAPI mapping
+- Development CORS for the local frontend
+- DARKROOM SYSTEM React frontend
+- Real browser-based Song CRUD integration between frontend and backend
+- AudioAsset metadata model related to Song
+- Nested AudioAsset metadata API
+- Real browser-based Audio tab metadata create/read/update/delete
+- Automated backend integration tests for current Song and AudioAsset API behavior
 
-Not implemented yet:
+Planned, not implemented yet:
 
-- React frontend
-- Authentication
+- Real authentication
 - Google Drive integration
 - YouTube analytics
-- Song workspace UI
-- Audio/visual asset management
-- Release/content pipeline
-- Collaboration features
-- CI/CD and deployment
+- Real audio file upload, playback, waveform processing, or external file storage
+- Backend visual asset management
+- Backend release/content pipeline
+- Backend credits/collaboration features
+- Backend analytics
+- CI/CD and production deployment
+
+## Current Implemented Frontend
+
+DARKROOM SYSTEM currently includes:
+
+- React 19
+- TypeScript
+- Vite
+- TanStack Router / Start
+- TanStack Query
+- Tailwind CSS
+- DARKROOM SYSTEM design system
+- Responsive app shell with desktop sidebar and mobile drawer
+- Local transparent logo asset
+
+Current routes:
+
+```text
+/login
+/dashboard
+/songs
+/songs/:id
+/calendar
+/team
+/settings
+```
+
+The `/` route redirects to `/dashboard`.
+
+## Real Backend Integration
+
+Song CRUD and AudioAsset metadata are connected to the ASP.NET Core backend.
+
+Browser-based create, read, update, and delete works against:
+
+```text
+http://localhost:5178/api/songs
+http://localhost:5178/api/songs/{songId}/audio-assets
+```
+
+The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. Local CORS is configured for frontend development from:
+
+```text
+http://localhost:8080
+```
+
+If the backend is unreachable during local development, the Song API service uses an explicit in-memory fallback so the frontend remains navigable. The UI shows a fallback notice in that mode. Other API errors are surfaced instead of hidden.
+
+## Mock-Only Areas
+
+These areas are visible in the frontend but are not backend-backed yet:
+
+- Dashboard metadata beyond real Song records
+- Audio waveform display, file upload, playback, and external file association
+- Visual assets
+- Release
+- Content
+- Credits
+- Analytics
+- Calendar
+- Team
+- Settings
+- Authentication
 
 ## Current Features
 
 ### Song CRUD API
-
-The backend currently supports basic CRUD operations for songs.
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `GET` | `/api/songs` | List all songs ordered by `Id`. |
 | `GET` | `/api/songs/{id}` | Get one song by id. Returns `404` when missing. |
 | `POST` | `/api/songs` | Create a new song. Returns `201 Created`. |
-| `PUT` | `/api/songs/{id}` | Update an existing song. Returns `400` for id mismatch and `404` when missing. |
-| `DELETE` | `/api/songs/{id}` | Delete a song. Returns `404` when missing. |
+| `PUT` | `/api/songs/{id}` | Update an existing song. Returns `204 No Content`. |
+| `DELETE` | `/api/songs/{id}` | Delete a song. Returns `204 No Content` or `404` when missing. |
 
 Current `Song` shape:
 
@@ -78,54 +142,108 @@ Current `Song` shape:
 public class Song
 {
     public int Id { get; set; }
+
+    [MaxLength(200)]
     public string Title { get; set; } = string.Empty;
+
+    [MaxLength(40)]
     public string Status { get; set; } = "Demo";
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<AudioAsset> AudioAssets { get; set; } = [];
 }
 ```
 
-## Planned Features
+Allowed Song statuses:
 
-These are planned product directions, not currently implemented features:
+```text
+Idea
+Demo
+Recording
+Mixing
+Mastering
+ReleasePreparation
+ContentCampaign
+Released
+Analytics
+```
 
-- React dashboard and workspace UI
-- Song detail workspace with Overview, Audio, Visuals, Content, Release, Credits, and Analytics tabs
-- Audio asset metadata for demos, recordings, mixes, and masters
-- Visual asset metadata for artwork, music videos, and content assets
-- Google Drive integration for large media file storage
-- Release management and release preparation checklists
-- Content planning, scheduling, and campaign timeline
-- Credits and contributor tracking
-- Authentication, teams, and collaboration
-- YouTube Data/Analytics integration
-- Automated tests, CI/CD, and deployment
+### AudioAsset Metadata API
+
+The backend supports metadata-only audio assets nested under a Song.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/songs/{songId}/audio-assets` | List audio asset metadata for a Song. |
+| `GET` | `/api/songs/{songId}/audio-assets/{audioAssetId}` | Get one audio asset metadata record. |
+| `POST` | `/api/songs/{songId}/audio-assets` | Create an audio asset metadata record. Returns `201 Created`. |
+| `PUT` | `/api/songs/{songId}/audio-assets/{audioAssetId}` | Update an audio asset metadata record. Returns `204 No Content`. |
+| `DELETE` | `/api/songs/{songId}/audio-assets/{audioAssetId}` | Delete an audio asset metadata record. Returns `204 No Content` or `404` when missing. |
+
+Current `AudioAsset` shape:
+
+```csharp
+public class AudioAsset
+{
+    public int Id { get; set; }
+    public int SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public string Type { get; set; } = "Demo";
+    public string FileName { get; set; } = string.Empty;
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "Draft";
+    public int? DurationSeconds { get; set; }
+    public long? FileSizeBytes { get; set; }
+    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+    public bool IsCurrent { get; set; }
+}
+```
+
+Allowed AudioAsset types:
+
+```text
+Demo
+Recording
+Mix
+Master
+```
+
+Allowed AudioAsset statuses:
+
+```text
+Draft
+Review
+Approved
+Final
+```
 
 ## Architecture
 
-Current and planned architecture:
+Current architecture:
 
 ```text
-React (planned)
+DARKROOM SYSTEM React frontend
         |
         | REST / JSON
         v
 ASP.NET Core Web API
         |
         v
-Entity Framework Core
-        |
-        v
-Npgsql
+EF Core / Npgsql
         |
         v
 PostgreSQL
 ```
 
-Future external integrations, such as Google Drive and YouTube APIs, will connect to the backend without replacing the core Artist OS domain model.
+Future integrations:
+
+- Google Drive
+- YouTube
 
 ## Tech Stack
 
-### Current Backend
+### Backend
 
 - ASP.NET Core Web API
 - .NET 10
@@ -134,7 +252,7 @@ Future external integrations, such as Google Drive and YouTube APIs, will connec
 - Npgsql Entity Framework Core provider
 - PostgreSQL
 
-Verified package references:
+Current backend packages:
 
 | Package | Version |
 | --- | --- |
@@ -142,30 +260,35 @@ Verified package references:
 | `Microsoft.EntityFrameworkCore.Design` | `10.0.11` |
 | `Npgsql.EntityFrameworkCore.PostgreSQL` | `10.0.3` |
 
-### Planned Frontend
+### Frontend
 
-- React
+- React 19
 - TypeScript
+- Vite
+- TanStack Router / Start
+- TanStack Query
 - Tailwind CSS
+- Radix/shadcn-style UI primitives
+- Lucide icons
 
-### Planned Integrations
+### Tests
 
-- Google Drive API
-- YouTube APIs
+- xUnit
+- ASP.NET Core `WebApplicationFactory`
+- EF Core SQLite in-memory test database
 
-### Planned DevOps
+## Development URLs
 
-- GitHub Actions
-- CI/CD
-- Production deployment
+Local development defaults:
+
+| App | URL |
+| --- | --- |
+| Frontend | `http://localhost:8080` |
+| Backend | `http://localhost:5178` |
+
+These are local development URLs, not production deployment URLs.
 
 ## API
-
-Base local URL from the current HTTP launch profile:
-
-```text
-http://localhost:5178
-```
 
 Song endpoints:
 
@@ -175,6 +298,16 @@ GET    /api/songs/{id}
 POST   /api/songs
 PUT    /api/songs/{id}
 DELETE /api/songs/{id}
+```
+
+Audio asset metadata endpoints:
+
+```text
+GET    /api/songs/{songId}/audio-assets
+GET    /api/songs/{songId}/audio-assets/{audioAssetId}
+POST   /api/songs/{songId}/audio-assets
+PUT    /api/songs/{songId}/audio-assets/{audioAssetId}
+DELETE /api/songs/{songId}/audio-assets/{audioAssetId}
 ```
 
 Example create request:
@@ -199,15 +332,14 @@ Current concise structure:
 ArtistOS/
 ├── ArtistOS.Api/
 │   ├── Controllers/
-│   │   ├── SongsController.cs
-│   │   └── WeatherForecastController.cs
+│   │   ├── AudioAssetsController.cs
+│   │   └── SongsController.cs
 │   ├── Data/
 │   │   └── AppDbContext.cs
+│   ├── Dtos/
 │   ├── Migrations/
-│   │   ├── 20260828171115_InitialCreate.cs
-│   │   ├── 20260828171115_InitialCreate.Designer.cs
-│   │   └── AppDbContextModelSnapshot.cs
 │   ├── Models/
+│   │   ├── AudioAsset.cs
 │   │   └── Song.cs
 │   ├── Properties/
 │   │   └── launchSettings.json
@@ -215,14 +347,26 @@ ArtistOS/
 │   ├── appsettings.json
 │   ├── ArtistOS.Api.csproj
 │   └── Program.cs
+├── darkroom-web/
+│   ├── src/
+│   │   ├── assets/
+│   │   ├── components/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   └── types/
+│   ├── .env.example
+│   └── package.json
 ├── docs/
 │   ├── CURRENT_STATE.md
 │   └── PROJECT_PLAN.md
+├── tests/
+│   └── ArtistOS.Api.Tests/
+├── ArtistOS.slnx
 ├── AGENTS.md
 └── README.md
 ```
 
-Generated `bin/` and `obj/` folders are intentionally omitted from this tree.
+Generated `bin/`, `obj/`, `node_modules/`, and frontend build output folders are intentionally omitted from this tree.
 
 ## Getting Started
 
@@ -231,6 +375,7 @@ Generated `bin/` and `obj/` folders are intentionally omitted from this tree.
 - .NET SDK compatible with `net10.0`
 - PostgreSQL running locally
 - EF Core CLI tools, if you need to create or apply migrations
+- Node.js/npm for the frontend
 
 ### 1. Clone The Repository
 
@@ -280,19 +425,33 @@ The API should listen at:
 http://localhost:5178
 ```
 
-### 6. Test The API
+### 6. Run The Frontend
+
+From the frontend project folder:
 
 ```bash
-curl http://localhost:5178/api/songs
+cd darkroom-web
+npm install
+npm run dev -- --host localhost --port 8080
 ```
 
-Or create a test song:
+The frontend should listen at:
+
+```text
+http://localhost:8080
+```
+
+The default API base URL is `http://localhost:5178`. To override it, create a local `.env` file from `darkroom-web/.env.example`.
+
+### 7. Run Backend Tests
+
+From the repository root:
 
 ```bash
-curl -X POST http://localhost:5178/api/songs \
-  -H "Content-Type: application/json" \
-  -d "{\"title\":\"Demo Song\",\"status\":\"Demo\"}"
+dotnet test
 ```
+
+The backend tests use an isolated in-memory SQLite database through `WebApplicationFactory`; they do not connect to or wipe the local `artist_os` PostgreSQL database.
 
 ## Database
 
@@ -306,13 +465,16 @@ artist_os
 
 Current tables:
 
+- `AudioAssets`
 - `Songs`
 - `__EFMigrationsHistory`
 
-Current migration:
+Current migrations:
 
 ```text
 20260828171115_InitialCreate
+20260828180003_AddSongValidationConstraints
+20260829071423_AddAudioAssetMetadata
 ```
 
 Large media files such as WAV, MP3, stems, artwork, and video files should not be stored directly in PostgreSQL. The planned direction is to store metadata in PostgreSQL and large files in an external provider such as Google Drive.
@@ -324,17 +486,26 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Backend foundation
 - [x] PostgreSQL + EF Core setup
 - [x] Initial Song model and migration
+- [x] Song validation constraints
 - [x] Song CRUD API
-- [ ] Basic Song validation
-- [ ] Automated backend tests
+- [x] AudioAsset metadata model and migration
+- [x] Nested AudioAsset metadata API
+- [x] Local frontend development CORS
+- [x] Automated backend tests
+- [ ] Automated frontend tests
 
 ### Product
 
-- [ ] React frontend
-- [ ] Song workspace
-- [ ] Audio and visual asset management
-- [ ] Release and content workflow
-- [ ] Credits and contributor management
+- [x] React frontend foundation
+- [x] DARKROOM SYSTEM app shell
+- [x] Song list UI
+- [x] Song detail workspace UI
+- [x] Browser-based real Song CRUD integration
+- [x] Browser-based real AudioAsset metadata integration
+- [ ] Real audio file upload and external file association
+- [ ] Backend visual asset management
+- [ ] Backend release and content workflow
+- [ ] Backend credits and contributor management
 - [ ] Authentication and collaboration
 
 ### Integrations / Delivery
@@ -346,6 +517,7 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 ## Development Principles
 
 - Keep changes focused, incremental, and verified.
+- Let the current milestone control scope.
 - Use EF Core migrations for schema changes.
 - Keep secrets out of source control.
 - Store large media files externally; PostgreSQL stores metadata and references.

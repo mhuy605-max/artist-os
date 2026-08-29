@@ -67,12 +67,42 @@ export interface SongMeta {
   collaborators: string[];
 }
 
-export type AudioStage = "Demo" | "Recording" | "Mix" | "Master";
+export const AUDIO_ASSET_TYPES = ["Demo", "Recording", "Mix", "Master"] as const;
 
+export type AudioAssetType = (typeof AUDIO_ASSET_TYPES)[number];
+
+export const AUDIO_ASSET_STATUSES = ["Draft", "Review", "Approved", "Final"] as const;
+
+export type AudioAssetStatus = (typeof AUDIO_ASSET_STATUSES)[number];
+
+/** Audio asset metadata as returned by the real ASP.NET Core API. */
 export interface AudioAsset {
+  id: string | number;
+  songId: string | number;
+  type: AudioAssetType;
+  fileName: string;
+  version: number;
+  status: AudioAssetStatus;
+  durationSeconds?: number | null;
+  fileSizeBytes?: number | null;
+  uploadedAt: string;
+  isCurrent: boolean;
+}
+
+export interface AudioAssetPayload {
+  type: AudioAssetType;
+  fileName: string;
+  version: number;
+  status: AudioAssetStatus;
+  durationSeconds?: number | null;
+  fileSizeBytes?: number | null;
+  isCurrent: boolean;
+}
+
+export interface MockAudioAsset {
   id: string;
   songId: string;
-  stage: AudioStage;
+  stage: AudioAssetType;
   filename: string;
   version: string;
   uploadedAt: string;

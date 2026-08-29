@@ -4,9 +4,9 @@ Last updated: 2026-08-29
 
 ## Current Phase
 
-Phase 2 - React Frontend Foundation.
+Audio Asset Metadata Foundation.
 
-Current focus: DARKROOM SYSTEM frontend is now verified against the real ASP.NET Core Song API in the browser. The broader workspace areas remain navigable mock-only shells, but Song list/create/edit/delete and workspace loading use PostgreSQL-backed API data when the backend is running.
+Current focus: the first automated backend test foundation now covers current Song and AudioAsset API behavior. Actual audio file upload, playback, waveform processing, and Google Drive storage remain future work.
 
 ## Completed
 
@@ -37,6 +37,18 @@ Current focus: DARKROOM SYSTEM frontend is now verified against the real ASP.NET
 - Mock-only modules isolated for future workspace areas.
 - Development CORS configured for the local frontend origin.
 - Real browser-based frontend-to-backend Song CRUD verified.
+- Default ASP.NET WeatherForecast template files removed.
+- Root README updated to reflect the current DARKROOM SYSTEM frontend and real Song integration.
+- `AudioAsset` model created and related to `Song`.
+- AudioAsset metadata DTOs created.
+- Nested AudioAsset metadata API implemented.
+- AudioAsset EF Core migration created and applied.
+- Audio tab now reads/writes real AudioAsset metadata through the ASP.NET Core API.
+- Browser-based AudioAsset metadata create/edit/delete verified.
+- Root solution file added for backend and test project builds.
+- xUnit backend test project added under `tests/ArtistOS.Api.Tests/`.
+- Song API CRUD and validation covered by automated integration-style tests.
+- AudioAsset API CRUD, validation, and Song relationship behavior covered by automated integration-style tests.
 
 ## Current Implementation
 
@@ -52,13 +64,20 @@ Frontend project:
 darkroom-web/
 ```
 
+Backend test project:
+
+```text
+tests/ArtistOS.Api.Tests/
+```
+
 Current backend architecture:
 
 ```text
 SongsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+AudioAssetsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ```
 
-No backend repository or service layer has been introduced yet. This is intentional because current Song CRUD and validation do not contain enough business logic to justify those abstractions.
+No backend repository or service layer has been introduced yet. This is intentional because current Song and AudioAsset metadata CRUD/validation do not contain enough business logic to justify those abstractions.
 
 Development-only backend CORS is configured in `ArtistOS.Api/Program.cs` using the named policy `LocalFrontend`.
 
@@ -83,7 +102,7 @@ Current frontend architecture:
 TanStack Router routes
   -> DARKROOM SYSTEM app shell/pages
   -> TanStack Query
-  -> isolated Song API service
+  -> isolated Song and AudioAsset API services
   -> ASP.NET Core API
 ```
 
@@ -118,7 +137,7 @@ Analytics
 
 ## Real API Integration
 
-The frontend uses the real backend only for Song CRUD:
+The frontend uses the real backend for Song CRUD:
 
 ```text
 GET    /api/songs
@@ -128,12 +147,23 @@ PUT    /api/songs/{id}
 DELETE /api/songs/{id}
 ```
 
+The frontend also uses the real backend for AudioAsset metadata:
+
+```text
+GET    /api/songs/{songId}/audio-assets
+GET    /api/songs/{songId}/audio-assets/{audioAssetId}
+POST   /api/songs/{songId}/audio-assets
+PUT    /api/songs/{songId}/audio-assets/{audioAssetId}
+DELETE /api/songs/{songId}/audio-assets/{audioAssetId}
+```
+
 Current frontend API base URL behavior:
 
 - `VITE_API_BASE_URL` controls the backend URL.
 - Default frontend fallback value is `http://localhost:5178`.
 - `darkroom-web/.env.example` documents `VITE_API_BASE_URL=http://localhost:5178`.
 - `PUT /api/songs/{id}` is handled as `204 No Content`; the client refetches the song afterward.
+- `PUT /api/songs/{songId}/audio-assets/{audioAssetId}` is handled as `204 No Content`; the client refetches the audio asset afterward.
 
 If the backend host is unreachable, the Song API service switches to an explicit in-memory development fallback and the UI shows a fallback notice. Other API errors are not hidden.
 
@@ -152,7 +182,7 @@ When the backend is running with CORS configured, the fallback notice does not a
 These frontend areas are mock-only and do not have backend persistence yet:
 
 - Dashboard metadata beyond base Song records.
-- Audio assets.
+- Audio waveform display, file upload, playback, and external file association.
 - Visual assets.
 - Release metadata and checklist.
 - Content campaign items.
@@ -177,8 +207,37 @@ public class Song
     public string Status { get; set; } = "Demo";
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<AudioAsset> AudioAssets { get; set; } = [];
 }
 ```
+
+## Current AudioAsset Model
+
+```csharp
+public class AudioAsset
+{
+    public int Id { get; set; }
+    public int SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public string Type { get; set; } = "Demo";
+    public string FileName { get; set; } = string.Empty;
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "Draft";
+    public int? DurationSeconds { get; set; }
+    public long? FileSizeBytes { get; set; }
+    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+    public bool IsCurrent { get; set; }
+}
+```
+
+Relationship:
+
+```text
+Song 1 -> many AudioAssets
+```
+
+AudioAsset is metadata-only. No audio binary data is stored in PostgreSQL.
 
 ## Current DTOs
 
@@ -187,6 +246,9 @@ The Song API uses DTOs instead of exposing the EF entity directly as the API con
 - `CreateSongRequest`
 - `UpdateSongRequest`
 - `SongResponse`
+- `CreateAudioAssetRequest`
+- `UpdateAudioAssetRequest`
+- `AudioAssetResponse`
 
 DTOs are used because they solve current API contract problems:
 
@@ -225,6 +287,39 @@ Analytics
 
 Status input is matched case-insensitively and normalized to the canonical casing above before saving.
 
+Current AudioAsset backend validation rules:
+
+- `SongId` comes from the route.
+- `Id` is database-controlled.
+- `UploadedAt` is server-controlled.
+- `Type` is required and trimmed before saving.
+- `Type` must be one of the supported audio asset types.
+- `FileName` is required and trimmed before saving.
+- `FileName` max length is `255`.
+- `Version` must be a positive whole number.
+- `Status` is required and trimmed before saving.
+- `Status` must be one of the supported audio asset statuses.
+- `DurationSeconds` is optional and must be non-negative when supplied.
+- `FileSizeBytes` is optional and must be non-negative when supplied.
+
+Allowed AudioAsset types:
+
+```text
+Demo
+Recording
+Mix
+Master
+```
+
+Allowed AudioAsset statuses:
+
+```text
+Draft
+Review
+Approved
+Final
+```
+
 The frontend also performs matching basic form validation for user experience, but backend validation remains the trusted source.
 
 ## Database / Migrations
@@ -239,6 +334,7 @@ PostgreSQL is expected locally on port `5432`.
 
 Current database tables:
 
+- `AudioAssets`
 - `Songs`
 - `__EFMigrationsHistory`
 
@@ -247,6 +343,7 @@ Applied migrations:
 ```text
 20260828171115_InitialCreate
 20260828180003_AddSongValidationConstraints
+20260829071423_AddAudioAssetMetadata
 ```
 
 Current `Songs` schema:
@@ -256,9 +353,23 @@ Current `Songs` schema:
 - `Status` character varying(40), required.
 - `CreatedAt` timestamp with time zone, required.
 
-No database changes were made during the frontend architecture milestone.
+Current `AudioAssets` schema:
 
-No database schema changes were made during the real frontend-to-backend Song integration milestone.
+- `Id` integer primary key, generated by PostgreSQL identity.
+- `SongId` integer, required, foreign key to `Songs`.
+- `Type` character varying(40), required.
+- `FileName` character varying(255), required.
+- `Version` integer, required.
+- `Status` character varying(40), required.
+- `DurationSeconds` integer, optional.
+- `FileSizeBytes` bigint, optional.
+- `UploadedAt` timestamp with time zone, required.
+- `IsCurrent` boolean, required.
+
+Indexes:
+
+- `IX_AudioAssets_SongId`
+- `IX_AudioAssets_SongId_Type`
 
 ## Packages
 
@@ -279,18 +390,29 @@ Current frontend foundation includes:
 - Radix/shadcn-style UI primitives
 - Lucide icons
 
+Current backend test packages:
+
+- `Microsoft.AspNetCore.Mvc.Testing` version `10.0.11`
+- `Microsoft.EntityFrameworkCore.Sqlite` version `10.0.11`
+- `Microsoft.NET.Test.Sdk` version `17.14.1`
+- `coverlet.collector` version `6.0.4`
+- `xunit` version `2.9.3`
+- `xunit.runner.visualstudio` version `3.1.4`
+
 ## Error Handling Status
 
 Backend expected API errors:
 
 - Invalid request body validation returns `400 Bad Request` through normal ASP.NET Core `[ApiController]` behavior.
 - Missing song returns `404 Not Found`.
+- Missing audio asset returns `404 Not Found`.
 
 Frontend expected API behavior:
 
 - Unreachable backend host triggers an explicit development fallback notice.
 - Non-unreachable API errors show an error state and retry action.
 - Mock-only areas are labeled as mock-only.
+- Audio file upload/playback/waveform behavior is explicitly described as future work.
 - Browser requests from `http://localhost:8080` to `http://localhost:5178` are allowed in Development by the backend CORS policy.
 
 No custom global backend exception handling has been added yet.
@@ -299,32 +421,50 @@ No custom global backend exception handling has been added yet.
 
 Automated tests:
 
-- No backend test project exists yet.
+- Backend test project exists at `tests/ArtistOS.Api.Tests/`.
+- Backend tests use xUnit with `WebApplicationFactory<Program>`.
+- Backend tests use an isolated SQLite in-memory EF Core database.
+- Backend tests do not connect to or wipe the local PostgreSQL `artist_os` database.
 - No frontend test script exists yet.
-- Song API behavior has been verified pragmatically with manual HTTP requests in earlier backend milestones.
+- Song API behavior has both automated test coverage and earlier pragmatic manual HTTP verification.
+- AudioAsset API behavior has both automated test coverage and earlier pragmatic manual HTTP/browser verification.
 
-Verification run during the latest milestone:
+Verification run during the latest backend test foundation milestone:
 
 ```text
 dotnet build
-npm install
-npm run build
-npm run lint
-Playwright route smoke checks
-Playwright real Song CRUD checks
+dotnet test
 ```
 
 Results:
 
 ```text
 dotnet build: succeeded, 0 warnings, 0 errors.
+dotnet test: succeeded, 35 passed, 0 failed, 0 skipped.
+```
+
+Automated backend coverage now includes:
+
+- Song create/read/list/update/delete success paths.
+- Song `400 Bad Request` validation paths.
+- Song `404 Not Found` missing-resource paths.
+- AudioAsset metadata create/read/list/update/delete success paths.
+- AudioAsset `400 Bad Request` validation paths.
+- AudioAsset `404 Not Found` missing Song and missing AudioAsset paths.
+- Song-to-AudioAsset relationship behavior, including many AudioAssets per Song and deleting AudioAsset metadata without deleting the parent Song.
+
+Previous frontend verification during the latest AudioAsset metadata milestone:
+
+```text
 npm run build: succeeded.
 npm run lint: completed with 0 errors and 8 warnings.
 ```
 
 The frontend build generated the TanStack route tree successfully.
 
-Playwright route and real API checks confirmed:
+The frontend build also emitted existing Vite/Nitro advisory warnings. They did not fail the build.
+
+Previous Playwright route and real API checks confirmed:
 
 - `/` redirects to `/dashboard`.
 - `/dashboard` renders.
@@ -349,6 +489,39 @@ Playwright route and real API checks confirmed:
 - The deleted Song remained gone after refresh and `GET /api/songs/{id}` returned `404`.
 - Calendar remained visibly mock-only.
 
+Latest manual AudioAsset API checks confirmed:
+
+- Temporary Song could be created when the database had no existing Songs.
+- `POST /api/songs/{songId}/audio-assets` returned `201 Created`.
+- `Type`, `FileName`, and `Status` were trimmed/normalized correctly.
+- `GET /api/songs/{songId}/audio-assets` returned `200 OK`.
+- `GET /api/songs/{songId}/audio-assets/{audioAssetId}` returned `200 OK`.
+- `PUT /api/songs/{songId}/audio-assets/{audioAssetId}` returned `204 No Content`.
+- `UploadedAt` remained server-controlled during update.
+- Invalid AudioAsset `Type` returned `400 Bad Request`.
+- Invalid AudioAsset `Status` returned `400 Bad Request`.
+- Missing Song returned `404 Not Found`.
+- Missing AudioAsset returned `404 Not Found`.
+- `DELETE /api/songs/{songId}/audio-assets/{audioAssetId}` returned `204 No Content`.
+- Deleted AudioAsset returned `404 Not Found`.
+- Temporary verification Song was deleted after verification.
+- Song count was preserved after cleanup.
+
+Latest Playwright browser checks confirmed:
+
+- A temporary Song was created through the frontend.
+- Song workspace loaded at `/songs/{songId}`.
+- Audio tab loaded real metadata from the backend.
+- Audio tab showed real metadata labels instead of mock-only labels.
+- Add asset dialog saved metadata only and did not imply file upload.
+- Created metadata rendered under the correct type section.
+- Page refresh preserved the created AudioAsset metadata.
+- Edit dialog updated file name, type, version, status, duration, size, and current flag.
+- Updated metadata moved from Mix to Master after changing type.
+- Delete confirmation stated that only metadata is removed.
+- Deleted metadata disappeared from the Audio tab.
+- Browser console showed no CORS/API errors during verification.
+
 ## Security / Secrets Status
 
 - `appsettings.json` does not currently contain the local database password.
@@ -358,15 +531,16 @@ Playwright route and real API checks confirmed:
 
 ## Git Status Notes
 
-Current frontend architecture work is uncommitted.
+Current AudioAsset metadata foundation work is uncommitted.
 
 The frontend build generated route/output artifacts as expected. Build output remains ignored.
 
 ## Known Technical Debt
 
-- The default backend template `WeatherForecastController.cs` and `WeatherForecast.cs` still exist.
 - `Status` values are enforced in DTO validation but still stored as a string; this is acceptable for the current stage.
-- There is no automated backend test project yet.
+- AudioAsset `Type` and `Status` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
+- The API does not yet enforce only one current AudioAsset per Song + Type.
+- Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - There is no frontend test script yet.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
 
@@ -376,7 +550,7 @@ The frontend build generated route/output artifacts as expected. Build output re
 - Team collaboration or permissions.
 - Google Drive integration.
 - YouTube integration.
-- Backend audio asset management.
+- Real audio file upload, playback, waveform processing, and external file association.
 - Backend visual asset management.
 - Backend release management.
 - Backend content calendar or campaign tools.
@@ -387,10 +561,11 @@ The frontend build generated route/output artifacts as expected. Build output re
 
 ## Recommended Next Milestone
 
-Clean up project hygiene and documentation drift before expanding the domain.
+Start the Visual Asset metadata foundation.
 
 Suggested scope:
 
-- Remove the default backend weather template files and endpoint.
-- Update README so it reflects the implemented frontend foundation and real Song integration.
-- Keep the next domain milestone paused until the current foundation is tidy.
+- Add metadata-only `VisualAsset` backend model and migration.
+- Add nested VisualAsset API under Song.
+- Keep real image/video file storage out of PostgreSQL.
+- Do not begin Google Drive or large-file upload yet.

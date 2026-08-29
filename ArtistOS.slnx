@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/ArtistOS.Api.Tests/ArtistOS.Api.Tests.csproj" />
+  </Folder>
+  <Project Path="ArtistOS.Api/ArtistOS.Api.csproj" />
+</Solution>
