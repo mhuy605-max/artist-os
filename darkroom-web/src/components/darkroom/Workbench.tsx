@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, Plus, Search, Trash2 } from "lucide-react";
+import { Check, Plus, Search, Trash2 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
 import {
@@ -48,9 +48,10 @@ import {
   formatNumber,
 } from "@/components/darkroom/Primitives";
 import { audioAssetsApi } from "@/services/api/audioAssets";
+import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
+import { visualAssetsApi } from "@/services/api/visualAssets";
 import { getAnalytics, workspacePerformance } from "@/services/mock/analytics";
-import { getVisualAssets, VISUAL_CATEGORIES } from "@/services/mock/assets";
 import { calendarEvents } from "@/services/mock/calendar";
 import { getContentItems } from "@/services/mock/content";
 import { getCredits } from "@/services/mock/credits";
@@ -66,16 +67,35 @@ import { teamMembers, getSongTeam } from "@/services/mock/team";
 import {
   AUDIO_ASSET_STATUSES,
   AUDIO_ASSET_TYPES,
+  RELEASE_PLATFORM_LABELS,
+  RELEASE_PLATFORMS,
+  RELEASE_STATUSES,
+  RELEASE_STATUS_LABELS,
+  RELEASE_TYPES,
+  RELEASE_TYPE_LABELS,
   SONG_LIFECYCLE,
   SONG_STATUS_LABELS,
   SONG_STATUSES,
+  VISUAL_ASSET_STATUSES,
+  VISUAL_ASSET_STATUS_LABELS,
+  VISUAL_ASSET_TYPES,
+  VISUAL_ASSET_TYPE_LABELS,
   type AudioAsset,
   type AudioAssetPayload,
   type AudioAssetStatus,
   type AudioAssetType,
+  type Release,
+  type ReleasePayload,
+  type ReleasePlatform,
+  type ReleaseStatus,
+  type ReleaseType,
   type Song,
   type SongPayload,
   type SongStatus,
+  type VisualAsset,
+  type VisualAssetPayload,
+  type VisualAssetStatus,
+  type VisualAssetType,
 } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +103,14 @@ const songsQueryKey = ["songs"];
 
 function audioAssetsQueryKey(songId: string) {
   return ["songs", songId, "audio-assets"];
+}
+
+function visualAssetsQueryKey(songId: string) {
+  return ["songs", songId, "visual-assets"];
+}
+
+function releaseQueryKey(songId: string) {
+  return ["songs", songId, "release"];
 }
 
 function useSongs() {
@@ -1092,61 +1120,765 @@ function AudioTab({ songId }: { songId: string }) {
   );
 }
 
-function VisualsTab({ songId }: { songId: string }) {
-  const assets = getVisualAssets(songId);
+function useVisualAssetMutations(songId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: visualAssetsQueryKey(songId) });
+
+  return {
+    create: useMutation({
+      mutationFn: (payload: VisualAssetPayload) =>
+        visualAssetsApi.createVisualAsset(songId, payload),
+      onSuccess: invalidate,
+    }),
+    update: useMutation({
+      mutationFn: ({
+        visualAssetId,
+        payload,
+      }: {
+        visualAssetId: string;
+        payload: VisualAssetPayload;
+      }) => visualAssetsApi.updateVisualAsset(songId, visualAssetId, payload),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: (visualAssetId: string) =>
+        visualAssetsApi.deleteVisualAsset(songId, visualAssetId),
+      onSuccess: invalidate,
+    }),
+  };
+}
+
+function isVisualAssetType(value: string): value is VisualAssetType {
+  return VISUAL_ASSET_TYPES.includes(value as VisualAssetType);
+}
+
+function isVisualAssetStatus(value: string): value is VisualAssetStatus {
+  return VISUAL_ASSET_STATUSES.includes(value as VisualAssetStatus);
+}
+
+function visualTypeLabel(type: VisualAssetType) {
+  return VISUAL_ASSET_TYPE_LABELS[type];
+}
+
+function visualStatusLabel(status: VisualAssetStatus) {
+  return VISUAL_ASSET_STATUS_LABELS[status];
+}
+
+function validateVisualAssetPayload(payload: VisualAssetPayload) {
+  const fileName = payload.fileName.trim();
+  if (!fileName) return "File name is required.";
+  if (fileName.length > 255) return "File name must be 255 characters or fewer.";
+  if (!isVisualAssetType(payload.type)) return "Choose a valid type.";
+  if (!Number.isInteger(payload.version) || payload.version < 1) {
+    return "Version must be a positive whole number.";
+  }
+  if (!isVisualAssetStatus(payload.status)) return "Choose a valid status.";
+  if (payload.width != null && payload.width < 1) return "Width must be a positive number.";
+  if (payload.height != null && payload.height < 1) return "Height must be a positive number.";
+  if (payload.fileSizeBytes != null && payload.fileSizeBytes < 0) {
+    return "File size must be zero or greater.";
+  }
+  return "";
+}
+
+function formatDimensions(width?: number | null, height?: number | null) {
+  if (width == null || height == null) return "No dimensions";
+  return `${width} x ${height}`;
+}
+
+function VisualAssetFormDialog({
+  songId,
+  asset,
+  defaultType = "CoverArt",
+  trigger,
+}: {
+  songId: string;
+  asset?: VisualAsset;
+  defaultType?: VisualAssetType;
+  trigger: ReactNode;
+}) {
+  const mode = asset ? "edit" : "create";
+  const [open, setOpen] = useState(false);
+  const [fileName, setFileName] = useState(asset?.fileName ?? "");
+  const [type, setType] = useState<VisualAssetType>(asset?.type ?? defaultType);
+  const [version, setVersion] = useState(String(asset?.version ?? 1));
+  const [status, setStatus] = useState<VisualAssetStatus>(asset?.status ?? "Draft");
+  const [width, setWidth] = useState(asset?.width == null ? "" : String(asset.width));
+  const [height, setHeight] = useState(asset?.height == null ? "" : String(asset.height));
+  const [fileSizeMb, setFileSizeMb] = useState(
+    asset?.fileSizeBytes == null ? "" : (asset.fileSizeBytes / 1024 / 1024).toFixed(1),
+  );
+  const [isCurrent, setIsCurrent] = useState(asset?.isCurrent ?? false);
+  const [error, setError] = useState("");
+  const mutations = useVisualAssetMutations(songId);
+  const mutation = mode === "create" ? mutations.create : mutations.update;
+
+  async function submit() {
+    const fileSizeMbValue = numberOrNull(fileSizeMb);
+    const payload: VisualAssetPayload = {
+      type,
+      fileName: fileName.trim(),
+      version: Number(version),
+      status,
+      width: numberOrNull(width),
+      height: numberOrNull(height),
+      fileSizeBytes: fileSizeMbValue == null ? null : Math.round(fileSizeMbValue * 1024 * 1024),
+      isCurrent,
+    };
+    const validationError = validateVisualAssetPayload(payload);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      if (mode === "create") {
+        await mutations.create.mutateAsync(payload);
+        setFileName("");
+        setType(defaultType);
+        setVersion("1");
+        setStatus("Draft");
+        setWidth("");
+        setHeight("");
+        setFileSizeMb("");
+        setIsCurrent(false);
+      } else if (asset) {
+        await mutations.update.mutateAsync({
+          visualAssetId: String(asset.id),
+          payload,
+        });
+      }
+      setError("");
+      setOpen(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The visual asset could not be saved.");
+    }
+  }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {VISUAL_CATEGORIES.map((category) => {
-        const scoped = assets.filter((asset) => asset.category === category);
-        return scoped.length ? (
-          scoped.map((asset) => (
-            <AssetCard
-              key={asset.id}
-              title={asset.filename}
-              category={category}
-              status={asset.state}
-              meta={`${asset.version} / ${asset.creator} / ${formatDate(asset.lastUpdated)}`}
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="border-border bg-background">
+        <DialogHeader>
+          <DialogTitle className="uppercase">
+            {mode === "create" ? "Add visual asset" : "Edit visual asset"}
+          </DialogTitle>
+          <DialogDescription>
+            This saves metadata only. Actual image/video upload, previews, and external storage are
+            planned for a later milestone.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label
+              className="label-tech"
+              htmlFor={`${mode}-visual-file-name-${asset?.id ?? "new"}`}
+            >
+              File name
+            </label>
+            <Input
+              id={`${mode}-visual-file-name-${asset?.id ?? "new"}`}
+              value={fileName}
+              maxLength={255}
+              onChange={(event) => setFileName(event.target.value)}
+              className="mt-2"
+              placeholder="cover_v3.png"
             />
-          ))
-        ) : (
-          <AssetCard
-            key={category}
-            title="No asset"
-            category={category}
-            status="Missing"
-            meta="Mock-only placeholder"
+          </div>
+          <div>
+            <label className="label-tech">Type</label>
+            <Select value={type} onValueChange={(value) => setType(value as VisualAssetType)}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {VISUAL_ASSET_TYPES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {visualTypeLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-visual-version-${asset?.id ?? "new"}`}>
+              Version
+            </label>
+            <Input
+              id={`${mode}-visual-version-${asset?.id ?? "new"}`}
+              type="number"
+              min={1}
+              step={1}
+              value={version}
+              onChange={(event) => setVersion(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div>
+            <label className="label-tech">Status</label>
+            <Select value={status} onValueChange={(value) => setStatus(value as VisualAssetStatus)}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {VISUAL_ASSET_STATUSES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {visualStatusLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-visual-width-${asset?.id ?? "new"}`}>
+              Width
+            </label>
+            <Input
+              id={`${mode}-visual-width-${asset?.id ?? "new"}`}
+              type="number"
+              min={1}
+              step={1}
+              value={width}
+              onChange={(event) => setWidth(event.target.value)}
+              className="mt-2"
+              placeholder="3000"
+            />
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-visual-height-${asset?.id ?? "new"}`}>
+              Height
+            </label>
+            <Input
+              id={`${mode}-visual-height-${asset?.id ?? "new"}`}
+              type="number"
+              min={1}
+              step={1}
+              value={height}
+              onChange={(event) => setHeight(event.target.value)}
+              className="mt-2"
+              placeholder="3000"
+            />
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-visual-size-${asset?.id ?? "new"}`}>
+              File size MB
+            </label>
+            <Input
+              id={`${mode}-visual-size-${asset?.id ?? "new"}`}
+              type="number"
+              min={0}
+              step="0.1"
+              value={fileSizeMb}
+              onChange={(event) => setFileSizeMb(event.target.value)}
+              className="mt-2"
+              placeholder="8.4"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+            <Checkbox
+              checked={isCurrent}
+              onCheckedChange={(checked) => setIsCurrent(checked === true)}
+            />
+            Current version
+          </label>
+          {error ? <p className="text-sm text-muted-foreground sm:col-span-2">{error}</p> : null}
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={mutation.isPending}>
+              {mutation.isPending ? "Saving" : "Save"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VisualAssetRow({ songId, asset }: { songId: string; asset: VisualAsset }) {
+  const mutations = useVisualAssetMutations(songId);
+
+  return (
+    <div className="border border-border bg-background p-3">
+      <div className="aspect-video border border-border bg-panel p-3">
+        <div className="flex h-full items-end justify-between border border-dashed border-border p-3">
+          <span className="label-tech">{visualTypeLabel(asset.type)}</span>
+          <span className="text-xs text-muted-foreground">Placeholder</span>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{asset.fileName}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            v{asset.version} / {formatDimensions(asset.width, asset.height)} /{" "}
+            {formatFileSize(asset.fileSizeBytes)}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {asset.isCurrent ? (
+            <span className="border border-border px-2 py-1 text-xs">Current</span>
+          ) : null}
+          <StatusBadge status={visualStatusLabel(asset.status)} />
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">Added {formatDate(asset.uploadedAt)}</p>
+        <div className="flex gap-2">
+          <VisualAssetFormDialog
+            songId={songId}
+            asset={asset}
+            trigger={
+              <Button variant="outline" size="sm">
+                Edit
+              </Button>
+            }
           />
-        );
-      })}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete visual asset metadata</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes only the saved metadata record. No external image or video file will
+                  be deleted because file storage is not implemented yet.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => mutations.remove.mutate(String(asset.id))}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
     </div>
   );
 }
 
-function ReleaseTab({ songId }: { songId: string }) {
-  const release = getRelease(songId);
+function VisualsTab({ songId }: { songId: string }) {
+  const visualAssets = useQuery({
+    queryKey: visualAssetsQueryKey(songId),
+    queryFn: () => visualAssetsApi.getVisualAssets(songId),
+  });
+
+  if (visualAssets.isLoading) {
+    return <LoadingState label="Loading visual metadata" />;
+  }
+
+  if (visualAssets.isError) {
+    return (
+      <ErrorState
+        detail="Visual asset metadata could not be loaded from the backend."
+        onRetry={() => visualAssets.refetch()}
+      />
+    );
+  }
+
+  const assets = visualAssets.data ?? [];
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
-      <Panel title="Release metadata" label="Mock-only">
-        <dl className="grid grid-cols-2 gap-3 text-sm">
-          <Info label="Date" value={formatDate(release.releaseDate) ?? release.releaseDate} />
-          <Info label="Distributor" value={release.distributor} />
-          <Info label="ISRC" value={release.isrc} />
-          <Info label="UPC" value={release.upc} />
-          <Info label="Type" value={release.releaseType} />
-          <Info label="Status" value={release.stage} />
-        </dl>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {release.platforms.map((platform) => (
-            <span key={platform} className="border border-border px-2 py-1 text-xs">
-              {platform}
-            </span>
-          ))}
+    <div className="space-y-4">
+      <Panel title="Visual metadata" label="Real backend data">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Metadata is persisted through the ASP.NET API. Thumbnails, file upload, playback, and
+            Google Drive association are placeholders for later milestones.
+          </p>
+          <VisualAssetFormDialog
+            songId={songId}
+            trigger={
+              <Button>
+                <Plus className="h-4 w-4" />
+                Add asset
+              </Button>
+            }
+          />
         </div>
       </Panel>
-      <Panel title="Preparation checklist" label="Mock-only">
+
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {VISUAL_ASSET_TYPES.map((type) => {
+          const scoped = assets.filter((asset) => asset.type === type);
+          return (
+            <Panel key={type} title={visualTypeLabel(type)} label="Real metadata">
+              {scoped.length ? (
+                <div className="space-y-3">
+                  {scoped.map((asset) => (
+                    <VisualAssetRow key={asset.id} songId={songId} asset={asset} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title={`No ${visualTypeLabel(type).toLowerCase()} metadata`}
+                  detail="Add a visual metadata record now. Actual media upload and preview generation will arrive in a later milestone."
+                />
+              )}
+            </Panel>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function useReleaseMutations(songId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: releaseQueryKey(songId) });
+
+  return {
+    create: useMutation({
+      mutationFn: (payload: ReleasePayload) => releasesApi.createRelease(songId, payload),
+      onSuccess: invalidate,
+    }),
+    update: useMutation({
+      mutationFn: (payload: ReleasePayload) => releasesApi.updateRelease(songId, payload),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: () => releasesApi.deleteRelease(songId),
+      onSuccess: invalidate,
+    }),
+  };
+}
+
+function isReleaseType(value: string): value is ReleaseType {
+  return RELEASE_TYPES.includes(value as ReleaseType);
+}
+
+function isReleaseStatus(value: string): value is ReleaseStatus {
+  return RELEASE_STATUSES.includes(value as ReleaseStatus);
+}
+
+function isReleasePlatform(value: string): value is ReleasePlatform {
+  return RELEASE_PLATFORMS.includes(value as ReleasePlatform);
+}
+
+function releaseTypeLabel(type: ReleaseType) {
+  return RELEASE_TYPE_LABELS[type];
+}
+
+function releaseStatusLabel(status: ReleaseStatus) {
+  return RELEASE_STATUS_LABELS[status];
+}
+
+function platformLabel(platform: ReleasePlatform) {
+  return RELEASE_PLATFORM_LABELS[platform];
+}
+
+function validateReleasePayload(payload: ReleasePayload) {
+  if (!isReleaseType(payload.releaseType)) return "Choose a valid release type.";
+  if (!isReleaseStatus(payload.status)) return "Choose a valid release status.";
+  if (payload.distributor && payload.distributor.trim().length > 120) {
+    return "Distributor must be 120 characters or fewer.";
+  }
+  if (payload.isrc && payload.isrc.trim().length > 20) {
+    return "ISRC must be 20 characters or fewer.";
+  }
+  if (payload.upc && payload.upc.trim().length > 20) return "UPC must be 20 characters or fewer.";
+  if (!payload.platforms.every(isReleasePlatform)) return "Choose valid platforms.";
+  return "";
+}
+
+function ReleaseFormDialog({
+  songId,
+  release,
+  trigger,
+}: {
+  songId: string;
+  release?: Release | null;
+  trigger: ReactNode;
+}) {
+  const mode = release ? "edit" : "create";
+  const mutations = useReleaseMutations(songId);
+  const mutation = mode === "create" ? mutations.create : mutations.update;
+  const [open, setOpen] = useState(false);
+  const [releaseDate, setReleaseDate] = useState(release?.releaseDate ?? "");
+  const [releaseType, setReleaseType] = useState<ReleaseType>(release?.releaseType ?? "Single");
+  const [distributor, setDistributor] = useState(release?.distributor ?? "");
+  const [isrc, setIsrc] = useState(release?.isrc ?? "");
+  const [upc, setUpc] = useState(release?.upc ?? "");
+  const [status, setStatus] = useState<ReleaseStatus>(release?.status ?? "Planning");
+  const [platforms, setPlatforms] = useState<ReleasePlatform[]>(release?.platforms ?? []);
+  const [error, setError] = useState("");
+
+  function togglePlatform(platform: ReleasePlatform, checked: boolean) {
+    setPlatforms((current) =>
+      checked ? [...current, platform] : current.filter((item) => item !== platform),
+    );
+  }
+
+  async function submit() {
+    const payload: ReleasePayload = {
+      releaseDate: releaseDate || null,
+      releaseType,
+      distributor: distributor.trim() || null,
+      isrc: isrc.trim() || null,
+      upc: upc.trim() || null,
+      status,
+      platforms,
+    };
+    const validationError = validateReleasePayload(payload);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      await mutation.mutateAsync(payload);
+      setError("");
+      setOpen(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The release plan could not be saved.");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="border-border bg-background">
+        <DialogHeader>
+          <DialogTitle className="uppercase">
+            {mode === "create" ? "Create release plan" : "Edit release plan"}
+          </DialogTitle>
+          <DialogDescription>
+            This saves release planning metadata only. Distributor delivery and publishing are
+            planned for later milestones.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-release-date-${songId}`}>
+              Release date
+            </label>
+            <Input
+              id={`${mode}-release-date-${songId}`}
+              type="date"
+              value={releaseDate}
+              onChange={(event) => setReleaseDate(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div>
+            <label className="label-tech">Release type</label>
+            <Select
+              value={releaseType}
+              onValueChange={(value) => setReleaseType(value as ReleaseType)}
+            >
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RELEASE_TYPES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {releaseTypeLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-release-distributor-${songId}`}>
+              Distributor
+            </label>
+            <Input
+              id={`${mode}-release-distributor-${songId}`}
+              value={distributor}
+              maxLength={120}
+              onChange={(event) => setDistributor(event.target.value)}
+              className="mt-2"
+              placeholder="DISTROKID"
+            />
+          </div>
+          <div>
+            <label className="label-tech">Release status</label>
+            <Select value={status} onValueChange={(value) => setStatus(value as ReleaseStatus)}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RELEASE_STATUSES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {releaseStatusLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-release-isrc-${songId}`}>
+              ISRC
+            </label>
+            <Input
+              id={`${mode}-release-isrc-${songId}`}
+              value={isrc}
+              maxLength={20}
+              onChange={(event) => setIsrc(event.target.value)}
+              className="mt-2"
+              placeholder="QZK4S260001"
+            />
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-release-upc-${songId}`}>
+              UPC
+            </label>
+            <Input
+              id={`${mode}-release-upc-${songId}`}
+              value={upc}
+              maxLength={20}
+              onChange={(event) => setUpc(event.target.value)}
+              className="mt-2"
+              placeholder="191227000000"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <p className="label-tech">Platforms</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {RELEASE_PLATFORMS.map((platform) => (
+                <label key={platform} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={platforms.includes(platform)}
+                    onCheckedChange={(checked) => togglePlatform(platform, checked === true)}
+                  />
+                  {platformLabel(platform)}
+                </label>
+              ))}
+            </div>
+          </div>
+          {error ? <p className="text-sm text-muted-foreground sm:col-span-2">{error}</p> : null}
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={mutation.isPending}>
+              {mutation.isPending ? "Saving" : "Save"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReleaseTab({ songId }: { songId: string }) {
+  const release = useQuery({
+    queryKey: releaseQueryKey(songId),
+    queryFn: () => releasesApi.getRelease(songId),
+  });
+  const mutations = useReleaseMutations(songId);
+  const plannedRelease = getRelease(songId);
+
+  if (release.isLoading) {
+    return <LoadingState label="Loading release metadata" />;
+  }
+
+  if (release.isError) {
+    return (
+      <ErrorState
+        detail="Release metadata could not be loaded from the backend."
+        onRetry={() => release.refetch()}
+      />
+    );
+  }
+
+  const releasePlan = release.data;
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
+      <Panel title="Release metadata" label="Real backend data">
+        {releasePlan ? (
+          <>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <Info
+                label="Date"
+                value={
+                  releasePlan.releaseDate ? formatDate(releasePlan.releaseDate) : "Not scheduled"
+                }
+              />
+              <Info label="Distributor" value={releasePlan.distributor ?? "Not selected"} />
+              <Info label="ISRC" value={releasePlan.isrc ?? "Not assigned"} />
+              <Info label="UPC" value={releasePlan.upc ?? "Not assigned"} />
+              <Info label="Type" value={releaseTypeLabel(releasePlan.releaseType)} />
+              <Info label="Status" value={releaseStatusLabel(releasePlan.status)} />
+            </dl>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {releasePlan.platforms.length ? (
+                releasePlan.platforms.map((platform) => (
+                  <span key={platform} className="border border-border px-2 py-1 text-xs">
+                    {platformLabel(platform)}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-muted-foreground">No platforms selected.</span>
+              )}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <ReleaseFormDialog
+                songId={songId}
+                release={releasePlan}
+                trigger={<Button variant="outline">Edit</Button>}
+              />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete release metadata</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This removes only the saved release plan. The Song, audio assets, visual
+                      assets, and any future external files are not deleted.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => mutations.remove.mutate()}>
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Created {formatDate(releasePlan.createdAt)} / Updated{" "}
+              {formatDate(releasePlan.updatedAt)}
+            </p>
+          </>
+        ) : (
+          <div className="flex min-h-36 flex-col items-center justify-center border border-dashed border-border p-6 text-center">
+            <p className="text-sm font-medium uppercase">No release plan yet</p>
+            <p className="mt-2 max-w-md text-sm text-muted-foreground">
+              Create Release Plan to persist release metadata for this Song.
+            </p>
+            <ReleaseFormDialog
+              songId={songId}
+              trigger={
+                <Button className="mt-4">
+                  <Plus className="h-4 w-4" />
+                  Create Release Plan
+                </Button>
+              }
+            />
+          </div>
+        )}
+      </Panel>
+      <Panel title="Preparation checklist" label="Planned">
+        <p className="mb-3 text-sm text-muted-foreground">
+          Checklist persistence is planned for a later milestone; these items are currently a guide.
+        </p>
         <div className="grid gap-2 sm:grid-cols-2">
-          {release.checklist.map((item) => (
+          {plannedRelease.checklist.map((item) => (
             <div
               key={item.item}
               className="flex items-center gap-3 border border-border bg-background p-3"
@@ -1417,36 +2149,6 @@ function FileRow({
       </div>
       {detail ? <p className="mt-3 text-xs text-muted-foreground">{detail}</p> : null}
     </div>
-  );
-}
-
-function AssetCard({
-  title,
-  category,
-  status,
-  meta,
-}: {
-  title: string;
-  category: string;
-  status: string;
-  meta: string;
-}) {
-  return (
-    <article className="border border-border bg-panel p-3">
-      <div className="aspect-video border border-border bg-background p-3">
-        <div className="flex h-full items-end justify-between border border-border p-3">
-          <span className="label-tech">{category}</span>
-          <ExternalLink className="h-4 w-4 text-muted-foreground" />
-        </div>
-      </div>
-      <div className="mt-3 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{title}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{meta}</p>
-        </div>
-        <StatusBadge status={status} />
-      </div>
-    </article>
   );
 }
 

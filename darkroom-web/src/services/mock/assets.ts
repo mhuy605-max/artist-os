@@ -1,4 +1,4 @@
-import type { MockAudioAsset, VisualAsset, AudioAssetType, VisualCategory } from "@/types";
+import type { MockAudioAsset, MockVisualAsset, AudioAssetType, VisualCategory } from "@/types";
 import { mockSongs } from "./songs";
 
 /** MOCK audio assets. Real files will later come from Google Drive. */
@@ -99,7 +99,7 @@ export function getAudioAssets(songId: string): MockAudioAsset[] {
   }));
 }
 
-const VISUAL_TEMPLATE: Omit<VisualAsset, "id" | "songId">[] = [
+const VISUAL_TEMPLATE: Omit<MockVisualAsset, "id" | "songId">[] = [
   {
     category: "Cover Art",
     filename: "cover_final_3000x3000.tif",
@@ -175,7 +175,7 @@ export const VISUAL_CATEGORIES: VisualCategory[] = [
   "Social Content",
 ];
 
-export function getVisualAssets(songId: string): VisualAsset[] {
+export function getVisualAssets(songId: string): MockVisualAsset[] {
   const index = mockSongs.findIndex((s) => s.id === songId);
   if (index < 0) return [];
   const depth = [8, 8, 8, 8, 0, 6, 0, 2][index] ?? 0;

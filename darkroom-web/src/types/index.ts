@@ -99,6 +99,143 @@ export interface AudioAssetPayload {
   isCurrent: boolean;
 }
 
+export const VISUAL_ASSET_TYPES = [
+  "CoverArt",
+  "MusicVideo",
+  "Visualizer",
+  "SpotifyCanvas",
+  "PromoAsset",
+  "SocialContent",
+] as const;
+
+export type VisualAssetType = (typeof VISUAL_ASSET_TYPES)[number];
+
+export const VISUAL_ASSET_TYPE_LABELS: Record<VisualAssetType, string> = {
+  CoverArt: "Cover Art",
+  MusicVideo: "Music Video",
+  Visualizer: "Visualizer",
+  SpotifyCanvas: "Spotify Canvas",
+  PromoAsset: "Promo Asset",
+  SocialContent: "Social Content",
+};
+
+export const VISUAL_ASSET_STATUSES = [
+  "Draft",
+  "InProgress",
+  "Review",
+  "Approved",
+  "Final",
+] as const;
+
+export type VisualAssetStatus = (typeof VISUAL_ASSET_STATUSES)[number];
+
+export const VISUAL_ASSET_STATUS_LABELS: Record<VisualAssetStatus, string> = {
+  Draft: "Draft",
+  InProgress: "In Progress",
+  Review: "Review",
+  Approved: "Approved",
+  Final: "Final",
+};
+
+/** Visual asset metadata as returned by the real ASP.NET Core API. */
+export interface VisualAsset {
+  id: string | number;
+  songId: string | number;
+  type: VisualAssetType;
+  fileName: string;
+  version: number;
+  status: VisualAssetStatus;
+  width?: number | null;
+  height?: number | null;
+  fileSizeBytes?: number | null;
+  uploadedAt: string;
+  isCurrent: boolean;
+}
+
+export interface VisualAssetPayload {
+  type: VisualAssetType;
+  fileName: string;
+  version: number;
+  status: VisualAssetStatus;
+  width?: number | null;
+  height?: number | null;
+  fileSizeBytes?: number | null;
+  isCurrent: boolean;
+}
+
+export const RELEASE_TYPES = ["Single"] as const;
+
+export type ReleaseType = (typeof RELEASE_TYPES)[number];
+
+export const RELEASE_TYPE_LABELS: Record<ReleaseType, string> = {
+  Single: "Single",
+};
+
+export const RELEASE_STATUSES = [
+  "Planning",
+  "Preparing",
+  "Ready",
+  "Scheduled",
+  "Released",
+] as const;
+
+export type ReleaseStatus = (typeof RELEASE_STATUSES)[number];
+
+export const RELEASE_STATUS_LABELS: Record<ReleaseStatus, string> = {
+  Planning: "Planning",
+  Preparing: "Preparing",
+  Ready: "Ready",
+  Scheduled: "Scheduled",
+  Released: "Released",
+};
+
+export const RELEASE_PLATFORMS = [
+  "Spotify",
+  "AppleMusic",
+  "YouTube",
+  "YouTubeMusic",
+  "SoundCloud",
+  "TikTok",
+  "Other",
+] as const;
+
+export type ReleasePlatform = (typeof RELEASE_PLATFORMS)[number];
+
+export const RELEASE_PLATFORM_LABELS: Record<ReleasePlatform, string> = {
+  Spotify: "Spotify",
+  AppleMusic: "Apple Music",
+  YouTube: "YouTube",
+  YouTubeMusic: "YouTube Music",
+  SoundCloud: "SoundCloud",
+  TikTok: "TikTok",
+  Other: "Other",
+};
+
+/** Release planning metadata as returned by the real ASP.NET Core API. */
+export interface Release {
+  id: string | number;
+  songId: string | number;
+  releaseDate?: string | null;
+  releaseType: ReleaseType;
+  distributor?: string | null;
+  isrc?: string | null;
+  upc?: string | null;
+  status: ReleaseStatus;
+  platforms: ReleasePlatform[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReleasePayload {
+  releaseDate?: string | null;
+  releaseType: ReleaseType;
+  distributor?: string | null;
+  isrc?: string | null;
+  upc?: string | null;
+  status: ReleaseStatus;
+  platforms: ReleasePlatform[];
+}
+
 export interface MockAudioAsset {
   id: string;
   songId: string;
@@ -119,7 +256,7 @@ export type VisualCategory =
 
 export type AssetState = "Missing" | "In Progress" | "Review" | "Approved" | "Final";
 
-export interface VisualAsset {
+export interface MockVisualAsset {
   id: string;
   songId: string;
   category: VisualCategory;

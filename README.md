@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-GitHub Actions CI Foundation
+Release Metadata Foundation
 ```
 
 Implemented and verified:
@@ -47,7 +47,13 @@ Implemented and verified:
 - AudioAsset metadata model related to Song
 - Nested AudioAsset metadata API
 - Real browser-based Audio tab metadata create/read/update/delete
-- Automated backend integration tests for current Song and AudioAsset API behavior
+- VisualAsset metadata model related to Song
+- Nested VisualAsset metadata API
+- Real browser-based Visuals tab metadata create/read/update/delete
+- Release metadata model related to Song
+- Nested Release metadata API
+- Real browser-based Release tab metadata create/read/update/delete
+- Automated backend integration tests for current Song, AudioAsset, VisualAsset, and Release API behavior
 - GitHub Actions CI workflow for backend build/tests and frontend lint/build
 
 Planned, not implemented yet:
@@ -56,11 +62,11 @@ Planned, not implemented yet:
 - Google Drive integration
 - YouTube analytics
 - Real audio file upload, playback, waveform processing, or external file storage
-- Backend visual asset management
-- Backend release/content pipeline
+- Real release publishing or distributor delivery
+- Backend content pipeline
 - Backend credits/collaboration features
 - Backend analytics
-- CD and production deployment
+- Continuous delivery and production deployment
 
 ## Current Implemented Frontend
 
@@ -92,16 +98,18 @@ The `/` route redirects to `/dashboard`.
 
 ## Real Backend Integration
 
-Song CRUD and AudioAsset metadata are connected to the ASP.NET Core backend.
+Song CRUD, AudioAsset metadata, VisualAsset metadata, and Release metadata are connected to the ASP.NET Core backend.
 
 Browser-based create, read, update, and delete works against:
 
 ```text
 http://localhost:5178/api/songs
 http://localhost:5178/api/songs/{songId}/audio-assets
+http://localhost:5178/api/songs/{songId}/visual-assets
+http://localhost:5178/api/songs/{songId}/release
 ```
 
-The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. Local CORS is configured for frontend development from:
+The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. The Visuals tab loads and writes real VisualAsset metadata for the selected Song. The Release tab loads and writes real Release metadata for the selected Song. Local CORS is configured for frontend development from:
 
 ```text
 http://localhost:8080
@@ -115,8 +123,9 @@ These areas are visible in the frontend but are not backend-backed yet:
 
 - Dashboard metadata beyond real Song records
 - Audio waveform display, file upload, playback, and external file association
-- Visual assets
-- Release
+- Visual thumbnails, file upload, previews, playback, and external file association
+- Release preparation checklist
+- Release publishing and distributor delivery
 - Content
 - Credits
 - Analytics
@@ -153,6 +162,10 @@ public class Song
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<AudioAsset> AudioAssets { get; set; } = [];
+
+    public ICollection<VisualAsset> VisualAssets { get; set; } = [];
+
+    public Release? Release { get; set; }
 }
 ```
 
@@ -217,6 +230,118 @@ Draft
 Review
 Approved
 Final
+```
+
+### VisualAsset Metadata API
+
+The backend supports metadata-only visual assets nested under a Song.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/songs/{songId}/visual-assets` | List visual asset metadata for a Song. |
+| `GET` | `/api/songs/{songId}/visual-assets/{visualAssetId}` | Get one visual asset metadata record. |
+| `POST` | `/api/songs/{songId}/visual-assets` | Create a visual asset metadata record. Returns `201 Created`. |
+| `PUT` | `/api/songs/{songId}/visual-assets/{visualAssetId}` | Update a visual asset metadata record. Returns `204 No Content`. |
+| `DELETE` | `/api/songs/{songId}/visual-assets/{visualAssetId}` | Delete a visual asset metadata record. Returns `204 No Content` or `404` when missing. |
+
+Current `VisualAsset` shape:
+
+```csharp
+public class VisualAsset
+{
+    public int Id { get; set; }
+    public int SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public string Type { get; set; } = "CoverArt";
+    public string FileName { get; set; } = string.Empty;
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "Draft";
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    public long? FileSizeBytes { get; set; }
+    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+    public bool IsCurrent { get; set; }
+}
+```
+
+Allowed VisualAsset types:
+
+```text
+CoverArt
+MusicVideo
+Visualizer
+SpotifyCanvas
+PromoAsset
+SocialContent
+```
+
+Allowed VisualAsset statuses:
+
+```text
+Draft
+InProgress
+Review
+Approved
+Final
+```
+
+### Release Metadata API
+
+The backend supports one metadata-only release plan per Song.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/songs/{songId}/release` | Get release metadata for a Song. Returns `404` when the Song or release plan is missing. |
+| `POST` | `/api/songs/{songId}/release` | Create a release metadata record. Returns `201 Created` or `409 Conflict` when one already exists. |
+| `PUT` | `/api/songs/{songId}/release` | Update the release metadata record. Returns `204 No Content`. |
+| `DELETE` | `/api/songs/{songId}/release` | Delete the release metadata record only. Returns `204 No Content` or `404` when missing. |
+
+Current `Release` shape:
+
+```csharp
+public class Release
+{
+    public int Id { get; set; }
+    public int SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public DateOnly? ReleaseDate { get; set; }
+    public string ReleaseType { get; set; } = "Single";
+    public string? Distributor { get; set; }
+    public string? Isrc { get; set; }
+    public string? Upc { get; set; }
+    public string Status { get; set; } = "Planning";
+    public string Platforms { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+```
+
+Allowed Release type:
+
+```text
+Single
+```
+
+Allowed Release statuses:
+
+```text
+Planning
+Preparing
+Ready
+Scheduled
+Released
+```
+
+Allowed Release platforms:
+
+```text
+Spotify
+AppleMusic
+YouTube
+YouTubeMusic
+SoundCloud
+TikTok
+Other
 ```
 
 ## Architecture
@@ -322,6 +447,25 @@ PUT    /api/songs/{songId}/audio-assets/{audioAssetId}
 DELETE /api/songs/{songId}/audio-assets/{audioAssetId}
 ```
 
+Visual asset metadata endpoints:
+
+```text
+GET    /api/songs/{songId}/visual-assets
+GET    /api/songs/{songId}/visual-assets/{visualAssetId}
+POST   /api/songs/{songId}/visual-assets
+PUT    /api/songs/{songId}/visual-assets/{visualAssetId}
+DELETE /api/songs/{songId}/visual-assets/{visualAssetId}
+```
+
+Release metadata endpoints:
+
+```text
+GET    /api/songs/{songId}/release
+POST   /api/songs/{songId}/release
+PUT    /api/songs/{songId}/release
+DELETE /api/songs/{songId}/release
+```
+
 Example create request:
 
 ```bash
@@ -345,14 +489,18 @@ ArtistOS/
 ├── ArtistOS.Api/
 │   ├── Controllers/
 │   │   ├── AudioAssetsController.cs
-│   │   └── SongsController.cs
+│   │   ├── ReleasesController.cs
+│   │   ├── SongsController.cs
+│   │   └── VisualAssetsController.cs
 │   ├── Data/
 │   │   └── AppDbContext.cs
 │   ├── Dtos/
 │   ├── Migrations/
 │   ├── Models/
 │   │   ├── AudioAsset.cs
-│   │   └── Song.cs
+│   │   ├── Release.cs
+│   │   ├── Song.cs
+│   │   └── VisualAsset.cs
 │   ├── Properties/
 │   │   └── launchSettings.json
 │   ├── appsettings.Development.json
@@ -478,7 +626,9 @@ artist_os
 Current tables:
 
 - `AudioAssets`
+- `Releases`
 - `Songs`
+- `VisualAssets`
 - `__EFMigrationsHistory`
 
 Current migrations:
@@ -487,6 +637,8 @@ Current migrations:
 20260828171115_InitialCreate
 20260828180003_AddSongValidationConstraints
 20260829071423_AddAudioAssetMetadata
+20260829075405_AddVisualAssetMetadata
+20260829130234_AddReleaseMetadata
 ```
 
 Large media files such as WAV, MP3, stems, artwork, and video files should not be stored directly in PostgreSQL. The planned direction is to store metadata in PostgreSQL and large files in an external provider such as Google Drive.
@@ -502,6 +654,10 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Song CRUD API
 - [x] AudioAsset metadata model and migration
 - [x] Nested AudioAsset metadata API
+- [x] VisualAsset metadata model and migration
+- [x] Nested VisualAsset metadata API
+- [x] Release metadata model and migration
+- [x] Nested Release metadata API
 - [x] Local frontend development CORS
 - [x] Automated backend tests
 - [ ] Automated frontend tests
@@ -514,9 +670,13 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Song detail workspace UI
 - [x] Browser-based real Song CRUD integration
 - [x] Browser-based real AudioAsset metadata integration
+- [x] Browser-based real VisualAsset metadata integration
+- [x] Browser-based real Release metadata integration
 - [ ] Real audio file upload and external file association
-- [ ] Backend visual asset management
-- [ ] Backend release and content workflow
+- [ ] Real visual file upload and external file association
+- [ ] Release preparation checklist persistence
+- [ ] Release publishing and distributor delivery
+- [ ] Backend content workflow
 - [ ] Backend credits and contributor management
 - [ ] Authentication and collaboration
 

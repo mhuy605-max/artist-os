@@ -15,4 +15,8 @@ public class Song
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<AudioAsset> AudioAssets { get; set; } = [];
+
+    public ICollection<VisualAsset> VisualAssets { get; set; } = [];
+
+    public Release? Release { get; set; }
 }
