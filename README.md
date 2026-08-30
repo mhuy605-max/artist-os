@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Release Preparation Checklist Persistence Foundation
+Calendar Persistence / Domain Aggregation Foundation
 ```
 
 Implemented and verified:
@@ -65,7 +65,9 @@ Implemented and verified:
 - ReleaseChecklistItem model related to Release
 - Nested Release checklist API
 - Real browser-based Release tab checklist persistence and progress tracking
-- Automated backend integration tests for current Song, AudioAsset, VisualAsset, Release, ReleaseChecklistItem, ContentItem, Credit, and AnalyticsSnapshot API behavior
+- Calendar aggregate API over Release and Content dates
+- Real browser-based Calendar month view backed by persisted Song, Release, and ContentItem metadata
+- Automated backend integration tests for current Song, AudioAsset, VisualAsset, Release, ReleaseChecklistItem, ContentItem, Credit, AnalyticsSnapshot, and Calendar API behavior
 - GitHub Actions CI workflow for backend build/tests and frontend lint/build
 
 Planned, not implemented yet:
@@ -76,6 +78,7 @@ Planned, not implemented yet:
 - Real audio file upload, playback, waveform processing, or external file storage
 - Real release publishing or distributor delivery
 - Automatic checklist completion from asset/content/credit records
+- Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync
 - Contributor directory, team permissions, contracts, royalties, or payout workflow
 - YouTube analytics ingestion and automated external platform sync
 - Continuous delivery and production deployment
@@ -110,9 +113,9 @@ The `/` route redirects to `/dashboard`.
 
 ## Real Backend Integration
 
-Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, ContentItem metadata, Credit metadata, and AnalyticsSnapshot metadata are connected to the ASP.NET Core backend.
+Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, and the Calendar aggregate are connected to the ASP.NET Core backend.
 
-Browser-based create, read, update, and delete works against:
+Browser-based create, read, update, and delete works against the current mutable Song workspace APIs:
 
 ```text
 http://localhost:5178/api/songs
@@ -125,7 +128,13 @@ http://localhost:5178/api/songs/{songId}/credits
 http://localhost:5178/api/songs/{songId}/analytics
 ```
 
-The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. The Visuals tab loads and writes real VisualAsset metadata for the selected Song. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected Song. The Content tab loads and writes real ContentItem metadata for the selected Song. The Credits tab loads and writes real Credit metadata for the selected Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected Song. Local CORS is configured for frontend development from:
+The read-only Calendar aggregate works against:
+
+```text
+http://localhost:5178/api/calendar
+```
+
+The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. The Visuals tab loads and writes real VisualAsset metadata for the selected Song. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected Song. The Content tab loads and writes real ContentItem metadata for the selected Song. The Credits tab loads and writes real Credit metadata for the selected Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected Song. The Calendar route reads Release and ContentItem dates from the backend and links entries back to the Song workspace. Local CORS is configured for frontend development from:
 
 ```text
 http://localhost:8080
@@ -145,7 +154,7 @@ These areas are visible in the frontend but are not backend-backed yet:
 - Content publishing and platform delivery
 - Contributor directory, team permissions, contracts, royalties, and payout workflow
 - YouTube analytics ingestion and automated external platform sync
-- Calendar
+- Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync
 - Team
 - Settings
 - Authentication
@@ -579,6 +588,25 @@ Other
 
 `SnapshotDate` is the measurement date supplied by the client. `CreatedAt` is controlled by the server. Analytics snapshots are metadata-only and do not sync with YouTube or any external platform yet.
 
+### Calendar Aggregate API
+
+The backend exposes a read-only Calendar aggregate assembled from existing persisted Release and ContentItem dates. There is no standalone CalendarEvent table in the current implementation.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/calendar` | List calendar entries from Release and ContentItem dates. Supports optional inclusive `from` and `to` `DateOnly` query filters. |
+
+Current event types:
+
+```text
+ReleaseDate
+ContentDue
+ContentScheduled
+ContentPublished
+```
+
+Entries include source type, source id, Song id, Song title, event type, title, date, status, optional platform, read-only editability metadata, and a navigation target back to `/songs/{songId}`.
+
 ## Architecture
 
 Current architecture:
@@ -739,6 +767,13 @@ PUT    /api/songs/{songId}/analytics/{analyticsSnapshotId}
 DELETE /api/songs/{songId}/analytics/{analyticsSnapshotId}
 ```
 
+Calendar aggregate endpoint:
+
+```text
+GET    /api/calendar
+GET    /api/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
+```
+
 Example create request:
 
 ```bash
@@ -763,6 +798,7 @@ ArtistOS/
 │   ├── Controllers/
 │   │   ├── AnalyticsSnapshotsController.cs
 │   │   ├── AudioAssetsController.cs
+│   │   ├── CalendarController.cs
 │   │   ├── ContentItemsController.cs
 │   │   ├── CreditsController.cs
 │   │   ├── ReleaseChecklistController.cs
@@ -916,6 +952,8 @@ Current tables:
 - `VisualAssets`
 - `__EFMigrationsHistory`
 
+Calendar currently has no dedicated table. It is a read model assembled from `Releases.ReleaseDate`, `ContentItems.DueDate`, `ContentItems.ScheduledAt`, and `ContentItems.PublishedAt`.
+
 Current migrations:
 
 ```text
@@ -955,6 +993,7 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Nested Credit metadata API
 - [x] AnalyticsSnapshot metadata model and migration
 - [x] Nested AnalyticsSnapshot metadata API
+- [x] Calendar aggregate API
 - [x] Local frontend development CORS
 - [x] Automated backend tests
 - [ ] Automated frontend tests
@@ -973,10 +1012,12 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Browser-based real ContentItem metadata integration
 - [x] Browser-based real Credit metadata integration
 - [x] Browser-based real AnalyticsSnapshot metadata integration
+- [x] Browser-based real Calendar integration from Release and Content dates
 - [ ] Real audio file upload and external file association
 - [ ] Real visual file upload and external file association
 - [ ] Release publishing and distributor delivery
 - [ ] Content publishing and platform delivery
+- [ ] Standalone calendar events, reminders, and drag/drop rescheduling
 - [ ] Contributor directory, contracts, royalties, and payout workflow
 - [ ] Automated external analytics ingestion
 - [ ] Authentication and collaboration

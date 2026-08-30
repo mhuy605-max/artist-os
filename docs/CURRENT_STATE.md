@@ -4,9 +4,9 @@ Last updated: 2026-08-30
 
 ## Current Phase
 
-Release Preparation Checklist Persistence Foundation.
+Calendar Persistence / Domain Aggregation Foundation.
 
-Current focus: Release preparation checklist metadata is now PostgreSQL-backed and connected to the Song workspace Release tab. Checklist items are fixed standard metadata records under the existing Release aggregate. Automatic checklist completion from assets/content/credits, distributor delivery, publishing, authentication, and external integrations remain future work.
+Current focus: Calendar is now a read-only aggregate backed by existing persisted Release and ContentItem dates. It does not duplicate those dates into a standalone CalendarEvent table. Standalone sessions/events, reminders, drag/drop rescheduling, Google Calendar sync, publishing, authentication, and external integrations remain future work.
 
 ## Completed
 
@@ -99,6 +99,16 @@ Current focus: Release preparation checklist metadata is now PostgreSQL-backed a
 - AnalyticsSnapshot API create/read/update/delete, validation, timestamp, duplicate prevention, ordering, and Song relationship behavior covered by automated integration-style tests.
 - Browser-based Release checklist create-on-release, refresh persistence, check/uncheck, progress, and server timestamp behavior verified.
 - ReleaseChecklist API default initialization, read/order, update, validation, timestamps, and Release/Song relationship behavior covered by automated integration-style tests.
+- `CalendarEntryResponse` read DTO created.
+- `CalendarController` aggregate API implemented at `GET /api/calendar`.
+- Calendar entries are assembled from `Release.ReleaseDate`, `ContentItem.DueDate`, `ContentItem.ScheduledAt`, and `ContentItem.PublishedAt`.
+- Calendar supports optional inclusive `from` and `to` `DateOnly` filters.
+- Calendar returns `400 Bad Request` when `from` is after `to`.
+- Calendar entries are sorted by date, song title, event type, and source id.
+- Calendar route now reads real backend data through TanStack Query.
+- Mock calendar data was retired.
+- Browser-based Calendar aggregation, month-range loading, persistence after refresh, date move, deletion, and Song navigation verified.
+- Calendar API empty, filtering, ordering, live update, delete, cascade, and source-domain behavior covered by automated integration-style tests.
 
 ## Current Implementation
 
@@ -137,9 +147,10 @@ ContentItemsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 CreditsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 AnalyticsSnapshotsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ReleaseChecklistController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+CalendarController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ```
 
-No backend repository or service layer has been introduced yet. This is intentional because current Song, AudioAsset metadata, VisualAsset metadata, Release metadata, ReleaseChecklist metadata, ContentItem metadata, Credit metadata, and AnalyticsSnapshot metadata CRUD/validation do not contain enough business logic to justify those abstractions.
+No backend repository or service layer has been introduced yet. This is intentional because current Song, AudioAsset metadata, VisualAsset metadata, Release metadata, ReleaseChecklist metadata, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, and Calendar aggregate behavior do not contain enough business logic to justify those abstractions.
 
 Development-only backend CORS is configured in `ArtistOS.Api/Program.cs` using the named policy `LocalFrontend`.
 
@@ -164,7 +175,7 @@ Current frontend architecture:
 TanStack Router routes
   -> DARKROOM SYSTEM app shell/pages
   -> TanStack Query
-  -> isolated Song, AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, and AnalyticsSnapshot API services
+  -> isolated Song, AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, AnalyticsSnapshot, and Calendar API services
   -> ASP.NET Core API
 ```
 
@@ -276,6 +287,13 @@ PUT    /api/songs/{songId}/analytics/{analyticsSnapshotId}
 DELETE /api/songs/{songId}/analytics/{analyticsSnapshotId}
 ```
 
+The frontend also uses the real backend for the Calendar aggregate:
+
+```text
+GET    /api/calendar
+GET    /api/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
+```
+
 Current frontend API base URL behavior:
 
 - `VITE_API_BASE_URL` controls the backend URL.
@@ -289,6 +307,7 @@ Current frontend API base URL behavior:
 - `PUT /api/songs/{songId}/content-items/{contentItemId}` is handled as `204 No Content`; the client refetches the content item afterward.
 - `PUT /api/songs/{songId}/credits/{creditId}` is handled as `204 No Content`; the client refetches the credit afterward.
 - `PUT /api/songs/{songId}/analytics/{analyticsSnapshotId}` is handled as `204 No Content`; the client refetches the analytics snapshot afterward.
+- Calendar uses month-scoped TanStack Query requests with inclusive `from` and `to` date filters.
 
 If the backend host is unreachable, the Song API service switches to an explicit in-memory development fallback and the UI shows a fallback notice. Other API errors are not hidden.
 
@@ -313,7 +332,7 @@ These frontend areas are mock-only and do not have backend persistence yet:
 - Content publishing and platform delivery.
 - Contributor directory, team permissions, contracts, royalties, and payout workflow.
 - External analytics ingestion and automated platform sync.
-- Calendar.
+- Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync.
 - Team.
 - Settings.
 - Login/authentication.
@@ -559,6 +578,32 @@ AnalyticsSnapshot is metadata-only. No YouTube API, Spotify API, TikTok API, Ins
 
 Snapshots are intentionally modeled as time-series records rather than one mutable analytics row. This allows Artist OS to preserve metric history over time.
 
+## Current Calendar Read Model
+
+Calendar is a read-only aggregate assembled from existing persisted domain dates.
+
+Persisted source dates:
+
+```text
+Release.ReleaseDate
+ContentItem.DueDate
+ContentItem.ScheduledAt
+ContentItem.PublishedAt
+```
+
+Current Calendar event types:
+
+```text
+ReleaseDate
+ContentDue
+ContentScheduled
+ContentPublished
+```
+
+Calendar entries are not independently editable. Each entry includes a navigation target back to `/songs/{songId}` so editing still happens in the source Song workspace.
+
+There is no `CalendarEvent` EF model, database table, or migration in the current implementation.
+
 ## Current DTOs
 
 The Song API uses DTOs instead of exposing the EF entity directly as the API contract.
@@ -586,6 +631,7 @@ The Song API uses DTOs instead of exposing the EF entity directly as the API con
 - `CreateAnalyticsSnapshotRequest`
 - `UpdateAnalyticsSnapshotRequest`
 - `AnalyticsSnapshotResponse`
+- `CalendarEntryResponse`
 
 DTOs are used because they solve current API contract problems:
 
@@ -598,6 +644,7 @@ DTOs are used because they solve current API contract problems:
 - keep ContentItem planning metadata separate from future platform publishing behavior
 - keep Credit contributor metadata separate from future user/team/payment/legal systems
 - keep AnalyticsSnapshot metadata separate from future external analytics ingestion behavior
+- keep Calendar as a read-only aggregate over Release and ContentItem source dates instead of duplicating dates into a separate table
 
 ## Validation / Normalization
 
@@ -912,6 +959,15 @@ The database enforces one AnalyticsSnapshot per Song + Platform + SnapshotDate.
 
 The frontend also performs matching basic form validation for user experience, but backend validation remains the trusted source.
 
+Current Calendar backend validation and read rules:
+
+- `from` and `to` are optional `DateOnly` query filters.
+- Filters are inclusive.
+- `from` after `to` returns `400 Bad Request`.
+- Entries are produced only when a source date exists.
+- One ContentItem can produce up to three entries when due, scheduled, and published dates are present.
+- Entries are ordered by date, Song title, event type, and source id.
+
 ## Database / Migrations
 
 Database:
@@ -947,6 +1003,8 @@ Applied migrations:
 20260830061847_AddAnalyticsSnapshotMetadata
 20260830104509_AddReleaseChecklistItems
 ```
+
+No migration was created for Calendar. The Calendar API is an aggregate read model over existing `Releases` and `ContentItems` columns.
 
 Current `Songs` schema:
 
@@ -1051,6 +1109,15 @@ Current `AnalyticsSnapshots` schema:
 - `SubscribersGained` bigint, required.
 - `CreatedAt` timestamp with time zone, required.
 
+Current Calendar persistence:
+
+- No dedicated Calendar table.
+- No standalone CalendarEvent entity.
+- Reads `Releases.ReleaseDate`.
+- Reads `ContentItems.DueDate`.
+- Reads `ContentItems.ScheduledAt`.
+- Reads `ContentItems.PublishedAt`.
+
 Indexes:
 
 - `IX_AudioAssets_SongId`
@@ -1121,6 +1188,7 @@ Backend expected API errors:
 - Missing song returns `404 Not Found`.
 - Missing audio asset returns `404 Not Found`.
 - Missing release, checklist, or checklist item returns `404 Not Found`.
+- Calendar `from` after `to` returns `400 Bad Request`.
 
 Frontend expected API behavior:
 
@@ -1128,6 +1196,7 @@ Frontend expected API behavior:
 - Non-unreachable API errors show an error state and retry action.
 - Mock-only areas are labeled as mock-only.
 - Audio file upload/playback/waveform behavior is explicitly described as future work.
+- Calendar standalone events, reminders, drag/drop rescheduling, and external calendar sync are described as future work.
 - Browser requests from `http://localhost:8080` to `http://localhost:5178` are allowed in Development by the backend CORS policy.
 
 No custom global backend exception handling has been added yet.
@@ -1149,14 +1218,13 @@ Automated tests:
 - ContentItem API behavior has both automated test coverage and pragmatic browser verification.
 - Credit API behavior has both automated test coverage and pragmatic browser verification.
 - AnalyticsSnapshot API behavior has both automated test coverage and pragmatic browser verification.
+- Calendar aggregate API behavior has both automated test coverage and pragmatic browser verification.
 
-Verification run during the latest Release checklist milestone:
+Verification run during the latest Calendar persistence milestone:
 
 ```text
 dotnet build
 dotnet test
-dotnet ef database update
-dotnet ef migrations list
 npm ci
 npm run lint
 npm run build
@@ -1167,9 +1235,8 @@ Results:
 
 ```text
 dotnet build: succeeded, 0 warnings, 0 errors.
-dotnet test: succeeded, 146 passed, 0 failed, 0 skipped.
-dotnet ef database update: succeeded.
-dotnet ef migrations list: confirmed 20260830104509_AddReleaseChecklistItems is applied.
+dotnet test: succeeded, 157 passed, 0 failed, 0 skipped.
+database migration: not created; no schema change.
 npm ci: succeeded, 0 vulnerabilities.
 npm run lint: completed with 0 errors and 8 warnings.
 npm run build: succeeded.
@@ -1220,6 +1287,16 @@ Automated backend coverage now includes:
 - AnalyticsSnapshot server-controlled `CreatedAt` behavior.
 - AnalyticsSnapshot list ordering by measurement date.
 - Song-to-AnalyticsSnapshot relationship behavior, including many snapshots across dates/platforms and deleting AnalyticsSnapshot metadata without deleting the parent Song.
+- Calendar empty state.
+- Calendar ReleaseDate aggregation.
+- Calendar ContentItem due, scheduled, and published aggregation.
+- Calendar multiple entries from one ContentItem.
+- Calendar Song id, Song title, status, platform, and navigation target response data.
+- Calendar inclusive filtering and one-sided filtering.
+- Calendar invalid `from`/`to` range returns `400 Bad Request`.
+- Calendar deterministic ordering.
+- Calendar reflects ReleaseDate and ContentItem date updates.
+- Calendar entries disappear after Release, ContentItem, or parent Song deletion.
 
 Previous frontend verification during the latest AudioAsset metadata milestone:
 
@@ -1255,7 +1332,7 @@ Previous Playwright route and real API checks confirmed:
 - Frontend validation surfaced a required-title message before sending an invalid create request.
 - The Song was deleted from the frontend.
 - The deleted Song remained gone after refresh and `GET /api/songs/{id}` returned `404`.
-- Calendar remained visibly mock-only.
+- Calendar now renders real backend aggregate data from Release and ContentItem dates.
 
 Latest manual AudioAsset API checks confirmed:
 
@@ -1343,7 +1420,7 @@ Latest browser ContentItem checks confirmed:
 - Deleted ContentItem metadata disappeared from the Content tab.
 - The parent Song still existed after deleting ContentItem metadata.
 - Content UI remained clear that Published status is metadata only and does not post to a platform.
-- Calendar remained mock-only.
+- Calendar route now reads real backend aggregate data.
 
 Latest browser Credit checks confirmed:
 
@@ -1377,6 +1454,21 @@ Latest browser AnalyticsSnapshot checks confirmed:
 - Temporary verification Song was deleted after verification.
 - Analytics UI remained clear that values are manually recorded metadata and not synced external analytics.
 
+Latest browser Calendar checks confirmed:
+
+- Calendar route loaded real backend aggregate data from `/api/calendar`.
+- Month view requested inclusive visible month ranges.
+- Empty state appeared when no Release or ContentItem dates existed for the visible month.
+- A ReleaseDate entry appeared on the correct date.
+- ContentItem DueDate, ScheduledAt, and PublishedAt entries appeared on the correct dates.
+- Updating ReleaseDate moved the Calendar entry to the new month/date.
+- Updating ContentItem dates moved/removed the corresponding Calendar entries.
+- Deleting a ContentItem removed its Calendar entry.
+- Clicking a Calendar entry opened the source Song workspace.
+- Refreshing Calendar preserved persisted Release entries.
+- Browser console showed no CORS/API errors during verification.
+- Calendar UI did not imply Google Calendar sync, automatic publishing, or external platform delivery.
+
 ## Security / Secrets Status
 
 - `appsettings.json` does not currently contain the local database password.
@@ -1386,7 +1478,7 @@ Latest browser AnalyticsSnapshot checks confirmed:
 
 ## Git Status Notes
 
-Current AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, and AnalyticsSnapshot metadata foundation work is uncommitted.
+Current AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, AnalyticsSnapshot, and Calendar aggregate foundation work is uncommitted.
 
 The frontend build generated route/output artifacts as expected. Build output remains ignored.
 
@@ -1412,6 +1504,8 @@ Remote GitHub Actions status:
 - Planned split percentages are stored independently per Credit and are not validated to total `100` across a Song.
 - Analytics snapshots are manually entered metadata and are not ingested from external platform APIs.
 - Release checklist items are not automatically completed from AudioAsset, VisualAsset, Credit, or ContentItem records yet.
+- Calendar is read-only and currently aggregates only Release and ContentItem dates.
+- Calendar does not yet support standalone sessions, reminders, external sync, or drag/drop rescheduling.
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - There is no frontend test script yet.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
@@ -1426,17 +1520,17 @@ Remote GitHub Actions status:
 - Real visual file upload, preview/thumbnail generation, playback, and external file association.
 - Automatic Release checklist completion based on asset/content/credit metadata.
 - Distributor delivery or publishing workflow.
-- Content publishing, platform delivery, and real calendar persistence.
+- Content publishing and platform delivery.
+- Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync.
 - Contributor directory, contracts, royalties, payment workflow, and authenticated team permissions.
 - Production deployment.
 
 ## Recommended Next Milestone
 
-Start the calendar persistence foundation.
+Start the dashboard aggregation foundation.
 
 Suggested scope:
 
-- Add metadata-only calendar event persistence for Song/Release/Content planning dates.
-- Keep external calendar integrations out of scope.
-- Add focused API routes and backend tests.
-- Connect the Calendar route to real backend metadata while preserving existing Song workspace behavior.
+- Replace dashboard mock metadata with a read-only aggregate over existing persisted Song, Release, ContentItem, Credit, and AnalyticsSnapshot records.
+- Keep authentication, collaboration, external analytics ingestion, and Google/YouTube integrations out of scope.
+- Add focused API tests and connect the Dashboard route to the real aggregate without changing Song workspace behavior.

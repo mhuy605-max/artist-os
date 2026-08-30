@@ -545,13 +545,32 @@ export interface TeamMember {
   lastActivity: string;
 }
 
-export type CalendarEventKind =
-  "Release" | "Teaser" | "Artwork" | "Music Video" | "Content" | "Milestone";
+export const CALENDAR_EVENT_TYPES = [
+  "ReleaseDate",
+  "ContentDue",
+  "ContentScheduled",
+  "ContentPublished",
+] as const;
 
-export interface CalendarEvent {
-  id: string;
-  date: string;
+export type CalendarEventType = (typeof CALENDAR_EVENT_TYPES)[number];
+
+export const CALENDAR_EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
+  ReleaseDate: "Release",
+  ContentDue: "Content Due",
+  ContentScheduled: "Scheduled Content",
+  ContentPublished: "Published Content",
+};
+
+export interface CalendarEntry {
+  sourceType: "Release" | "ContentItem";
+  sourceId: string | number;
+  songId: string | number;
+  songTitle: string;
+  eventType: CalendarEventType;
   title: string;
-  kind: CalendarEventKind;
-  song: string;
+  date: string;
+  status: string;
+  platform?: string | null;
+  isEditable: boolean;
+  navigationTarget: string;
 }
