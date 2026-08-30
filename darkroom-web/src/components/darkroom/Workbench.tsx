@@ -48,13 +48,14 @@ import {
   formatDate,
   formatNumber,
 } from "@/components/darkroom/Primitives";
+import { analyticsApi } from "@/services/api/analytics";
 import { audioAssetsApi } from "@/services/api/audioAssets";
 import { contentItemsApi } from "@/services/api/contentItems";
 import { creditsApi } from "@/services/api/credits";
 import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
 import { visualAssetsApi } from "@/services/api/visualAssets";
-import { getAnalytics, workspacePerformance } from "@/services/mock/analytics";
+import { workspacePerformance } from "@/services/mock/analytics";
 import { calendarEvents } from "@/services/mock/calendar";
 import { getRelease } from "@/services/mock/release";
 import {
@@ -66,6 +67,8 @@ import {
 import { getSongMeta } from "@/services/mock/songs";
 import { teamMembers, getSongTeam } from "@/services/mock/team";
 import {
+  ANALYTICS_PLATFORM_LABELS,
+  ANALYTICS_PLATFORMS,
   AUDIO_ASSET_STATUSES,
   AUDIO_ASSET_TYPES,
   CONTENT_PLATFORMS,
@@ -90,6 +93,9 @@ import {
   VISUAL_ASSET_STATUS_LABELS,
   VISUAL_ASSET_TYPES,
   VISUAL_ASSET_TYPE_LABELS,
+  type AnalyticsPlatform,
+  type AnalyticsSnapshot,
+  type AnalyticsSnapshotPayload,
   type AudioAsset,
   type AudioAssetPayload,
   type AudioAssetStatus,
@@ -138,6 +144,10 @@ function contentItemsQueryKey(songId: string) {
 
 function creditsQueryKey(songId: string) {
   return ["songs", songId, "credits"];
+}
+
+function analyticsSnapshotsQueryKey(songId: string) {
+  return ["songs", songId, "analytics"];
 }
 
 function useSongs() {
@@ -2705,34 +2715,438 @@ function CreditsTab({ songId }: { songId: string }) {
   );
 }
 
-function AnalyticsTab({ songId }: { songId: string }) {
-  const analytics = getAnalytics(songId);
-  return analytics ? (
-    <div className="grid gap-4 xl:grid-cols-[1fr_1.3fr]">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <MetricBlock label="Views" value={formatNumber(analytics.views)} />
-        <MetricBlock label="Likes" value={formatNumber(analytics.likes)} />
-        <MetricBlock label="Comments" value={formatNumber(analytics.comments)} />
-        <MetricBlock label="Watch time" value={`${formatNumber(analytics.watchTimeHours)}h`} />
+function useAnalyticsSnapshotMutations(songId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: analyticsSnapshotsQueryKey(songId) });
+
+  return {
+    create: useMutation({
+      mutationFn: (payload: AnalyticsSnapshotPayload) =>
+        analyticsApi.createAnalyticsSnapshot(songId, payload),
+      onSuccess: invalidate,
+    }),
+    update: useMutation({
+      mutationFn: ({
+        analyticsSnapshotId,
+        payload,
+      }: {
+        analyticsSnapshotId: string;
+        payload: AnalyticsSnapshotPayload;
+      }) => analyticsApi.updateAnalyticsSnapshot(songId, analyticsSnapshotId, payload),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: (analyticsSnapshotId: string) =>
+        analyticsApi.deleteAnalyticsSnapshot(songId, analyticsSnapshotId),
+      onSuccess: invalidate,
+    }),
+  };
+}
+
+function isAnalyticsPlatform(value: string): value is AnalyticsPlatform {
+  return ANALYTICS_PLATFORMS.includes(value as AnalyticsPlatform);
+}
+
+function analyticsPlatformLabel(platform: AnalyticsPlatform) {
+  return ANALYTICS_PLATFORM_LABELS[platform];
+}
+
+function wholeNumberOrZero(value: string) {
+  if (!value.trim()) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : -1;
+}
+
+function validateAnalyticsSnapshotPayload(payload: AnalyticsSnapshotPayload) {
+  if (!isAnalyticsPlatform(payload.platform)) return "Choose a valid platform.";
+  if (!payload.snapshotDate) return "Snapshot date is required.";
+  const metrics = [
+    payload.views,
+    payload.likes,
+    payload.comments,
+    payload.watchTimeMinutes,
+    payload.subscribersGained,
+  ];
+  if (metrics.some((metric) => !Number.isInteger(metric) || metric < 0)) {
+    return "Metrics must be non-negative whole numbers.";
+  }
+  return "";
+}
+
+function formatWatchTime(minutes: number) {
+  const hours = minutes / 60;
+  if (hours < 1) return `${formatNumber(minutes)}m`;
+  return `${formatNumber(Math.round(hours))}h`;
+}
+
+function AnalyticsSnapshotFormDialog({
+  songId,
+  snapshot,
+  trigger,
+}: {
+  songId: string;
+  snapshot?: AnalyticsSnapshot;
+  trigger: ReactNode;
+}) {
+  const mode = snapshot ? "edit" : "create";
+  const mutations = useAnalyticsSnapshotMutations(songId);
+  const mutation = mode === "create" ? mutations.create : mutations.update;
+  const [open, setOpen] = useState(false);
+  const [platform, setPlatform] = useState<AnalyticsPlatform>(snapshot?.platform ?? "YouTube");
+  const [snapshotDate, setSnapshotDate] = useState(snapshot?.snapshotDate ?? "");
+  const [views, setViews] = useState(snapshot ? String(snapshot.views) : "0");
+  const [likes, setLikes] = useState(snapshot ? String(snapshot.likes) : "0");
+  const [comments, setComments] = useState(snapshot ? String(snapshot.comments) : "0");
+  const [watchTimeMinutes, setWatchTimeMinutes] = useState(
+    snapshot ? String(snapshot.watchTimeMinutes) : "0",
+  );
+  const [subscribersGained, setSubscribersGained] = useState(
+    snapshot ? String(snapshot.subscribersGained) : "0",
+  );
+  const [error, setError] = useState("");
+
+  async function submit() {
+    const payload: AnalyticsSnapshotPayload = {
+      platform,
+      snapshotDate,
+      views: wholeNumberOrZero(views),
+      likes: wholeNumberOrZero(likes),
+      comments: wholeNumberOrZero(comments),
+      watchTimeMinutes: wholeNumberOrZero(watchTimeMinutes),
+      subscribersGained: wholeNumberOrZero(subscribersGained),
+    };
+    const validationError = validateAnalyticsSnapshotPayload(payload);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      if (mode === "create") {
+        await mutations.create.mutateAsync(payload);
+        setPlatform("YouTube");
+        setSnapshotDate("");
+        setViews("0");
+        setLikes("0");
+        setComments("0");
+        setWatchTimeMinutes("0");
+        setSubscribersGained("0");
+      } else if (snapshot) {
+        await mutations.update.mutateAsync({
+          analyticsSnapshotId: String(snapshot.id),
+          payload,
+        });
+      }
+      setError("");
+      setOpen(false);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "The analytics snapshot could not be saved.",
+      );
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="border-border bg-background">
+        <DialogHeader>
+          <DialogTitle className="uppercase">
+            {mode === "create" ? "Add manual snapshot" : "Edit manual snapshot"}
+          </DialogTitle>
+          <DialogDescription>
+            This records manually entered analytics metadata only. It does not sync with YouTube or
+            any external platform.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label-tech">Platform</label>
+            <Select
+              value={platform}
+              onValueChange={(value) => setPlatform(value as AnalyticsPlatform)}
+            >
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ANALYTICS_PLATFORMS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {analyticsPlatformLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label
+              className="label-tech"
+              htmlFor={`${mode}-analytics-date-${snapshot?.id ?? "new"}`}
+            >
+              Snapshot Date
+            </label>
+            <Input
+              id={`${mode}-analytics-date-${snapshot?.id ?? "new"}`}
+              type="date"
+              value={snapshotDate}
+              onChange={(event) => setSnapshotDate(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div>
+            <label
+              className="label-tech"
+              htmlFor={`${mode}-analytics-views-${snapshot?.id ?? "new"}`}
+            >
+              Views
+            </label>
+            <Input
+              id={`${mode}-analytics-views-${snapshot?.id ?? "new"}`}
+              type="number"
+              min="0"
+              step="1"
+              value={views}
+              onChange={(event) => setViews(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div>
+            <label
+              className="label-tech"
+              htmlFor={`${mode}-analytics-likes-${snapshot?.id ?? "new"}`}
+            >
+              Likes
+            </label>
+            <Input
+              id={`${mode}-analytics-likes-${snapshot?.id ?? "new"}`}
+              type="number"
+              min="0"
+              step="1"
+              value={likes}
+              onChange={(event) => setLikes(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div>
+            <label
+              className="label-tech"
+              htmlFor={`${mode}-analytics-comments-${snapshot?.id ?? "new"}`}
+            >
+              Comments
+            </label>
+            <Input
+              id={`${mode}-analytics-comments-${snapshot?.id ?? "new"}`}
+              type="number"
+              min="0"
+              step="1"
+              value={comments}
+              onChange={(event) => setComments(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div>
+            <label
+              className="label-tech"
+              htmlFor={`${mode}-analytics-watch-${snapshot?.id ?? "new"}`}
+            >
+              Watch Time Minutes
+            </label>
+            <Input
+              id={`${mode}-analytics-watch-${snapshot?.id ?? "new"}`}
+              type="number"
+              min="0"
+              step="1"
+              value={watchTimeMinutes}
+              onChange={(event) => setWatchTimeMinutes(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div>
+            <label
+              className="label-tech"
+              htmlFor={`${mode}-analytics-subscribers-${snapshot?.id ?? "new"}`}
+            >
+              Subscribers Gained
+            </label>
+            <Input
+              id={`${mode}-analytics-subscribers-${snapshot?.id ?? "new"}`}
+              type="number"
+              min="0"
+              step="1"
+              value={subscribersGained}
+              onChange={(event) => setSubscribersGained(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          {error ? <p className="text-sm text-muted-foreground sm:col-span-2">{error}</p> : null}
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={mutation.isPending}>
+              {mutation.isPending ? "Saving" : "Save"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AnalyticsSnapshotRow({
+  songId,
+  snapshot,
+}: {
+  songId: string;
+  snapshot: AnalyticsSnapshot;
+}) {
+  const mutations = useAnalyticsSnapshotMutations(songId);
+
+  return (
+    <div className="grid gap-3 border border-border bg-background p-3 md:grid-cols-[1fr_auto]">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium uppercase">
+            {analyticsPlatformLabel(snapshot.platform)}
+          </p>
+          <span className="text-xs text-muted-foreground">{formatDate(snapshot.snapshotDate)}</span>
+        </div>
+        <dl className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-5">
+          <Info label="Views" value={formatNumber(snapshot.views)} />
+          <Info label="Likes" value={formatNumber(snapshot.likes)} />
+          <Info label="Comments" value={formatNumber(snapshot.comments)} />
+          <Info label="Watch Time" value={formatWatchTime(snapshot.watchTimeMinutes)} />
+          <Info label="Subscribers" value={formatNumber(snapshot.subscribersGained)} />
+        </dl>
       </div>
-      <Panel title="View velocity" label="Mock analytics">
-        <MiniBars values={analytics.velocity.map((item) => item.value)} />
-      </Panel>
-      <Panel title="Top content" label="Mock analytics" className="xl:col-span-2">
-        <Timeline
-          items={analytics.topContent.map((item) => ({
-            id: item.title,
-            title: item.title,
-            meta: `${item.platform} / ${formatNumber(item.views)} views`,
-          }))}
+      <div className="flex items-start gap-2">
+        <AnalyticsSnapshotFormDialog
+          songId={songId}
+          snapshot={snapshot}
+          trigger={
+            <Button variant="outline" size="sm">
+              Edit
+            </Button>
+          }
         />
-      </Panel>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete analytics snapshot</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes only DARKROOM SYSTEM analytics metadata. No YouTube, Spotify, TikTok,
+                Instagram, or external platform data is affected.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => mutations.remove.mutate(String(snapshot.id))}>
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
-  ) : (
-    <EmptyState
-      title="No analytics yet"
-      detail="YouTube analytics is planned for a later integration phase."
-    />
+  );
+}
+
+function AnalyticsTab({ songId }: { songId: string }) {
+  const snapshots = useQuery({
+    queryKey: analyticsSnapshotsQueryKey(songId),
+    queryFn: () => analyticsApi.getAnalyticsSnapshots(songId),
+  });
+
+  if (snapshots.isLoading) {
+    return <LoadingState label="Loading analytics snapshots" />;
+  }
+
+  if (snapshots.isError) {
+    return (
+      <ErrorState
+        detail="Analytics snapshots could not be loaded from the backend."
+        onRetry={() => snapshots.refetch()}
+      />
+    );
+  }
+
+  const items = snapshots.data ?? [];
+  const latest = items.at(-1);
+
+  return (
+    <div className="space-y-4">
+      <Panel title="Analytics snapshots" label="Real backend data">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            These are manually recorded metadata snapshots. External analytics sync is planned for a
+            later integration phase.
+          </p>
+          <AnalyticsSnapshotFormDialog
+            songId={songId}
+            trigger={
+              <Button>
+                <Plus className="h-4 w-4" />
+                Add manual snapshot
+              </Button>
+            }
+          />
+        </div>
+        {latest ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <MetricBlock label="Views" value={formatNumber(latest.views)} />
+            <MetricBlock label="Likes" value={formatNumber(latest.likes)} />
+            <MetricBlock label="Comments" value={formatNumber(latest.comments)} />
+            <MetricBlock label="Watch time" value={formatWatchTime(latest.watchTimeMinutes)} />
+            <MetricBlock label="Subscribers" value={formatNumber(latest.subscribersGained)} />
+          </div>
+        ) : (
+          <EmptyState
+            title="No analytics snapshots yet"
+            detail="Add a manual snapshot to start tracking Song performance metadata. YouTube ingestion is planned for later."
+          />
+        )}
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
+        <Panel title="Views over time" label="Manual snapshots">
+          {items.length >= 2 ? (
+            <>
+              <MiniBars values={items.map((snapshot) => snapshot.views)} />
+              <p className="mt-3 text-xs text-muted-foreground">
+                Trend uses saved snapshot dates from {formatDate(items[0]!.snapshotDate)} to{" "}
+                {formatDate(items.at(-1)!.snapshotDate)}.
+              </p>
+            </>
+          ) : (
+            <EmptyState
+              title="Not enough data for trend"
+              detail="Record at least two manual snapshots for this Song to show view movement over time."
+            />
+          )}
+        </Panel>
+        <Panel title="Snapshot history" label="Real metadata">
+          {items.length ? (
+            <div className="space-y-3">
+              {items.map((snapshot) => (
+                <AnalyticsSnapshotRow key={snapshot.id} songId={songId} snapshot={snapshot} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No history"
+              detail="Saved analytics snapshots will appear here after the first manual entry."
+            />
+          )}
+        </Panel>
+      </div>
+    </div>
   );
 }
 

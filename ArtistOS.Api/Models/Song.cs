@@ -23,4 +23,6 @@ public class Song
     public ICollection<ContentItem> ContentItems { get; set; } = [];
 
     public ICollection<Credit> Credits { get; set; } = [];
+
+    public ICollection<AnalyticsSnapshot> AnalyticsSnapshots { get; set; } = [];
 }

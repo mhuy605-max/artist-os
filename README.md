@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Credits Metadata Foundation
+Analytics Snapshot Foundation
 ```
 
 Implemented and verified:
@@ -59,7 +59,10 @@ Implemented and verified:
 - Credit metadata model related to Song
 - Nested Credit metadata API
 - Real browser-based Credits tab metadata create/read/update/delete
-- Automated backend integration tests for current Song, AudioAsset, VisualAsset, Release, ContentItem, and Credit API behavior
+- AnalyticsSnapshot metadata model related to Song
+- Nested AnalyticsSnapshot metadata API
+- Real browser-based Analytics tab metadata create/read/update/delete
+- Automated backend integration tests for current Song, AudioAsset, VisualAsset, Release, ContentItem, Credit, and AnalyticsSnapshot API behavior
 - GitHub Actions CI workflow for backend build/tests and frontend lint/build
 
 Planned, not implemented yet:
@@ -70,7 +73,7 @@ Planned, not implemented yet:
 - Real audio file upload, playback, waveform processing, or external file storage
 - Real release publishing or distributor delivery
 - Contributor directory, team permissions, contracts, royalties, or payout workflow
-- Backend analytics
+- YouTube analytics ingestion and automated external platform sync
 - Continuous delivery and production deployment
 
 ## Current Implemented Frontend
@@ -103,7 +106,7 @@ The `/` route redirects to `/dashboard`.
 
 ## Real Backend Integration
 
-Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, ContentItem metadata, and Credit metadata are connected to the ASP.NET Core backend.
+Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, ContentItem metadata, Credit metadata, and AnalyticsSnapshot metadata are connected to the ASP.NET Core backend.
 
 Browser-based create, read, update, and delete works against:
 
@@ -114,9 +117,10 @@ http://localhost:5178/api/songs/{songId}/visual-assets
 http://localhost:5178/api/songs/{songId}/release
 http://localhost:5178/api/songs/{songId}/content-items
 http://localhost:5178/api/songs/{songId}/credits
+http://localhost:5178/api/songs/{songId}/analytics
 ```
 
-The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. The Visuals tab loads and writes real VisualAsset metadata for the selected Song. The Release tab loads and writes real Release metadata for the selected Song. The Content tab loads and writes real ContentItem metadata for the selected Song. The Credits tab loads and writes real Credit metadata for the selected Song. Local CORS is configured for frontend development from:
+The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. The Visuals tab loads and writes real VisualAsset metadata for the selected Song. The Release tab loads and writes real Release metadata for the selected Song. The Content tab loads and writes real ContentItem metadata for the selected Song. The Credits tab loads and writes real Credit metadata for the selected Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected Song. Local CORS is configured for frontend development from:
 
 ```text
 http://localhost:8080
@@ -135,7 +139,7 @@ These areas are visible in the frontend but are not backend-backed yet:
 - Release publishing and distributor delivery
 - Content publishing and platform delivery
 - Contributor directory, team permissions, contracts, royalties, and payout workflow
-- Analytics
+- YouTube analytics ingestion and automated external platform sync
 - Calendar
 - Team
 - Settings
@@ -177,6 +181,8 @@ public class Song
     public ICollection<ContentItem> ContentItems { get; set; } = [];
 
     public ICollection<Credit> Credits { get; set; } = [];
+
+    public ICollection<AnalyticsSnapshot> AnalyticsSnapshots { get; set; } = [];
 }
 ```
 
@@ -481,6 +487,49 @@ Confirmed
 
 `SplitPercentage` is optional planned split metadata only. It does not represent payment processing, royalty settlement, accounting, or a legal split agreement.
 
+### Analytics Snapshot Metadata API
+
+The backend supports manually entered analytics snapshots nested under a Song.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/songs/{songId}/analytics` | List analytics snapshot metadata for a Song, ordered by measurement date. |
+| `GET` | `/api/songs/{songId}/analytics/{analyticsSnapshotId}` | Get one analytics snapshot metadata record. |
+| `POST` | `/api/songs/{songId}/analytics` | Create an analytics snapshot metadata record. Returns `201 Created` or `409 Conflict` for a duplicate Song/platform/date snapshot. |
+| `PUT` | `/api/songs/{songId}/analytics/{analyticsSnapshotId}` | Update an analytics snapshot metadata record. Returns `204 No Content`. |
+| `DELETE` | `/api/songs/{songId}/analytics/{analyticsSnapshotId}` | Delete an analytics snapshot metadata record. Returns `204 No Content` or `404` when missing. |
+
+Current `AnalyticsSnapshot` shape:
+
+```csharp
+public class AnalyticsSnapshot
+{
+    public int Id { get; set; }
+    public int SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public string Platform { get; set; } = "YouTube";
+    public DateOnly SnapshotDate { get; set; }
+    public long Views { get; set; }
+    public long Likes { get; set; }
+    public long Comments { get; set; }
+    public long WatchTimeMinutes { get; set; }
+    public long SubscribersGained { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+```
+
+Allowed analytics platforms:
+
+```text
+YouTube
+Spotify
+TikTok
+Instagram
+Other
+```
+
+`SnapshotDate` is the measurement date supplied by the client. `CreatedAt` is controlled by the server. Analytics snapshots are metadata-only and do not sync with YouTube or any external platform yet.
+
 ## Architecture
 
 Current architecture:
@@ -623,6 +672,16 @@ PUT    /api/songs/{songId}/credits/{creditId}
 DELETE /api/songs/{songId}/credits/{creditId}
 ```
 
+Analytics snapshot metadata endpoints:
+
+```text
+GET    /api/songs/{songId}/analytics
+GET    /api/songs/{songId}/analytics/{analyticsSnapshotId}
+POST   /api/songs/{songId}/analytics
+PUT    /api/songs/{songId}/analytics/{analyticsSnapshotId}
+DELETE /api/songs/{songId}/analytics/{analyticsSnapshotId}
+```
+
 Example create request:
 
 ```bash
@@ -645,6 +704,7 @@ Current concise structure:
 ArtistOS/
 ├── ArtistOS.Api/
 │   ├── Controllers/
+│   │   ├── AnalyticsSnapshotsController.cs
 │   │   ├── AudioAssetsController.cs
 │   │   ├── ContentItemsController.cs
 │   │   ├── CreditsController.cs
@@ -656,6 +716,7 @@ ArtistOS/
 │   ├── Dtos/
 │   ├── Migrations/
 │   ├── Models/
+│   │   ├── AnalyticsSnapshot.cs
 │   │   ├── AudioAsset.cs
 │   │   ├── ContentItem.cs
 │   │   ├── Credit.cs
@@ -786,6 +847,7 @@ artist_os
 
 Current tables:
 
+- `AnalyticsSnapshots`
 - `AudioAssets`
 - `ContentItems`
 - `Credits`
@@ -804,6 +866,7 @@ Current migrations:
 20260829130234_AddReleaseMetadata
 20260829133738_AddContentItemMetadata
 20260830055757_AddCreditMetadata
+20260830061847_AddAnalyticsSnapshotMetadata
 ```
 
 Large media files such as WAV, MP3, stems, artwork, and video files should not be stored directly in PostgreSQL. The planned direction is to store metadata in PostgreSQL and large files in an external provider such as Google Drive.
@@ -827,6 +890,8 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Nested ContentItem metadata API
 - [x] Credit metadata model and migration
 - [x] Nested Credit metadata API
+- [x] AnalyticsSnapshot metadata model and migration
+- [x] Nested AnalyticsSnapshot metadata API
 - [x] Local frontend development CORS
 - [x] Automated backend tests
 - [ ] Automated frontend tests
@@ -843,12 +908,14 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Browser-based real Release metadata integration
 - [x] Browser-based real ContentItem metadata integration
 - [x] Browser-based real Credit metadata integration
+- [x] Browser-based real AnalyticsSnapshot metadata integration
 - [ ] Real audio file upload and external file association
 - [ ] Real visual file upload and external file association
 - [ ] Release preparation checklist persistence
 - [ ] Release publishing and distributor delivery
 - [ ] Content publishing and platform delivery
 - [ ] Contributor directory, contracts, royalties, and payout workflow
+- [ ] Automated external analytics ingestion
 - [ ] Authentication and collaboration
 
 ### Integrations / Delivery

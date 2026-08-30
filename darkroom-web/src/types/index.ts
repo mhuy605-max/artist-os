@@ -466,15 +466,39 @@ export interface MockCredit {
   plannedSplit?: number;
 }
 
+export const ANALYTICS_PLATFORMS = ["YouTube", "Spotify", "TikTok", "Instagram", "Other"] as const;
+
+export type AnalyticsPlatform = (typeof ANALYTICS_PLATFORMS)[number];
+
+export const ANALYTICS_PLATFORM_LABELS: Record<AnalyticsPlatform, string> = {
+  YouTube: "YouTube",
+  Spotify: "Spotify",
+  TikTok: "TikTok",
+  Instagram: "Instagram",
+  Other: "Other",
+};
+
 export interface AnalyticsSnapshot {
-  songId: string;
+  id: string | number;
+  songId: string | number;
+  platform: AnalyticsPlatform;
+  snapshotDate: string;
   views: number;
   likes: number;
   comments: number;
-  watchTimeHours: number;
-  subscriberGrowth: number;
-  velocity: { label: string; value: number }[];
-  topContent: { title: string; platform: string; views: number }[];
+  watchTimeMinutes: number;
+  subscribersGained: number;
+  createdAt: string;
+}
+
+export interface AnalyticsSnapshotPayload {
+  platform: AnalyticsPlatform;
+  snapshotDate: string;
+  views: number;
+  likes: number;
+  comments: number;
+  watchTimeMinutes: number;
+  subscribersGained: number;
 }
 
 export interface ActivityEvent {

@@ -22,6 +22,8 @@ public class AppDbContext : DbContext
 
     public DbSet<Credit> Credits { get; set; }
 
+    public DbSet<AnalyticsSnapshot> AnalyticsSnapshots { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AudioAsset>(entity =>
@@ -78,6 +80,24 @@ public class AppDbContext : DbContext
             entity.HasOne(credit => credit.Song)
                 .WithMany(song => song.Credits)
                 .HasForeignKey(credit => credit.SongId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AnalyticsSnapshot>(entity =>
+        {
+            entity.HasIndex(snapshot => snapshot.SongId);
+            entity.HasIndex(snapshot => new { snapshot.SongId, snapshot.SnapshotDate });
+            entity.HasIndex(snapshot => new
+                {
+                    snapshot.SongId,
+                    snapshot.Platform,
+                    snapshot.SnapshotDate
+                })
+                .IsUnique();
+
+            entity.HasOne(snapshot => snapshot.Song)
+                .WithMany(song => song.AnalyticsSnapshots)
+                .HasForeignKey(snapshot => snapshot.SongId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

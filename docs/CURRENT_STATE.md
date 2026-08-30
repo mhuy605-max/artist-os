@@ -4,9 +4,9 @@ Last updated: 2026-08-30
 
 ## Current Phase
 
-Credits Metadata Foundation.
+Analytics Snapshot Foundation.
 
-Current focus: Credit metadata is now PostgreSQL-backed and connected to the Song workspace Credits tab. Contributor directories, team permissions, contracts, royalties, payment workflows, authentication, and legal split agreements remain future work.
+Current focus: Analytics snapshot metadata is now PostgreSQL-backed and connected to the Song workspace Analytics tab. Metrics are manually entered metadata snapshots only. YouTube ingestion, platform OAuth, automated sync, authentication, and external analytics integrations remain future work.
 
 ## Completed
 
@@ -82,6 +82,15 @@ Current focus: Credit metadata is now PostgreSQL-backed and connected to the Son
 - Planned split remains metadata-only and is clearly labeled in the frontend.
 - Browser-based Credit metadata create/edit/delete verified.
 - Credit API create/read/update/delete, validation, timestamps, split bounds, and Song relationship behavior covered by automated integration-style tests.
+- `AnalyticsSnapshot` model created and related to `Song`.
+- AnalyticsSnapshot metadata DTOs created.
+- Nested AnalyticsSnapshot metadata API implemented.
+- AnalyticsSnapshot EF Core migration created and applied.
+- Analytics tab now reads/writes real AnalyticsSnapshot metadata through the ASP.NET Core API.
+- Analytics trend display now uses persisted manual snapshot data.
+- External analytics ingestion remains planned and is clearly labeled in the frontend.
+- Browser-based AnalyticsSnapshot metadata create/edit/delete/refresh verified.
+- AnalyticsSnapshot API create/read/update/delete, validation, timestamp, duplicate prevention, ordering, and Song relationship behavior covered by automated integration-style tests.
 
 ## Current Implementation
 
@@ -118,9 +127,10 @@ VisualAssetsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ReleasesController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ContentItemsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 CreditsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+AnalyticsSnapshotsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ```
 
-No backend repository or service layer has been introduced yet. This is intentional because current Song, AudioAsset metadata, VisualAsset metadata, Release metadata, ContentItem metadata, and Credit metadata CRUD/validation do not contain enough business logic to justify those abstractions.
+No backend repository or service layer has been introduced yet. This is intentional because current Song, AudioAsset metadata, VisualAsset metadata, Release metadata, ContentItem metadata, Credit metadata, and AnalyticsSnapshot metadata CRUD/validation do not contain enough business logic to justify those abstractions.
 
 Development-only backend CORS is configured in `ArtistOS.Api/Program.cs` using the named policy `LocalFrontend`.
 
@@ -145,7 +155,7 @@ Current frontend architecture:
 TanStack Router routes
   -> DARKROOM SYSTEM app shell/pages
   -> TanStack Query
-  -> isolated Song, AudioAsset, VisualAsset, Release, ContentItem, and Credit API services
+  -> isolated Song, AudioAsset, VisualAsset, Release, ContentItem, Credit, and AnalyticsSnapshot API services
   -> ASP.NET Core API
 ```
 
@@ -239,6 +249,16 @@ PUT    /api/songs/{songId}/credits/{creditId}
 DELETE /api/songs/{songId}/credits/{creditId}
 ```
 
+The frontend also uses the real backend for AnalyticsSnapshot metadata:
+
+```text
+GET    /api/songs/{songId}/analytics
+GET    /api/songs/{songId}/analytics/{analyticsSnapshotId}
+POST   /api/songs/{songId}/analytics
+PUT    /api/songs/{songId}/analytics/{analyticsSnapshotId}
+DELETE /api/songs/{songId}/analytics/{analyticsSnapshotId}
+```
+
 Current frontend API base URL behavior:
 
 - `VITE_API_BASE_URL` controls the backend URL.
@@ -250,6 +270,7 @@ Current frontend API base URL behavior:
 - `PUT /api/songs/{songId}/release` is handled as `204 No Content`; the client refetches the release afterward.
 - `PUT /api/songs/{songId}/content-items/{contentItemId}` is handled as `204 No Content`; the client refetches the content item afterward.
 - `PUT /api/songs/{songId}/credits/{creditId}` is handled as `204 No Content`; the client refetches the credit afterward.
+- `PUT /api/songs/{songId}/analytics/{analyticsSnapshotId}` is handled as `204 No Content`; the client refetches the analytics snapshot afterward.
 
 If the backend host is unreachable, the Song API service switches to an explicit in-memory development fallback and the UI shows a fallback notice. Other API errors are not hidden.
 
@@ -273,7 +294,7 @@ These frontend areas are mock-only and do not have backend persistence yet:
 - Release preparation checklist.
 - Content publishing and platform delivery.
 - Contributor directory, team permissions, contracts, royalties, and payout workflow.
-- Analytics.
+- External analytics ingestion and automated platform sync.
 - Calendar.
 - Team.
 - Settings.
@@ -303,6 +324,8 @@ public class Song
     public ICollection<ContentItem> ContentItems { get; set; } = [];
 
     public ICollection<Credit> Credits { get; set; } = [];
+
+    public ICollection<AnalyticsSnapshot> AnalyticsSnapshots { get; set; } = [];
 }
 ```
 
@@ -448,6 +471,35 @@ Song 1 -> many Credits
 
 Credit is metadata-only. `SplitPercentage` is an optional planned split field and does not represent payment processing, royalty settlement, accounting, or a legal split agreement.
 
+## Current AnalyticsSnapshot Model
+
+```csharp
+public class AnalyticsSnapshot
+{
+    public int Id { get; set; }
+    public int SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public string Platform { get; set; } = "YouTube";
+    public DateOnly SnapshotDate { get; set; }
+    public long Views { get; set; }
+    public long Likes { get; set; }
+    public long Comments { get; set; }
+    public long WatchTimeMinutes { get; set; }
+    public long SubscribersGained { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+```
+
+Relationship:
+
+```text
+Song 1 -> many AnalyticsSnapshots
+```
+
+AnalyticsSnapshot is metadata-only. No YouTube API, Spotify API, TikTok API, Instagram API, OAuth connection, scheduled ingestion, or automated sync exists yet.
+
+Snapshots are intentionally modeled as time-series records rather than one mutable analytics row. This allows Artist OS to preserve metric history over time.
+
 ## Current DTOs
 
 The Song API uses DTOs instead of exposing the EF entity directly as the API contract.
@@ -470,6 +522,9 @@ The Song API uses DTOs instead of exposing the EF entity directly as the API con
 - `CreateCreditRequest`
 - `UpdateCreditRequest`
 - `CreditResponse`
+- `CreateAnalyticsSnapshotRequest`
+- `UpdateAnalyticsSnapshotRequest`
+- `AnalyticsSnapshotResponse`
 
 DTOs are used because they solve current API contract problems:
 
@@ -480,6 +535,7 @@ DTOs are used because they solve current API contract problems:
 - keep one-to-one Release metadata separate from the `Song` persistence model
 - keep ContentItem planning metadata separate from future platform publishing behavior
 - keep Credit contributor metadata separate from future user/team/payment/legal systems
+- keep AnalyticsSnapshot metadata separate from future external analytics ingestion behavior
 
 ## Validation / Normalization
 
@@ -733,6 +789,39 @@ SplitPercentage is included as nullable planned split metadata.
 
 No cross-record rule requires planned splits to sum to `100` in this milestone.
 
+Current AnalyticsSnapshot backend validation rules:
+
+- `SongId` comes from the route.
+- `Id` is database-controlled.
+- `CreatedAt` is server-controlled and does not change on update.
+- `SnapshotDate` is required and represents the client-supplied measurement date.
+- `Platform` is required, trimmed before saving, and must be one of the supported analytics platforms.
+- `Views`, `Likes`, `Comments`, `WatchTimeMinutes`, and `SubscribersGained` must be non-negative whole numbers.
+- A Song can have many AnalyticsSnapshots across dates and platforms.
+- Duplicate snapshots for the same `SongId`, `Platform`, and `SnapshotDate` are rejected with `409 Conflict`.
+
+Allowed AnalyticsSnapshot platforms:
+
+```text
+YouTube
+Spotify
+TikTok
+Instagram
+Other
+```
+
+Platform decision:
+
+```text
+AnalyticsSnapshot uses a small provider-neutral platform list for manually entered metrics.
+```
+
+Uniqueness decision:
+
+```text
+The database enforces one AnalyticsSnapshot per Song + Platform + SnapshotDate.
+```
+
 The frontend also performs matching basic form validation for user experience, but backend validation remains the trusted source.
 
 ## Database / Migrations
@@ -747,6 +836,7 @@ PostgreSQL is expected locally on port `5432`.
 
 Current database tables:
 
+- `AnalyticsSnapshots`
 - `AudioAssets`
 - `ContentItems`
 - `Credits`
@@ -765,6 +855,7 @@ Applied migrations:
 20260829130234_AddReleaseMetadata
 20260829133738_AddContentItemMetadata
 20260830055757_AddCreditMetadata
+20260830061847_AddAnalyticsSnapshotMetadata
 ```
 
 Current `Songs` schema:
@@ -844,6 +935,19 @@ Current `Credits` schema:
 - `CreatedAt` timestamp with time zone, required.
 - `UpdatedAt` timestamp with time zone, required.
 
+Current `AnalyticsSnapshots` schema:
+
+- `Id` integer primary key, generated by PostgreSQL identity.
+- `SongId` integer, required, foreign key to `Songs`.
+- `Platform` character varying(40), required.
+- `SnapshotDate` date, required.
+- `Views` bigint, required.
+- `Likes` bigint, required.
+- `Comments` bigint, required.
+- `WatchTimeMinutes` bigint, required.
+- `SubscribersGained` bigint, required.
+- `CreatedAt` timestamp with time zone, required.
+
 Indexes:
 
 - `IX_AudioAssets_SongId`
@@ -857,6 +961,9 @@ Indexes:
 - `IX_Credits_SongId`
 - `IX_Credits_SongId_Role`
 - `IX_Credits_SongId_Status`
+- `IX_AnalyticsSnapshots_SongId`
+- `IX_AnalyticsSnapshots_SongId_SnapshotDate`
+- `IX_AnalyticsSnapshots_SongId_Platform_SnapshotDate`, unique
 
 ## Packages
 
@@ -933,8 +1040,9 @@ Automated tests:
 - Release API behavior has both automated test coverage and pragmatic manual HTTP/browser verification.
 - ContentItem API behavior has both automated test coverage and pragmatic browser verification.
 - Credit API behavior has both automated test coverage and pragmatic browser verification.
+- AnalyticsSnapshot API behavior has both automated test coverage and pragmatic browser verification.
 
-Verification run during the latest Credits metadata milestone:
+Verification run during the latest Analytics snapshot milestone:
 
 ```text
 dotnet build
@@ -951,9 +1059,9 @@ Results:
 
 ```text
 dotnet build: succeeded, 0 warnings, 0 errors.
-dotnet test: succeeded, 113 passed, 0 failed, 0 skipped.
+dotnet test: succeeded, 136 passed, 0 failed, 0 skipped.
 dotnet ef database update: succeeded.
-dotnet ef migrations list: confirmed 20260830055757_AddCreditMetadata is applied.
+dotnet ef migrations list: confirmed 20260830061847_AddAnalyticsSnapshotMetadata is applied.
 npm ci: succeeded, 0 vulnerabilities.
 npm run lint: completed with 0 errors and 8 warnings.
 npm run build: succeeded.
@@ -990,6 +1098,13 @@ Automated backend coverage now includes:
 - Credit server-controlled `CreatedAt` and `UpdatedAt` behavior.
 - Credit split percentage bounds.
 - Song-to-Credit relationship behavior, including many Credits per Song, the same contributor with multiple roles, and deleting Credit metadata without deleting the parent Song.
+- AnalyticsSnapshot metadata create/read/list/update/delete success paths.
+- AnalyticsSnapshot `400 Bad Request` validation paths.
+- AnalyticsSnapshot `404 Not Found` missing Song and missing AnalyticsSnapshot paths.
+- AnalyticsSnapshot duplicate `SongId + Platform + SnapshotDate` behavior returning `409 Conflict`.
+- AnalyticsSnapshot server-controlled `CreatedAt` behavior.
+- AnalyticsSnapshot list ordering by measurement date.
+- Song-to-AnalyticsSnapshot relationship behavior, including many snapshots across dates/platforms and deleting AnalyticsSnapshot metadata without deleting the parent Song.
 
 Previous frontend verification during the latest AudioAsset metadata milestone:
 
@@ -1122,6 +1237,22 @@ Latest browser Credit checks confirmed:
 - The parent Song still existed after deleting Credit metadata.
 - Credits UI remained clear that planned splits do not create payment, royalty, legal, or team-account workflows.
 
+Latest browser AnalyticsSnapshot checks confirmed:
+
+- Song workspace loaded at `/songs/{songId}`.
+- Analytics tab loaded real snapshot metadata from the backend.
+- Empty state appeared when a Song had no AnalyticsSnapshots.
+- Manual analytics snapshot metadata was created through the frontend.
+- Page refresh preserved the created AnalyticsSnapshot metadata.
+- A second AnalyticsSnapshot produced a real views-over-time trend.
+- AnalyticsSnapshot metadata was edited through the frontend.
+- Updated view count persisted.
+- Delete confirmation stated that only DARKROOM SYSTEM analytics metadata is removed and no external platform is affected.
+- Deleted AnalyticsSnapshot metadata disappeared from the Analytics tab.
+- The parent Song still existed after deleting AnalyticsSnapshot metadata.
+- Temporary verification Song was deleted after verification.
+- Analytics UI remained clear that values are manually recorded metadata and not synced external analytics.
+
 ## Security / Secrets Status
 
 - `appsettings.json` does not currently contain the local database password.
@@ -1131,7 +1262,7 @@ Latest browser Credit checks confirmed:
 
 ## Git Status Notes
 
-Current VisualAsset and Release metadata foundation work is uncommitted.
+Current AudioAsset, VisualAsset, Release, ContentItem, Credit, and AnalyticsSnapshot metadata foundation work is uncommitted.
 
 The frontend build generated route/output artifacts as expected. Build output remains ignored.
 
@@ -1147,12 +1278,14 @@ Remote GitHub Actions status:
 - Release `ReleaseType`, `Status`, and `Platforms` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - ContentItem `Type`, `Status`, and `Platform` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - Credit `Role` and `Status` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
+- AnalyticsSnapshot `Platform` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - The API does not yet enforce only one current AudioAsset per Song + Type.
 - The API does not yet enforce only one current VisualAsset per Song + Type.
 - Release platforms are stored as a comma-separated string; a normalized platform table may become useful when real integrations exist.
 - ContentItem platform is stored as a string; richer channel/account modeling can wait until platform integrations exist.
 - Credit contributors are plain Song-scoped metadata strings; a normalized contributor directory can wait until team/auth requirements exist.
 - Planned split percentages are stored independently per Credit and are not validated to total `100` across a Song.
+- Analytics snapshots are manually entered metadata and are not ingested from external platform APIs.
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - There is no frontend test script yet.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
@@ -1162,23 +1295,22 @@ Remote GitHub Actions status:
 - Real authentication.
 - Team collaboration or permissions.
 - Google Drive integration.
-- YouTube integration.
+- YouTube integration and automated analytics ingestion.
 - Real audio file upload, playback, waveform processing, and external file association.
 - Real visual file upload, preview/thumbnail generation, playback, and external file association.
 - Release preparation checklist persistence.
 - Distributor delivery or publishing workflow.
 - Content publishing, platform delivery, and real calendar persistence.
 - Contributor directory, contracts, royalties, payment workflow, and authenticated team permissions.
-- Backend analytics.
 - Production deployment.
 
 ## Recommended Next Milestone
 
-Start the Analytics snapshot foundation.
+Start the release preparation checklist persistence foundation.
 
 Suggested scope:
 
-- Add metadata-only Analytics snapshot records related to Song or ContentItem.
-- Keep the first version focused on manually entered or seedable metrics, not YouTube API ingestion.
-- Add API routes and focused backend tests.
-- Connect the Analytics tab to real backend metadata without implementing YouTube integration.
+- Add persisted checklist items related to the existing Song Release metadata.
+- Keep checklist records metadata-only and avoid distributor delivery or external publishing.
+- Add focused API routes and backend tests.
+- Connect the Release tab checklist to real backend metadata without implementing platform delivery.
