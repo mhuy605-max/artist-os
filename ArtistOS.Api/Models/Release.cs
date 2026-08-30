@@ -33,4 +33,6 @@ public class Release
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<ReleaseChecklistItem> ChecklistItems { get; set; } = [];
 }

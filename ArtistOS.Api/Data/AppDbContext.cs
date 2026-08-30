@@ -24,6 +24,8 @@ public class AppDbContext : DbContext
 
     public DbSet<AnalyticsSnapshot> AnalyticsSnapshots { get; set; }
 
+    public DbSet<ReleaseChecklistItem> ReleaseChecklistItems { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AudioAsset>(entity =>
@@ -56,6 +58,19 @@ public class AppDbContext : DbContext
             entity.HasOne(release => release.Song)
                 .WithOne(song => song.Release)
                 .HasForeignKey<Release>(release => release.SongId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReleaseChecklistItem>(entity =>
+        {
+            entity.HasIndex(checklistItem => checklistItem.ReleaseId);
+            entity.HasIndex(checklistItem => new { checklistItem.ReleaseId, checklistItem.SortOrder });
+            entity.HasIndex(checklistItem => new { checklistItem.ReleaseId, checklistItem.Key })
+                .IsUnique();
+
+            entity.HasOne(checklistItem => checklistItem.Release)
+                .WithMany(release => release.ChecklistItems)
+                .HasForeignKey(checklistItem => checklistItem.ReleaseId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

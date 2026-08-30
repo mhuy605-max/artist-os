@@ -4,9 +4,9 @@ Last updated: 2026-08-30
 
 ## Current Phase
 
-Analytics Snapshot Foundation.
+Release Preparation Checklist Persistence Foundation.
 
-Current focus: Analytics snapshot metadata is now PostgreSQL-backed and connected to the Song workspace Analytics tab. Metrics are manually entered metadata snapshots only. YouTube ingestion, platform OAuth, automated sync, authentication, and external analytics integrations remain future work.
+Current focus: Release preparation checklist metadata is now PostgreSQL-backed and connected to the Song workspace Release tab. Checklist items are fixed standard metadata records under the existing Release aggregate. Automatic checklist completion from assets/content/credits, distributor delivery, publishing, authentication, and external integrations remain future work.
 
 ## Completed
 
@@ -63,7 +63,13 @@ Current focus: Analytics snapshot metadata is now PostgreSQL-backed and connecte
 - Nested Release metadata API implemented.
 - Release EF Core migration created and applied.
 - Release tab now reads/writes real Release metadata through the ASP.NET Core API.
-- Release preparation checklist remains planned/mock-only and is clearly labeled in the frontend.
+- `ReleaseChecklistItem` model created and related to `Release`.
+- ReleaseChecklist metadata DTOs created.
+- Nested Release checklist metadata API implemented.
+- ReleaseChecklist EF Core migration created and applied.
+- Existing Release rows are backfilled with standard checklist items by the migration.
+- Release tab now reads/writes real Release checklist metadata through the ASP.NET Core API.
+- Release checklist progress is derived from persisted item completion state.
 - Browser-based Release metadata create/edit/delete verified.
 - Release API create/read/update/delete, validation, timestamps, duplicate prevention, and Song relationship behavior covered by automated integration-style tests.
 - `ContentItem` model created and related to `Song`.
@@ -91,6 +97,8 @@ Current focus: Analytics snapshot metadata is now PostgreSQL-backed and connecte
 - External analytics ingestion remains planned and is clearly labeled in the frontend.
 - Browser-based AnalyticsSnapshot metadata create/edit/delete/refresh verified.
 - AnalyticsSnapshot API create/read/update/delete, validation, timestamp, duplicate prevention, ordering, and Song relationship behavior covered by automated integration-style tests.
+- Browser-based Release checklist create-on-release, refresh persistence, check/uncheck, progress, and server timestamp behavior verified.
+- ReleaseChecklist API default initialization, read/order, update, validation, timestamps, and Release/Song relationship behavior covered by automated integration-style tests.
 
 ## Current Implementation
 
@@ -128,9 +136,10 @@ ReleasesController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ContentItemsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 CreditsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 AnalyticsSnapshotsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+ReleaseChecklistController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ```
 
-No backend repository or service layer has been introduced yet. This is intentional because current Song, AudioAsset metadata, VisualAsset metadata, Release metadata, ContentItem metadata, Credit metadata, and AnalyticsSnapshot metadata CRUD/validation do not contain enough business logic to justify those abstractions.
+No backend repository or service layer has been introduced yet. This is intentional because current Song, AudioAsset metadata, VisualAsset metadata, Release metadata, ReleaseChecklist metadata, ContentItem metadata, Credit metadata, and AnalyticsSnapshot metadata CRUD/validation do not contain enough business logic to justify those abstractions.
 
 Development-only backend CORS is configured in `ArtistOS.Api/Program.cs` using the named policy `LocalFrontend`.
 
@@ -155,7 +164,7 @@ Current frontend architecture:
 TanStack Router routes
   -> DARKROOM SYSTEM app shell/pages
   -> TanStack Query
-  -> isolated Song, AudioAsset, VisualAsset, Release, ContentItem, Credit, and AnalyticsSnapshot API services
+  -> isolated Song, AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, and AnalyticsSnapshot API services
   -> ASP.NET Core API
 ```
 
@@ -229,6 +238,14 @@ PUT    /api/songs/{songId}/release
 DELETE /api/songs/{songId}/release
 ```
 
+The frontend also uses the real backend for Release checklist metadata:
+
+```text
+GET    /api/songs/{songId}/release/checklist
+GET    /api/songs/{songId}/release/checklist/{checklistItemId}
+PUT    /api/songs/{songId}/release/checklist/{checklistItemId}
+```
+
 The frontend also uses the real backend for ContentItem metadata:
 
 ```text
@@ -268,6 +285,7 @@ Current frontend API base URL behavior:
 - `PUT /api/songs/{songId}/audio-assets/{audioAssetId}` is handled as `204 No Content`; the client refetches the audio asset afterward.
 - `PUT /api/songs/{songId}/visual-assets/{visualAssetId}` is handled as `204 No Content`; the client refetches the visual asset afterward.
 - `PUT /api/songs/{songId}/release` is handled as `204 No Content`; the client refetches the release afterward.
+- `PUT /api/songs/{songId}/release/checklist/{checklistItemId}` is handled as `204 No Content`; the client refetches the checklist item afterward.
 - `PUT /api/songs/{songId}/content-items/{contentItemId}` is handled as `204 No Content`; the client refetches the content item afterward.
 - `PUT /api/songs/{songId}/credits/{creditId}` is handled as `204 No Content`; the client refetches the credit afterward.
 - `PUT /api/songs/{songId}/analytics/{analyticsSnapshotId}` is handled as `204 No Content`; the client refetches the analytics snapshot afterward.
@@ -291,7 +309,7 @@ These frontend areas are mock-only and do not have backend persistence yet:
 - Dashboard metadata beyond base Song records.
 - Audio waveform display, file upload, playback, and external file association.
 - Visual thumbnails, file upload, previews, playback, and external file association.
-- Release preparation checklist.
+- Automatic release checklist completion from asset/content/credit records.
 - Content publishing and platform delivery.
 - Contributor directory, team permissions, contracts, royalties, and payout workflow.
 - External analytics ingestion and automated platform sync.
@@ -401,6 +419,7 @@ public class Release
     public string Platforms { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public ICollection<ReleaseChecklistItem> ChecklistItems { get; set; } = [];
 }
 ```
 
@@ -408,11 +427,51 @@ Relationship:
 
 ```text
 Song 1 -> 0 or 1 Release
+Release 1 -> many ReleaseChecklistItems
 ```
 
 Release is metadata-only. No distributor API delivery, publishing action, or external platform integration exists yet.
 
 Release platforms are stored as a single normalized comma-separated string in PostgreSQL and returned as a string array through the API. This keeps the first release-planning milestone understandable without introducing platform join tables before real platform integrations exist.
+
+## Current ReleaseChecklistItem Model
+
+```csharp
+public class ReleaseChecklistItem
+{
+    public int Id { get; set; }
+    public int ReleaseId { get; set; }
+    public Release Release { get; set; } = null!;
+    public string Key { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public bool IsCompleted { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public string? Notes { get; set; }
+    public int SortOrder { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+```
+
+Relationship:
+
+```text
+Release 1 -> many ReleaseChecklistItems
+```
+
+ReleaseChecklistItem is metadata-only. It tracks preparation readiness and notes; it does not publish, upload, validate external assets, or deliver a release to a distributor.
+
+Default checklist keys:
+
+```text
+Master
+Cover
+Metadata
+Credits
+Canvas
+MusicVideo
+ContentPlan
+```
 
 ## Current ContentItem Model
 
@@ -516,6 +575,8 @@ The Song API uses DTOs instead of exposing the EF entity directly as the API con
 - `CreateReleaseRequest`
 - `UpdateReleaseRequest`
 - `ReleaseResponse`
+- `UpdateReleaseChecklistItemRequest`
+- `ReleaseChecklistItemResponse`
 - `CreateContentItemRequest`
 - `UpdateContentItemRequest`
 - `ContentItemResponse`
@@ -533,6 +594,7 @@ DTOs are used because they solve current API contract problems:
 - provide focused request validation
 - keep response shape explicit
 - keep one-to-one Release metadata separate from the `Song` persistence model
+- keep fixed Release checklist metadata separate from future automated readiness rules and distributor validation
 - keep ContentItem planning metadata separate from future platform publishing behavior
 - keep Credit contributor metadata separate from future user/team/payment/legal systems
 - keep AnalyticsSnapshot metadata separate from future external analytics ingestion behavior
@@ -682,6 +744,32 @@ YouTubeMusic
 SoundCloud
 TikTok
 Other
+```
+
+Current ReleaseChecklist backend validation rules:
+
+- `ReleaseId` comes from the existing Release relationship.
+- `Id` is database-controlled.
+- `Key` and `Label` are server-defined standard values.
+- `IsCompleted` can be changed by the client.
+- `CompletedAt` is server-controlled.
+- `CompletedAt` is set when an item changes from incomplete to complete.
+- `CompletedAt` is cleared when an item changes from complete to incomplete.
+- `Notes` is optional, trimmed before saving, and limited to `1000` characters.
+- `SortOrder` is server-defined for the standard checklist.
+- A Release can have one checklist item per standard `Key`.
+- Custom checklist items are not implemented in this milestone.
+
+Default ReleaseChecklist keys:
+
+```text
+Master
+Cover
+Metadata
+Credits
+Canvas
+MusicVideo
+ContentPlan
 ```
 
 Current ContentItem backend validation rules:
@@ -841,6 +929,7 @@ Current database tables:
 - `ContentItems`
 - `Credits`
 - `Releases`
+- `ReleaseChecklistItems`
 - `Songs`
 - `VisualAssets`
 - `__EFMigrationsHistory`
@@ -856,6 +945,7 @@ Applied migrations:
 20260829133738_AddContentItemMetadata
 20260830055757_AddCreditMetadata
 20260830061847_AddAnalyticsSnapshotMetadata
+20260830104509_AddReleaseChecklistItems
 ```
 
 Current `Songs` schema:
@@ -903,6 +993,19 @@ Current `Releases` schema:
 - `Upc` character varying(20), optional.
 - `Status` character varying(40), required.
 - `Platforms` character varying(255), required.
+- `CreatedAt` timestamp with time zone, required.
+- `UpdatedAt` timestamp with time zone, required.
+
+Current `ReleaseChecklistItems` schema:
+
+- `Id` integer primary key, generated by PostgreSQL identity.
+- `ReleaseId` integer, required, foreign key to `Releases`.
+- `Key` character varying(40), required.
+- `Label` character varying(80), required.
+- `IsCompleted` boolean, required.
+- `CompletedAt` timestamp with time zone, optional.
+- `Notes` character varying(1000), optional.
+- `SortOrder` integer, required.
 - `CreatedAt` timestamp with time zone, required.
 - `UpdatedAt` timestamp with time zone, required.
 
@@ -964,6 +1067,9 @@ Indexes:
 - `IX_AnalyticsSnapshots_SongId`
 - `IX_AnalyticsSnapshots_SongId_SnapshotDate`
 - `IX_AnalyticsSnapshots_SongId_Platform_SnapshotDate`, unique
+- `IX_ReleaseChecklistItems_ReleaseId`
+- `IX_ReleaseChecklistItems_ReleaseId_Key`, unique
+- `IX_ReleaseChecklistItems_ReleaseId_SortOrder`
 
 ## Packages
 
@@ -1014,6 +1120,7 @@ Backend expected API errors:
 - Invalid request body validation returns `400 Bad Request` through normal ASP.NET Core `[ApiController]` behavior.
 - Missing song returns `404 Not Found`.
 - Missing audio asset returns `404 Not Found`.
+- Missing release, checklist, or checklist item returns `404 Not Found`.
 
 Frontend expected API behavior:
 
@@ -1038,11 +1145,12 @@ Automated tests:
 - AudioAsset API behavior has both automated test coverage and earlier pragmatic manual HTTP/browser verification.
 - VisualAsset API behavior has both automated test coverage and pragmatic manual HTTP/browser verification.
 - Release API behavior has both automated test coverage and pragmatic manual HTTP/browser verification.
+- ReleaseChecklist API behavior has both automated test coverage and pragmatic browser verification.
 - ContentItem API behavior has both automated test coverage and pragmatic browser verification.
 - Credit API behavior has both automated test coverage and pragmatic browser verification.
 - AnalyticsSnapshot API behavior has both automated test coverage and pragmatic browser verification.
 
-Verification run during the latest Analytics snapshot milestone:
+Verification run during the latest Release checklist milestone:
 
 ```text
 dotnet build
@@ -1059,9 +1167,9 @@ Results:
 
 ```text
 dotnet build: succeeded, 0 warnings, 0 errors.
-dotnet test: succeeded, 136 passed, 0 failed, 0 skipped.
+dotnet test: succeeded, 146 passed, 0 failed, 0 skipped.
 dotnet ef database update: succeeded.
-dotnet ef migrations list: confirmed 20260830061847_AddAnalyticsSnapshotMetadata is applied.
+dotnet ef migrations list: confirmed 20260830104509_AddReleaseChecklistItems is applied.
 npm ci: succeeded, 0 vulnerabilities.
 npm run lint: completed with 0 errors and 8 warnings.
 npm run build: succeeded.
@@ -1087,6 +1195,13 @@ Automated backend coverage now includes:
 - Release duplicate creation returns `409 Conflict`.
 - Release server-controlled `CreatedAt` and `UpdatedAt` behavior.
 - Song-to-Release relationship behavior, including one Release per Song and deleting Release metadata without deleting the parent Song.
+- ReleaseChecklist default initialization when a Release is created.
+- ReleaseChecklist list ordering by `SortOrder`.
+- ReleaseChecklist `404 Not Found` missing Song, missing Release, and missing item paths.
+- ReleaseChecklist item update paths for complete/incomplete state.
+- ReleaseChecklist server-controlled `CompletedAt`, `CreatedAt`, and `UpdatedAt` behavior.
+- ReleaseChecklist notes validation and trimming.
+- Release-to-ReleaseChecklist relationship behavior, including deleting checklist metadata with the parent Release/Song relationship intact.
 - ContentItem metadata create/read/list/update/delete success paths.
 - ContentItem `400 Bad Request` validation paths.
 - ContentItem `404 Not Found` missing Song and missing ContentItem paths.
@@ -1196,6 +1311,15 @@ Latest browser Release checks confirmed:
 - Release tab loaded real metadata from the backend.
 - Empty state appeared when a Song had no Release.
 - Release plan was created through the frontend.
+- Standard checklist items were initialized when the Release plan was created.
+- Release checklist loaded real persisted metadata from the backend.
+- The checklist displayed Master, Cover, Metadata, Credits, Canvas, Music Video, and Content Plan.
+- Checking an item persisted immediately.
+- Page refresh preserved checked checklist state.
+- Checking multiple items updated derived progress from `0 / 7 COMPLETE` to `4 / 7 COMPLETE`.
+- Unchecking an item cleared its server-controlled `CompletedAt` timestamp.
+- Completed items retained server-controlled `CompletedAt` timestamps.
+- Checklist progress is derived in the frontend and not stored as a separate percentage.
 - Page refresh preserved the created Release metadata.
 - Release plan was edited through the frontend.
 - Updated release date, distributor, identifiers, status, and platforms persisted.
@@ -1203,8 +1327,8 @@ Latest browser Release checks confirmed:
 - Delete confirmation stated that only release metadata is removed.
 - Deleted Release metadata disappeared from the Release tab.
 - The parent Song still existed after deleting Release metadata.
-- Checklist remained clearly labeled as planned.
-- Browser verification reported no unexpected CORS/API errors. Chrome logged expected `404 Not Found` responses for the intentional empty Release state before creation and after deletion.
+- Release checklist UI did not imply external publishing or distributor delivery.
+- Browser verification reported no CORS/API errors during the completed verification flow.
 
 Latest browser ContentItem checks confirmed:
 
@@ -1262,7 +1386,7 @@ Latest browser AnalyticsSnapshot checks confirmed:
 
 ## Git Status Notes
 
-Current AudioAsset, VisualAsset, Release, ContentItem, Credit, and AnalyticsSnapshot metadata foundation work is uncommitted.
+Current AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, and AnalyticsSnapshot metadata foundation work is uncommitted.
 
 The frontend build generated route/output artifacts as expected. Build output remains ignored.
 
@@ -1276,6 +1400,7 @@ Remote GitHub Actions status:
 - AudioAsset `Type` and `Status` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - VisualAsset `Type` and `Status` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - Release `ReleaseType`, `Status`, and `Platforms` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
+- ReleaseChecklist `Key` values are server-defined strings for the fixed checklist; this is acceptable while custom checklist items are intentionally out of scope.
 - ContentItem `Type`, `Status`, and `Platform` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - Credit `Role` and `Status` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - AnalyticsSnapshot `Platform` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
@@ -1286,6 +1411,7 @@ Remote GitHub Actions status:
 - Credit contributors are plain Song-scoped metadata strings; a normalized contributor directory can wait until team/auth requirements exist.
 - Planned split percentages are stored independently per Credit and are not validated to total `100` across a Song.
 - Analytics snapshots are manually entered metadata and are not ingested from external platform APIs.
+- Release checklist items are not automatically completed from AudioAsset, VisualAsset, Credit, or ContentItem records yet.
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - There is no frontend test script yet.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
@@ -1298,7 +1424,7 @@ Remote GitHub Actions status:
 - YouTube integration and automated analytics ingestion.
 - Real audio file upload, playback, waveform processing, and external file association.
 - Real visual file upload, preview/thumbnail generation, playback, and external file association.
-- Release preparation checklist persistence.
+- Automatic Release checklist completion based on asset/content/credit metadata.
 - Distributor delivery or publishing workflow.
 - Content publishing, platform delivery, and real calendar persistence.
 - Contributor directory, contracts, royalties, payment workflow, and authenticated team permissions.
@@ -1306,11 +1432,11 @@ Remote GitHub Actions status:
 
 ## Recommended Next Milestone
 
-Start the release preparation checklist persistence foundation.
+Start the calendar persistence foundation.
 
 Suggested scope:
 
-- Add persisted checklist items related to the existing Song Release metadata.
-- Keep checklist records metadata-only and avoid distributor delivery or external publishing.
+- Add metadata-only calendar event persistence for Song/Release/Content planning dates.
+- Keep external calendar integrations out of scope.
 - Add focused API routes and backend tests.
-- Connect the Release tab checklist to real backend metadata without implementing platform delivery.
+- Connect the Calendar route to real backend metadata while preserving existing Song workspace behavior.

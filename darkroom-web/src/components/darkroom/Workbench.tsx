@@ -52,12 +52,12 @@ import { analyticsApi } from "@/services/api/analytics";
 import { audioAssetsApi } from "@/services/api/audioAssets";
 import { contentItemsApi } from "@/services/api/contentItems";
 import { creditsApi } from "@/services/api/credits";
+import { releaseChecklistApi } from "@/services/api/releaseChecklist";
 import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
 import { visualAssetsApi } from "@/services/api/visualAssets";
 import { workspacePerformance } from "@/services/mock/analytics";
 import { calendarEvents } from "@/services/mock/calendar";
-import { getRelease } from "@/services/mock/release";
 import {
   getSongActivity,
   getSongTasks,
@@ -110,6 +110,8 @@ import {
   type CreditRole,
   type CreditStatus,
   type Release,
+  type ReleaseChecklistItem,
+  type ReleaseChecklistItemPayload,
   type ReleasePayload,
   type ReleasePlatform,
   type ReleaseStatus,
@@ -136,6 +138,10 @@ function visualAssetsQueryKey(songId: string) {
 
 function releaseQueryKey(songId: string) {
   return ["songs", songId, "release"];
+}
+
+function releaseChecklistQueryKey(songId: string) {
+  return ["songs", songId, "release", "checklist"];
 }
 
 function contentItemsQueryKey(songId: string) {
@@ -1569,7 +1575,10 @@ function VisualsTab({ songId }: { songId: string }) {
 
 function useReleaseMutations(songId: string) {
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: releaseQueryKey(songId) });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: releaseQueryKey(songId) });
+    queryClient.invalidateQueries({ queryKey: releaseChecklistQueryKey(songId) });
+  };
 
   return {
     create: useMutation({
@@ -1582,6 +1591,25 @@ function useReleaseMutations(songId: string) {
     }),
     remove: useMutation({
       mutationFn: () => releasesApi.deleteRelease(songId),
+      onSuccess: invalidate,
+    }),
+  };
+}
+
+function useReleaseChecklistMutations(songId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: releaseChecklistQueryKey(songId) });
+
+  return {
+    update: useMutation({
+      mutationFn: ({
+        checklistItemId,
+        payload,
+      }: {
+        checklistItemId: string;
+        payload: ReleaseChecklistItemPayload;
+      }) => releaseChecklistApi.updateChecklistItem(songId, checklistItemId, payload),
       onSuccess: invalidate,
     }),
   };
@@ -1811,7 +1839,6 @@ function ReleaseTab({ songId }: { songId: string }) {
     queryFn: () => releasesApi.getRelease(songId),
   });
   const mutations = useReleaseMutations(songId);
-  const plannedRelease = getRelease(songId);
 
   if (release.isLoading) {
     return <LoadingState label="Loading release metadata" />;
@@ -1910,29 +1937,175 @@ function ReleaseTab({ songId }: { songId: string }) {
           </div>
         )}
       </Panel>
-      <Panel title="Preparation checklist" label="Planned">
-        <p className="mb-3 text-sm text-muted-foreground">
-          Checklist persistence is planned for a later milestone; these items are currently a guide.
-        </p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {plannedRelease.checklist.map((item) => (
-            <div
-              key={item.item}
-              className="flex items-center gap-3 border border-border bg-background p-3"
-            >
-              <span
-                className={cn(
-                  "flex h-5 w-5 items-center justify-center border",
-                  item.done ? "bg-foreground text-background" : "border-border",
-                )}
-              >
-                {item.done ? <Check className="h-3 w-3" /> : null}
-              </span>
-              <span className="text-sm">{item.item}</span>
-            </div>
-          ))}
-        </div>
+      <ReleaseChecklistPanel songId={songId} hasRelease={Boolean(releasePlan)} />
+    </div>
+  );
+}
+
+function ReleaseChecklistPanel({ songId, hasRelease }: { songId: string; hasRelease: boolean }) {
+  const checklist = useQuery({
+    queryKey: releaseChecklistQueryKey(songId),
+    queryFn: () => releaseChecklistApi.getChecklist(songId),
+    enabled: hasRelease,
+  });
+  const mutations = useReleaseChecklistMutations(songId);
+
+  if (!hasRelease) {
+    return (
+      <Panel title="Preparation checklist" label="Real backend data">
+        <EmptyState
+          title="No checklist yet"
+          detail="Create a release plan to initialize the standard preparation checklist."
+        />
       </Panel>
+    );
+  }
+
+  if (checklist.isLoading) {
+    return (
+      <Panel title="Preparation checklist" label="Real backend data">
+        <LoadingState label="Loading release checklist" />
+      </Panel>
+    );
+  }
+
+  if (checklist.isError) {
+    return (
+      <Panel title="Preparation checklist" label="Real backend data">
+        <ErrorState
+          detail="Release checklist could not be loaded from the backend."
+          onRetry={() => checklist.refetch()}
+        />
+      </Panel>
+    );
+  }
+
+  const items = checklist.data ?? [];
+  const completedCount = items.filter((item) => item.isCompleted).length;
+  const progressPercent = items.length ? Math.round((completedCount / items.length) * 100) : 0;
+
+  return (
+    <Panel title="Preparation checklist" label="Real backend data">
+      <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="font-mono text-2xl">
+            {completedCount} / {items.length} COMPLETE
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {progressPercent}% checklist readiness. No external distributor delivery happens here.
+          </p>
+        </div>
+        <div className="h-2 w-full bg-muted sm:w-40">
+          <div
+            className="h-full bg-foreground"
+            style={{ width: `${progressPercent}%` }}
+            aria-hidden="true"
+          />
+        </div>
+      </div>
+      <div className="grid gap-3">
+        {items.map((item) => (
+          <ReleaseChecklistItemRow
+            key={item.id}
+            item={item}
+            isPending={mutations.update.isPending}
+            onUpdate={(payload) =>
+              mutations.update.mutateAsync({
+                checklistItemId: String(item.id),
+                payload,
+              })
+            }
+          />
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function ReleaseChecklistItemRow({
+  item,
+  isPending,
+  onUpdate,
+}: {
+  item: ReleaseChecklistItem;
+  isPending: boolean;
+  onUpdate: (payload: ReleaseChecklistItemPayload) => Promise<unknown>;
+}) {
+  const [notes, setNotes] = useState(item.notes ?? "");
+  const [error, setError] = useState("");
+  const trimmedNotes = notes.trim();
+  const savedNotes = item.notes ?? "";
+  const noteChanged = trimmedNotes !== savedNotes;
+
+  async function updateCompletion(checked: boolean) {
+    try {
+      setError("");
+      await onUpdate({
+        isCompleted: checked,
+        notes: trimmedNotes || null,
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Checklist item could not be updated.");
+    }
+  }
+
+  async function saveNotes() {
+    if (notes.length > 1000) {
+      setError("Notes must be 1000 characters or fewer.");
+      return;
+    }
+
+    try {
+      setError("");
+      await onUpdate({
+        isCompleted: item.isCompleted,
+        notes: trimmedNotes || null,
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Checklist notes could not be saved.");
+    }
+  }
+
+  return (
+    <div className="border border-border bg-background p-3">
+      <div className="flex items-start gap-3">
+        <Checkbox
+          aria-label={`${item.label} checklist item`}
+          checked={item.isCompleted}
+          disabled={isPending}
+          onCheckedChange={(checked) => updateCompletion(checked === true)}
+          className="mt-1"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-medium">{item.label}</p>
+            <p className="text-xs uppercase text-muted-foreground">
+              {item.isCompleted && item.completedAt
+                ? `Completed ${formatDate(item.completedAt)}`
+                : "Open"}
+            </p>
+          </div>
+          <Textarea
+            value={notes}
+            maxLength={1000}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Optional checklist notes"
+            className="mt-3 min-h-16"
+          />
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">{notes.length} / 1000</p>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!noteChanged || isPending}
+              onClick={saveNotes}
+            >
+              Save note
+            </Button>
+          </div>
+          {error ? <p className="mt-2 text-xs text-muted-foreground">{error}</p> : null}
+        </div>
+      </div>
     </div>
   );
 }

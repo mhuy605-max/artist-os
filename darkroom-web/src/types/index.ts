@@ -236,6 +236,46 @@ export interface ReleasePayload {
   platforms: ReleasePlatform[];
 }
 
+export const RELEASE_CHECKLIST_KEYS = [
+  "Master",
+  "Cover",
+  "Metadata",
+  "Credits",
+  "Canvas",
+  "MusicVideo",
+  "ContentPlan",
+] as const;
+
+export type ReleaseChecklistKey = (typeof RELEASE_CHECKLIST_KEYS)[number];
+
+export const RELEASE_CHECKLIST_LABELS: Record<ReleaseChecklistKey, string> = {
+  Master: "Master",
+  Cover: "Cover",
+  Metadata: "Metadata",
+  Credits: "Credits",
+  Canvas: "Canvas",
+  MusicVideo: "Music Video",
+  ContentPlan: "Content Plan",
+};
+
+export interface ReleaseChecklistItem {
+  id: string | number;
+  releaseId: string | number;
+  key: ReleaseChecklistKey;
+  label: string;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  notes?: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReleaseChecklistItemPayload {
+  isCompleted: boolean;
+  notes?: string | null;
+}
+
 export interface MockAudioAsset {
   id: string;
   songId: string;
@@ -265,20 +305,6 @@ export interface MockVisualAsset {
   version: string;
   creator: string;
   lastUpdated: string;
-}
-
-export type ReleaseStage = "Planning" | "Preparing" | "Ready" | "Scheduled" | "Released";
-
-export interface ReleaseInfo {
-  songId: string;
-  releaseDate: string;
-  distributor: string;
-  isrc: string;
-  upc: string;
-  releaseType: "Single" | "EP" | "Album";
-  platforms: string[];
-  stage: ReleaseStage;
-  checklist: { item: string; done: boolean }[];
 }
 
 export const CONTENT_TYPES = [

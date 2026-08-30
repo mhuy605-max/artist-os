@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Analytics Snapshot Foundation
+Release Preparation Checklist Persistence Foundation
 ```
 
 Implemented and verified:
@@ -62,7 +62,10 @@ Implemented and verified:
 - AnalyticsSnapshot metadata model related to Song
 - Nested AnalyticsSnapshot metadata API
 - Real browser-based Analytics tab metadata create/read/update/delete
-- Automated backend integration tests for current Song, AudioAsset, VisualAsset, Release, ContentItem, Credit, and AnalyticsSnapshot API behavior
+- ReleaseChecklistItem model related to Release
+- Nested Release checklist API
+- Real browser-based Release tab checklist persistence and progress tracking
+- Automated backend integration tests for current Song, AudioAsset, VisualAsset, Release, ReleaseChecklistItem, ContentItem, Credit, and AnalyticsSnapshot API behavior
 - GitHub Actions CI workflow for backend build/tests and frontend lint/build
 
 Planned, not implemented yet:
@@ -72,6 +75,7 @@ Planned, not implemented yet:
 - YouTube analytics
 - Real audio file upload, playback, waveform processing, or external file storage
 - Real release publishing or distributor delivery
+- Automatic checklist completion from asset/content/credit records
 - Contributor directory, team permissions, contracts, royalties, or payout workflow
 - YouTube analytics ingestion and automated external platform sync
 - Continuous delivery and production deployment
@@ -106,7 +110,7 @@ The `/` route redirects to `/dashboard`.
 
 ## Real Backend Integration
 
-Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, ContentItem metadata, Credit metadata, and AnalyticsSnapshot metadata are connected to the ASP.NET Core backend.
+Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, ContentItem metadata, Credit metadata, and AnalyticsSnapshot metadata are connected to the ASP.NET Core backend.
 
 Browser-based create, read, update, and delete works against:
 
@@ -115,12 +119,13 @@ http://localhost:5178/api/songs
 http://localhost:5178/api/songs/{songId}/audio-assets
 http://localhost:5178/api/songs/{songId}/visual-assets
 http://localhost:5178/api/songs/{songId}/release
+http://localhost:5178/api/songs/{songId}/release/checklist
 http://localhost:5178/api/songs/{songId}/content-items
 http://localhost:5178/api/songs/{songId}/credits
 http://localhost:5178/api/songs/{songId}/analytics
 ```
 
-The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. The Visuals tab loads and writes real VisualAsset metadata for the selected Song. The Release tab loads and writes real Release metadata for the selected Song. The Content tab loads and writes real ContentItem metadata for the selected Song. The Credits tab loads and writes real Credit metadata for the selected Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected Song. Local CORS is configured for frontend development from:
+The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. The Visuals tab loads and writes real VisualAsset metadata for the selected Song. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected Song. The Content tab loads and writes real ContentItem metadata for the selected Song. The Credits tab loads and writes real Credit metadata for the selected Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected Song. Local CORS is configured for frontend development from:
 
 ```text
 http://localhost:8080
@@ -135,7 +140,7 @@ These areas are visible in the frontend but are not backend-backed yet:
 - Dashboard metadata beyond real Song records
 - Audio waveform display, file upload, playback, and external file association
 - Visual thumbnails, file upload, previews, playback, and external file association
-- Release preparation checklist
+- Automatic release checklist completion from asset/content/credit records
 - Release publishing and distributor delivery
 - Content publishing and platform delivery
 - Contributor directory, team permissions, contracts, royalties, and payout workflow
@@ -330,6 +335,7 @@ public class Release
     public string Platforms { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public ICollection<ReleaseChecklistItem> ChecklistItems { get; set; } = [];
 }
 ```
 
@@ -360,6 +366,49 @@ SoundCloud
 TikTok
 Other
 ```
+
+### Release Checklist Metadata API
+
+The backend supports a fixed preparation checklist for each Release plan. Items are initialized automatically when a Release is created.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/songs/{songId}/release/checklist` | List checklist items for a Song's Release, ordered by `SortOrder`. |
+| `GET` | `/api/songs/{songId}/release/checklist/{checklistItemId}` | Get one checklist item. |
+| `PUT` | `/api/songs/{songId}/release/checklist/{checklistItemId}` | Update completion state and optional notes. Returns `204 No Content`. |
+
+Current `ReleaseChecklistItem` shape:
+
+```csharp
+public class ReleaseChecklistItem
+{
+    public int Id { get; set; }
+    public int ReleaseId { get; set; }
+    public Release Release { get; set; } = null!;
+    public string Key { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public bool IsCompleted { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public string? Notes { get; set; }
+    public int SortOrder { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+```
+
+Default checklist keys:
+
+```text
+Master
+Cover
+Metadata
+Credits
+Canvas
+MusicVideo
+ContentPlan
+```
+
+`CompletedAt` is controlled by the server. Checklist progress is derived in the frontend and is not stored as a separate percentage.
 
 ### ContentItem Metadata API
 
@@ -652,6 +701,14 @@ PUT    /api/songs/{songId}/release
 DELETE /api/songs/{songId}/release
 ```
 
+Release checklist metadata endpoints:
+
+```text
+GET    /api/songs/{songId}/release/checklist
+GET    /api/songs/{songId}/release/checklist/{checklistItemId}
+PUT    /api/songs/{songId}/release/checklist/{checklistItemId}
+```
+
 Content item metadata endpoints:
 
 ```text
@@ -708,6 +765,7 @@ ArtistOS/
 │   │   ├── AudioAssetsController.cs
 │   │   ├── ContentItemsController.cs
 │   │   ├── CreditsController.cs
+│   │   ├── ReleaseChecklistController.cs
 │   │   ├── ReleasesController.cs
 │   │   ├── SongsController.cs
 │   │   └── VisualAssetsController.cs
@@ -721,6 +779,7 @@ ArtistOS/
 │   │   ├── ContentItem.cs
 │   │   ├── Credit.cs
 │   │   ├── Release.cs
+│   │   ├── ReleaseChecklistItem.cs
 │   │   ├── Song.cs
 │   │   └── VisualAsset.cs
 │   ├── Properties/
@@ -851,6 +910,7 @@ Current tables:
 - `AudioAssets`
 - `ContentItems`
 - `Credits`
+- `ReleaseChecklistItems`
 - `Releases`
 - `Songs`
 - `VisualAssets`
@@ -867,6 +927,7 @@ Current migrations:
 20260829133738_AddContentItemMetadata
 20260830055757_AddCreditMetadata
 20260830061847_AddAnalyticsSnapshotMetadata
+20260830104509_AddReleaseChecklistItems
 ```
 
 Large media files such as WAV, MP3, stems, artwork, and video files should not be stored directly in PostgreSQL. The planned direction is to store metadata in PostgreSQL and large files in an external provider such as Google Drive.
@@ -886,6 +947,8 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Nested VisualAsset metadata API
 - [x] Release metadata model and migration
 - [x] Nested Release metadata API
+- [x] Release checklist metadata model and migration
+- [x] Nested Release checklist API
 - [x] ContentItem metadata model and migration
 - [x] Nested ContentItem metadata API
 - [x] Credit metadata model and migration
@@ -906,12 +969,12 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Browser-based real AudioAsset metadata integration
 - [x] Browser-based real VisualAsset metadata integration
 - [x] Browser-based real Release metadata integration
+- [x] Browser-based real Release checklist integration
 - [x] Browser-based real ContentItem metadata integration
 - [x] Browser-based real Credit metadata integration
 - [x] Browser-based real AnalyticsSnapshot metadata integration
 - [ ] Real audio file upload and external file association
 - [ ] Real visual file upload and external file association
-- [ ] Release preparation checklist persistence
 - [ ] Release publishing and distributor delivery
 - [ ] Content publishing and platform delivery
 - [ ] Contributor directory, contracts, royalties, and payout workflow

@@ -67,6 +67,11 @@ public class ReleasesController : ControllerBase
             UpdatedAt = now
         };
 
+        foreach (var item in CreateDefaultChecklistItems(now))
+        {
+            release.ChecklistItems.Add(item);
+        }
+
         _context.Releases.Add(release);
         await _context.SaveChangesAsync();
 
@@ -176,6 +181,19 @@ public class ReleasesController : ControllerBase
         return platforms
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
+    }
+
+    private static IEnumerable<ReleaseChecklistItem> CreateDefaultChecklistItems(DateTime now)
+    {
+        return ReleaseChecklistDefaults.Items.Select(item => new ReleaseChecklistItem
+        {
+            Key = item.Key,
+            Label = item.Label,
+            SortOrder = item.SortOrder,
+            IsCompleted = false,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
     }
 
     private static string? TrimToNull(string? value)
