@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { AppShell } from "@/components/darkroom/AppShell";
 import { Logo } from "@/components/darkroom/Logo";
 import { StatusBadge } from "@/components/darkroom/StatusBadge";
@@ -48,13 +49,13 @@ import {
   formatNumber,
 } from "@/components/darkroom/Primitives";
 import { audioAssetsApi } from "@/services/api/audioAssets";
+import { contentItemsApi } from "@/services/api/contentItems";
+import { creditsApi } from "@/services/api/credits";
 import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
 import { visualAssetsApi } from "@/services/api/visualAssets";
 import { getAnalytics, workspacePerformance } from "@/services/mock/analytics";
 import { calendarEvents } from "@/services/mock/calendar";
-import { getContentItems } from "@/services/mock/content";
-import { getCredits } from "@/services/mock/credits";
 import { getRelease } from "@/services/mock/release";
 import {
   getSongActivity,
@@ -67,6 +68,15 @@ import { teamMembers, getSongTeam } from "@/services/mock/team";
 import {
   AUDIO_ASSET_STATUSES,
   AUDIO_ASSET_TYPES,
+  CONTENT_PLATFORMS,
+  CONTENT_PLATFORM_LABELS,
+  CONTENT_STATUSES,
+  CONTENT_STATUS_LABELS,
+  CONTENT_TYPES,
+  CONTENT_TYPE_LABELS,
+  CREDIT_ROLES,
+  CREDIT_ROLE_LABELS,
+  CREDIT_STATUSES,
   RELEASE_PLATFORM_LABELS,
   RELEASE_PLATFORMS,
   RELEASE_STATUSES,
@@ -84,6 +94,15 @@ import {
   type AudioAssetPayload,
   type AudioAssetStatus,
   type AudioAssetType,
+  type ContentItem,
+  type ContentItemPayload,
+  type ContentPlatform,
+  type ContentStatus,
+  type ContentType,
+  type Credit,
+  type CreditPayload,
+  type CreditRole,
+  type CreditStatus,
   type Release,
   type ReleasePayload,
   type ReleasePlatform,
@@ -111,6 +130,14 @@ function visualAssetsQueryKey(songId: string) {
 
 function releaseQueryKey(songId: string) {
   return ["songs", songId, "release"];
+}
+
+function contentItemsQueryKey(songId: string) {
+  return ["songs", songId, "content-items"];
+}
+
+function creditsQueryKey(songId: string) {
+  return ["songs", songId, "credits"];
 }
 
 function useSongs() {
@@ -1900,49 +1927,778 @@ function ReleaseTab({ songId }: { songId: string }) {
   );
 }
 
-function ContentTab({ songId }: { songId: string }) {
-  const items = getContentItems(songId);
+function useContentItemMutations(songId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: contentItemsQueryKey(songId) });
+
+  return {
+    create: useMutation({
+      mutationFn: (payload: ContentItemPayload) =>
+        contentItemsApi.createContentItem(songId, payload),
+      onSuccess: invalidate,
+    }),
+    update: useMutation({
+      mutationFn: ({
+        contentItemId,
+        payload,
+      }: {
+        contentItemId: string;
+        payload: ContentItemPayload;
+      }) => contentItemsApi.updateContentItem(songId, contentItemId, payload),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: (contentItemId: string) =>
+        contentItemsApi.deleteContentItem(songId, contentItemId),
+      onSuccess: invalidate,
+    }),
+  };
+}
+
+function isContentType(value: string): value is ContentType {
+  return CONTENT_TYPES.includes(value as ContentType);
+}
+
+function isContentStatus(value: string): value is ContentStatus {
+  return CONTENT_STATUSES.includes(value as ContentStatus);
+}
+
+function isContentPlatform(value: string): value is ContentPlatform {
+  return CONTENT_PLATFORMS.includes(value as ContentPlatform);
+}
+
+function contentTypeLabel(type: ContentType) {
+  return CONTENT_TYPE_LABELS[type];
+}
+
+function contentStatusLabel(status: ContentStatus) {
+  return CONTENT_STATUS_LABELS[status];
+}
+
+function contentPlatformLabel(platform?: ContentPlatform | null) {
+  return platform ? CONTENT_PLATFORM_LABELS[platform] : "No platform";
+}
+
+function validateContentItemPayload(payload: ContentItemPayload) {
+  const title = payload.title.trim();
+  if (!title) return "Title is required.";
+  if (title.length > 200) return "Title must be 200 characters or fewer.";
+  if (!isContentType(payload.type)) return "Choose a valid content type.";
+  if (!isContentStatus(payload.status)) return "Choose a valid status.";
+  if (payload.platform && !isContentPlatform(payload.platform)) return "Choose a valid platform.";
+  if (payload.ownerName && payload.ownerName.trim().length > 120) {
+    return "Owner must be 120 characters or fewer.";
+  }
+  if (payload.notes && payload.notes.trim().length > 1000) {
+    return "Notes must be 1000 characters or fewer.";
+  }
+  return "";
+}
+
+function ContentItemFormDialog({
+  songId,
+  item,
+  trigger,
+}: {
+  songId: string;
+  item?: ContentItem;
+  trigger: ReactNode;
+}) {
+  const mode = item ? "edit" : "create";
+  const mutations = useContentItemMutations(songId);
+  const mutation = mode === "create" ? mutations.create : mutations.update;
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState(item?.title ?? "");
+  const [type, setType] = useState<ContentType>(item?.type ?? "Teaser");
+  const [status, setStatus] = useState<ContentStatus>(item?.status ?? "Idea");
+  const [platform, setPlatform] = useState<ContentPlatform | "None">(item?.platform ?? "None");
+  const [ownerName, setOwnerName] = useState(item?.ownerName ?? "");
+  const [dueDate, setDueDate] = useState(item?.dueDate ?? "");
+  const [scheduledAt, setScheduledAt] = useState(item?.scheduledAt ?? "");
+  const [publishedAt, setPublishedAt] = useState(item?.publishedAt ?? "");
+  const [notes, setNotes] = useState(item?.notes ?? "");
+  const [error, setError] = useState("");
+
+  async function submit() {
+    const payload: ContentItemPayload = {
+      title: title.trim(),
+      type,
+      status,
+      platform: platform === "None" ? null : platform,
+      ownerName: ownerName.trim() || null,
+      dueDate: dueDate || null,
+      scheduledAt: scheduledAt || null,
+      publishedAt: publishedAt || null,
+      notes: notes.trim() || null,
+    };
+    const validationError = validateContentItemPayload(payload);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      if (mode === "create") {
+        await mutations.create.mutateAsync(payload);
+        setTitle("");
+        setType("Teaser");
+        setStatus("Idea");
+        setPlatform("None");
+        setOwnerName("");
+        setDueDate("");
+        setScheduledAt("");
+        setPublishedAt("");
+        setNotes("");
+      } else if (item) {
+        await mutations.update.mutateAsync({
+          contentItemId: String(item.id),
+          payload,
+        });
+      }
+      setError("");
+      setOpen(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The content item could not be saved.");
+    }
+  }
+
   return (
-    <Panel title="Campaign content" label="Mock-only">
-      {items.length ? (
-        <Timeline
-          items={items.map((item) => ({
-            id: item.id,
-            title: item.title,
-            meta: `${item.type} / ${item.stage} / ${item.platform}`,
-            detail: item.scheduledFor ? formatDate(item.scheduledFor) : item.owner,
-          }))}
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="border-border bg-background">
+        <DialogHeader>
+          <DialogTitle className="uppercase">
+            {mode === "create" ? "Add content item" : "Edit content item"}
+          </DialogTitle>
+          <DialogDescription>
+            This saves planning metadata only. Published status does not post to any platform.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="label-tech" htmlFor={`${mode}-content-title-${item?.id ?? "new"}`}>
+              Title
+            </label>
+            <Input
+              id={`${mode}-content-title-${item?.id ?? "new"}`}
+              value={title}
+              maxLength={200}
+              onChange={(event) => setTitle(event.target.value)}
+              className="mt-2"
+              placeholder="Teaser 01"
+            />
+          </div>
+          <div>
+            <label className="label-tech">Type</label>
+            <Select value={type} onValueChange={(value) => setType(value as ContentType)}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CONTENT_TYPES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {contentTypeLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech">Status</label>
+            <Select value={status} onValueChange={(value) => setStatus(value as ContentStatus)}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CONTENT_STATUSES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {contentStatusLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech">Platform</label>
+            <Select
+              value={platform}
+              onValueChange={(value) => setPlatform(value as ContentPlatform | "None")}
+            >
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="None">No platform</SelectItem>
+                {CONTENT_PLATFORMS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {contentPlatformLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-content-owner-${item?.id ?? "new"}`}>
+              Owner
+            </label>
+            <Input
+              id={`${mode}-content-owner-${item?.id ?? "new"}`}
+              value={ownerName}
+              maxLength={120}
+              onChange={(event) => setOwnerName(event.target.value)}
+              className="mt-2"
+              placeholder="AR"
+            />
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-content-due-${item?.id ?? "new"}`}>
+              Due date
+            </label>
+            <Input
+              id={`${mode}-content-due-${item?.id ?? "new"}`}
+              type="date"
+              value={dueDate}
+              onChange={(event) => setDueDate(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div>
+            <label
+              className="label-tech"
+              htmlFor={`${mode}-content-scheduled-${item?.id ?? "new"}`}
+            >
+              Scheduled date
+            </label>
+            <Input
+              id={`${mode}-content-scheduled-${item?.id ?? "new"}`}
+              type="date"
+              value={scheduledAt}
+              onChange={(event) => setScheduledAt(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div>
+            <label
+              className="label-tech"
+              htmlFor={`${mode}-content-published-${item?.id ?? "new"}`}
+            >
+              Published date
+            </label>
+            <Input
+              id={`${mode}-content-published-${item?.id ?? "new"}`}
+              type="date"
+              value={publishedAt}
+              onChange={(event) => setPublishedAt(event.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label-tech" htmlFor={`${mode}-content-notes-${item?.id ?? "new"}`}>
+              Notes
+            </label>
+            <Textarea
+              id={`${mode}-content-notes-${item?.id ?? "new"}`}
+              value={notes}
+              maxLength={1000}
+              onChange={(event) => setNotes(event.target.value)}
+              className="mt-2"
+              placeholder="Publishing and platform actions are planned for later."
+            />
+          </div>
+          {error ? <p className="text-sm text-muted-foreground sm:col-span-2">{error}</p> : null}
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={mutation.isPending}>
+              {mutation.isPending ? "Saving" : "Save"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ContentItemRow({ songId, item }: { songId: string; item: ContentItem }) {
+  const mutations = useContentItemMutations(songId);
+
+  return (
+    <div className="border border-border bg-background p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{item.title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {contentTypeLabel(item.type)} / {contentPlatformLabel(item.platform)} /{" "}
+            {item.ownerName ?? "Unassigned"}
+          </p>
+        </div>
+        <StatusBadge status={contentStatusLabel(item.status)} />
+      </div>
+      <dl className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+        <div>
+          <dt className="label-tech">Due</dt>
+          <dd>{item.dueDate ? formatDate(item.dueDate) : "Not set"}</dd>
+        </div>
+        <div>
+          <dt className="label-tech">Scheduled</dt>
+          <dd>{item.scheduledAt ? formatDate(item.scheduledAt) : "Not set"}</dd>
+        </div>
+        <div>
+          <dt className="label-tech">Published</dt>
+          <dd>{item.publishedAt ? formatDate(item.publishedAt) : "Metadata only"}</dd>
+        </div>
+      </dl>
+      {item.notes ? <p className="mt-3 text-xs text-muted-foreground">{item.notes}</p> : null}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Updated {formatDate(item.updatedAt)} / no platform publish action
+        </p>
+        <div className="flex gap-2">
+          <ContentItemFormDialog
+            songId={songId}
+            item={item}
+            trigger={
+              <Button variant="outline" size="sm">
+                Edit
+              </Button>
+            }
+          />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete content metadata</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes only the planning metadata. No social post, scheduled publish, or
+                  uploaded media will be deleted.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => mutations.remove.mutate(String(item.id))}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContentTab({ songId }: { songId: string }) {
+  const contentItems = useQuery({
+    queryKey: contentItemsQueryKey(songId),
+    queryFn: () => contentItemsApi.getContentItems(songId),
+  });
+
+  if (contentItems.isLoading) {
+    return <LoadingState label="Loading content metadata" />;
+  }
+
+  if (contentItems.isError) {
+    return (
+      <ErrorState
+        detail="Content metadata could not be loaded from the backend."
+        onRetry={() => contentItems.refetch()}
+      />
+    );
+  }
+
+  const items = contentItems.data ?? [];
+
+  return (
+    <Panel title="Campaign content" label="Real backend data">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Content items are planning metadata only. Changing status to Published does not post to
+          any platform.
+        </p>
+        <ContentItemFormDialog
+          songId={songId}
+          trigger={
+            <Button>
+              <Plus className="h-4 w-4" />
+              Add content
+            </Button>
+          }
         />
+      </div>
+      {items.length ? (
+        <div className="grid gap-3 xl:grid-cols-2">
+          {items.map((item) => (
+            <ContentItemRow key={item.id} songId={songId} item={item} />
+          ))}
+        </div>
       ) : (
         <EmptyState
           title="No content planned"
-          detail="Content planning backend will arrive in a later phase."
+          detail="Add content planning metadata for this Song. Publishing integrations are planned for later."
         />
       )}
     </Panel>
   );
 }
 
-function CreditsTab({ songId }: { songId: string }) {
-  const credits = getCredits(songId);
+function useCreditMutations(songId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: creditsQueryKey(songId) });
+
+  return {
+    create: useMutation({
+      mutationFn: (payload: CreditPayload) => creditsApi.createCredit(songId, payload),
+      onSuccess: invalidate,
+    }),
+    update: useMutation({
+      mutationFn: ({ creditId, payload }: { creditId: string; payload: CreditPayload }) =>
+        creditsApi.updateCredit(songId, creditId, payload),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: (creditId: string) => creditsApi.deleteCredit(songId, creditId),
+      onSuccess: invalidate,
+    }),
+  };
+}
+
+function isCreditRole(value: string): value is CreditRole {
+  return CREDIT_ROLES.includes(value as CreditRole);
+}
+
+function isCreditStatus(value: string): value is CreditStatus {
+  return CREDIT_STATUSES.includes(value as CreditStatus);
+}
+
+function creditRoleLabel(role: CreditRole) {
+  return CREDIT_ROLE_LABELS[role];
+}
+
+function validateCreditPayload(payload: CreditPayload) {
+  const contributorName = payload.contributorName.trim();
+  if (!contributorName) return "Contributor name is required.";
+  if (contributorName.length > 160) return "Contributor name must be 160 characters or fewer.";
+  if (!isCreditRole(payload.role)) return "Choose a valid role.";
+  if (!isCreditStatus(payload.status)) return "Choose a valid status.";
+  if (payload.contact && payload.contact.trim().length > 160) {
+    return "Contact must be 160 characters or fewer.";
+  }
+  if (
+    payload.splitPercentage != null &&
+    (payload.splitPercentage < 0 || payload.splitPercentage > 100)
+  ) {
+    return "Planned split must be between 0 and 100.";
+  }
+  if (payload.notes && payload.notes.trim().length > 1000) {
+    return "Notes must be 1000 characters or fewer.";
+  }
+  return "";
+}
+
+function CreditFormDialog({
+  songId,
+  credit,
+  trigger,
+}: {
+  songId: string;
+  credit?: Credit;
+  trigger: ReactNode;
+}) {
+  const mode = credit ? "edit" : "create";
+  const mutations = useCreditMutations(songId);
+  const mutation = mode === "create" ? mutations.create : mutations.update;
+  const [open, setOpen] = useState(false);
+  const [contributorName, setContributorName] = useState(credit?.contributorName ?? "");
+  const [role, setRole] = useState<CreditRole>(credit?.role ?? "Artist");
+  const [contact, setContact] = useState(credit?.contact ?? "");
+  const [status, setStatus] = useState<CreditStatus>(credit?.status ?? "Pending");
+  const [splitPercentage, setSplitPercentage] = useState(
+    credit?.splitPercentage == null ? "" : String(credit.splitPercentage),
+  );
+  const [notes, setNotes] = useState(credit?.notes ?? "");
+  const [error, setError] = useState("");
+
+  async function submit() {
+    const plannedSplit = numberOrNull(splitPercentage);
+    const payload: CreditPayload = {
+      contributorName: contributorName.trim(),
+      role,
+      contact: contact.trim() || null,
+      status,
+      splitPercentage: plannedSplit,
+      notes: notes.trim() || null,
+    };
+    const validationError = validateCreditPayload(payload);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      if (mode === "create") {
+        await mutations.create.mutateAsync(payload);
+        setContributorName("");
+        setRole("Artist");
+        setContact("");
+        setStatus("Pending");
+        setSplitPercentage("");
+        setNotes("");
+      } else if (credit) {
+        await mutations.update.mutateAsync({
+          creditId: String(credit.id),
+          payload,
+        });
+      }
+      setError("");
+      setOpen(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The credit could not be saved.");
+    }
+  }
+
   return (
-    <Panel title="Credits" label="Mock-only">
-      {credits.length ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          {credits.map((credit) => (
-            <FileRow
-              key={credit.id}
-              title={credit.name}
-              meta={`${credit.role} / ${credit.contact}`}
-              status={credit.status}
-              detail={credit.plannedSplit ? `${credit.plannedSplit}% planned split` : undefined}
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="border-border bg-background">
+        <DialogHeader>
+          <DialogTitle className="uppercase">
+            {mode === "create" ? "Add credit" : "Edit credit"}
+          </DialogTitle>
+          <DialogDescription>
+            This tracks contributor metadata only. Planned split is not payment, royalty, or legal
+            agreement handling.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-credit-name-${credit?.id ?? "new"}`}>
+              Contributor
+            </label>
+            <Input
+              id={`${mode}-credit-name-${credit?.id ?? "new"}`}
+              value={contributorName}
+              maxLength={160}
+              onChange={(event) => setContributorName(event.target.value)}
+              className="mt-2"
+              placeholder="Kira Mott"
             />
+          </div>
+          <div>
+            <label className="label-tech">Role</label>
+            <Select value={role} onValueChange={(value) => setRole(value as CreditRole)}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CREDIT_ROLES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {creditRoleLabel(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-credit-contact-${credit?.id ?? "new"}`}>
+              Contact
+            </label>
+            <Input
+              id={`${mode}-credit-contact-${credit?.id ?? "new"}`}
+              value={contact}
+              maxLength={160}
+              onChange={(event) => setContact(event.target.value)}
+              className="mt-2"
+              placeholder="kira@darkroom.system"
+            />
+          </div>
+          <div>
+            <label className="label-tech">Status</label>
+            <Select value={status} onValueChange={(value) => setStatus(value as CreditStatus)}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CREDIT_STATUSES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="label-tech" htmlFor={`${mode}-credit-split-${credit?.id ?? "new"}`}>
+              Planned Split %
+            </label>
+            <Input
+              id={`${mode}-credit-split-${credit?.id ?? "new"}`}
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={splitPercentage}
+              onChange={(event) => setSplitPercentage(event.target.value)}
+              className="mt-2"
+              placeholder="25"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label-tech" htmlFor={`${mode}-credit-notes-${credit?.id ?? "new"}`}>
+              Notes
+            </label>
+            <Textarea
+              id={`${mode}-credit-notes-${credit?.id ?? "new"}`}
+              value={notes}
+              maxLength={1000}
+              onChange={(event) => setNotes(event.target.value)}
+              className="mt-2"
+              placeholder="Contributor notes or pending confirmation details."
+            />
+          </div>
+          {error ? <p className="text-sm text-muted-foreground sm:col-span-2">{error}</p> : null}
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={mutation.isPending}>
+              {mutation.isPending ? "Saving" : "Save"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreditRow({ songId, credit }: { songId: string; credit: Credit }) {
+  const mutations = useCreditMutations(songId);
+
+  return (
+    <div className="border border-border bg-background p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{credit.contributorName}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {creditRoleLabel(credit.role)} / {credit.contact ?? "No contact"}
+          </p>
+        </div>
+        <StatusBadge status={credit.status} />
+      </div>
+      <dl className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+        <div>
+          <dt className="label-tech">Planned Split</dt>
+          <dd>
+            {credit.splitPercentage == null ? "Not set" : `${credit.splitPercentage}% metadata`}
+          </dd>
+        </div>
+        <div>
+          <dt className="label-tech">Created</dt>
+          <dd>{formatDate(credit.createdAt)}</dd>
+        </div>
+        <div>
+          <dt className="label-tech">Updated</dt>
+          <dd>{formatDate(credit.updatedAt)}</dd>
+        </div>
+      </dl>
+      {credit.notes ? <p className="mt-3 text-xs text-muted-foreground">{credit.notes}</p> : null}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Contributor metadata only / no payment or legal workflow
+        </p>
+        <div className="flex gap-2">
+          <CreditFormDialog
+            songId={songId}
+            credit={credit}
+            trigger={
+              <Button variant="outline" size="sm">
+                Edit
+              </Button>
+            }
+          />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete credit metadata</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes only the credit record. No legal agreement, payment, royalty, or team
+                  account is affected.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => mutations.remove.mutate(String(credit.id))}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreditsTab({ songId }: { songId: string }) {
+  const credits = useQuery({
+    queryKey: creditsQueryKey(songId),
+    queryFn: () => creditsApi.getCredits(songId),
+  });
+
+  if (credits.isLoading) {
+    return <LoadingState label="Loading credit metadata" />;
+  }
+
+  if (credits.isError) {
+    return (
+      <ErrorState
+        detail="Credit metadata could not be loaded from the backend."
+        onRetry={() => credits.refetch()}
+      />
+    );
+  }
+
+  const items = credits.data ?? [];
+
+  return (
+    <Panel title="Credits" label="Real backend data">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Credits are contributor metadata only. Planned splits do not create payouts or legal
+          agreements.
+        </p>
+        <CreditFormDialog
+          songId={songId}
+          trigger={
+            <Button>
+              <Plus className="h-4 w-4" />
+              Add credit
+            </Button>
+          }
+        />
+      </div>
+      {items.length ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          {items.map((credit) => (
+            <CreditRow key={credit.id} songId={songId} credit={credit} />
           ))}
         </div>
       ) : (
         <EmptyState
           title="No collaborators yet"
-          detail="Credits are mocked until the backend domain is introduced."
+          detail="Add contributor credit metadata for this Song. Team accounts and legal split workflows are planned for later."
         />
       )}
     </Panel>

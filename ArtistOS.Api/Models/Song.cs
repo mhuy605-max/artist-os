@@ -19,4 +19,8 @@ public class Song
     public ICollection<VisualAsset> VisualAssets { get; set; } = [];
 
     public Release? Release { get; set; }
+
+    public ICollection<ContentItem> ContentItems { get; set; } = [];
+
+    public ICollection<Credit> Credits { get; set; } = [];
 }

@@ -1,8 +1,8 @@
-import type { Credit } from "@/types";
+import type { MockCredit } from "@/types";
 import { mockSongs } from "./songs";
 
 /** MOCK credits. Split percentages are a PLANNED feature, not real data. */
-const TEMPLATE: Omit<Credit, "id" | "songId">[] = [
+const TEMPLATE: Omit<MockCredit, "id" | "songId">[] = [
   {
     name: "VESSEL",
     role: "Artist",
@@ -57,7 +57,7 @@ const TEMPLATE: Omit<Credit, "id" | "songId">[] = [
   },
 ];
 
-export function getCredits(songId: string): Credit[] {
+export function getMockCredits(songId: string): MockCredit[] {
   const index = mockSongs.findIndex((s) => s.id === songId);
   if (index < 0) return [];
   const depth = [8, 8, 8, 8, 1, 6, 0, 3][index] ?? 0;

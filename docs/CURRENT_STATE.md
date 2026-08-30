@@ -1,12 +1,12 @@
 # Artist OS Current State
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 
 ## Current Phase
 
-Release Metadata Foundation.
+Credits Metadata Foundation.
 
-Current focus: Release metadata is now PostgreSQL-backed and connected to the Song workspace Release tab. Distributor delivery, real publishing, platform integrations, and persisted release checklist items remain future work.
+Current focus: Credit metadata is now PostgreSQL-backed and connected to the Song workspace Credits tab. Contributor directories, team permissions, contracts, royalties, payment workflows, authentication, and legal split agreements remain future work.
 
 ## Completed
 
@@ -66,6 +66,22 @@ Current focus: Release metadata is now PostgreSQL-backed and connected to the So
 - Release preparation checklist remains planned/mock-only and is clearly labeled in the frontend.
 - Browser-based Release metadata create/edit/delete verified.
 - Release API create/read/update/delete, validation, timestamps, duplicate prevention, and Song relationship behavior covered by automated integration-style tests.
+- `ContentItem` model created and related to `Song`.
+- ContentItem metadata DTOs created.
+- Nested ContentItem metadata API implemented.
+- ContentItem EF Core migration created and applied.
+- Content tab now reads/writes real ContentItem metadata through the ASP.NET Core API.
+- Content publishing/platform actions remain planned and are clearly labeled in the frontend.
+- Browser-based ContentItem metadata create/edit/delete verified.
+- ContentItem API create/read/update/delete, validation, timestamps, and Song relationship behavior covered by automated integration-style tests.
+- `Credit` model created and related to `Song`.
+- Credit metadata DTOs created.
+- Nested Credit metadata API implemented.
+- Credit EF Core migration created and applied.
+- Credits tab now reads/writes real Credit metadata through the ASP.NET Core API.
+- Planned split remains metadata-only and is clearly labeled in the frontend.
+- Browser-based Credit metadata create/edit/delete verified.
+- Credit API create/read/update/delete, validation, timestamps, split bounds, and Song relationship behavior covered by automated integration-style tests.
 
 ## Current Implementation
 
@@ -100,9 +116,11 @@ SongsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 AudioAssetsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 VisualAssetsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ReleasesController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+ContentItemsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+CreditsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ```
 
-No backend repository or service layer has been introduced yet. This is intentional because current Song, AudioAsset metadata, VisualAsset metadata, and Release metadata CRUD/validation do not contain enough business logic to justify those abstractions.
+No backend repository or service layer has been introduced yet. This is intentional because current Song, AudioAsset metadata, VisualAsset metadata, Release metadata, ContentItem metadata, and Credit metadata CRUD/validation do not contain enough business logic to justify those abstractions.
 
 Development-only backend CORS is configured in `ArtistOS.Api/Program.cs` using the named policy `LocalFrontend`.
 
@@ -127,7 +145,7 @@ Current frontend architecture:
 TanStack Router routes
   -> DARKROOM SYSTEM app shell/pages
   -> TanStack Query
-  -> isolated Song, AudioAsset, VisualAsset, and Release API services
+  -> isolated Song, AudioAsset, VisualAsset, Release, ContentItem, and Credit API services
   -> ASP.NET Core API
 ```
 
@@ -201,6 +219,26 @@ PUT    /api/songs/{songId}/release
 DELETE /api/songs/{songId}/release
 ```
 
+The frontend also uses the real backend for ContentItem metadata:
+
+```text
+GET    /api/songs/{songId}/content-items
+GET    /api/songs/{songId}/content-items/{contentItemId}
+POST   /api/songs/{songId}/content-items
+PUT    /api/songs/{songId}/content-items/{contentItemId}
+DELETE /api/songs/{songId}/content-items/{contentItemId}
+```
+
+The frontend also uses the real backend for Credit metadata:
+
+```text
+GET    /api/songs/{songId}/credits
+GET    /api/songs/{songId}/credits/{creditId}
+POST   /api/songs/{songId}/credits
+PUT    /api/songs/{songId}/credits/{creditId}
+DELETE /api/songs/{songId}/credits/{creditId}
+```
+
 Current frontend API base URL behavior:
 
 - `VITE_API_BASE_URL` controls the backend URL.
@@ -210,6 +248,8 @@ Current frontend API base URL behavior:
 - `PUT /api/songs/{songId}/audio-assets/{audioAssetId}` is handled as `204 No Content`; the client refetches the audio asset afterward.
 - `PUT /api/songs/{songId}/visual-assets/{visualAssetId}` is handled as `204 No Content`; the client refetches the visual asset afterward.
 - `PUT /api/songs/{songId}/release` is handled as `204 No Content`; the client refetches the release afterward.
+- `PUT /api/songs/{songId}/content-items/{contentItemId}` is handled as `204 No Content`; the client refetches the content item afterward.
+- `PUT /api/songs/{songId}/credits/{creditId}` is handled as `204 No Content`; the client refetches the credit afterward.
 
 If the backend host is unreachable, the Song API service switches to an explicit in-memory development fallback and the UI shows a fallback notice. Other API errors are not hidden.
 
@@ -231,8 +271,8 @@ These frontend areas are mock-only and do not have backend persistence yet:
 - Audio waveform display, file upload, playback, and external file association.
 - Visual thumbnails, file upload, previews, playback, and external file association.
 - Release preparation checklist.
-- Content campaign items.
-- Credits and collaborators.
+- Content publishing and platform delivery.
+- Contributor directory, team permissions, contracts, royalties, and payout workflow.
 - Analytics.
 - Calendar.
 - Team.
@@ -259,6 +299,10 @@ public class Song
     public ICollection<VisualAsset> VisualAssets { get; set; } = [];
 
     public Release? Release { get; set; }
+
+    public ICollection<ContentItem> ContentItems { get; set; } = [];
+
+    public ICollection<Credit> Credits { get; set; } = [];
 }
 ```
 
@@ -347,6 +391,63 @@ Release is metadata-only. No distributor API delivery, publishing action, or ext
 
 Release platforms are stored as a single normalized comma-separated string in PostgreSQL and returned as a string array through the API. This keeps the first release-planning milestone understandable without introducing platform join tables before real platform integrations exist.
 
+## Current ContentItem Model
+
+```csharp
+public class ContentItem
+{
+    public int Id { get; set; }
+    public int SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public string Title { get; set; } = string.Empty;
+    public string Type { get; set; } = "Teaser";
+    public string Status { get; set; } = "Idea";
+    public string? Platform { get; set; }
+    public string? OwnerName { get; set; }
+    public DateOnly? DueDate { get; set; }
+    public DateOnly? ScheduledAt { get; set; }
+    public DateOnly? PublishedAt { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+```
+
+Relationship:
+
+```text
+Song 1 -> many ContentItems
+```
+
+ContentItem is metadata-only. No platform publishing, scheduled social posting, media upload, or external API delivery exists yet.
+
+## Current Credit Model
+
+```csharp
+public class Credit
+{
+    public int Id { get; set; }
+    public int SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public string ContributorName { get; set; } = string.Empty;
+    public string Role { get; set; } = "Artist";
+    public string? Contact { get; set; }
+    public string Status { get; set; } = "Pending";
+    public decimal? SplitPercentage { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+```
+
+Relationship:
+
+```text
+Song 1 -> many Credits
+```
+
+Credit is metadata-only. `SplitPercentage` is an optional planned split field and does not represent payment processing, royalty settlement, accounting, or a legal split agreement.
+
 ## Current DTOs
 
 The Song API uses DTOs instead of exposing the EF entity directly as the API contract.
@@ -363,6 +464,12 @@ The Song API uses DTOs instead of exposing the EF entity directly as the API con
 - `CreateReleaseRequest`
 - `UpdateReleaseRequest`
 - `ReleaseResponse`
+- `CreateContentItemRequest`
+- `UpdateContentItemRequest`
+- `ContentItemResponse`
+- `CreateCreditRequest`
+- `UpdateCreditRequest`
+- `CreditResponse`
 
 DTOs are used because they solve current API contract problems:
 
@@ -371,6 +478,8 @@ DTOs are used because they solve current API contract problems:
 - provide focused request validation
 - keep response shape explicit
 - keep one-to-one Release metadata separate from the `Song` persistence model
+- keep ContentItem planning metadata separate from future platform publishing behavior
+- keep Credit contributor metadata separate from future user/team/payment/legal systems
 
 ## Validation / Normalization
 
@@ -519,6 +628,111 @@ TikTok
 Other
 ```
 
+Current ContentItem backend validation rules:
+
+- `SongId` comes from the route.
+- `Id` is database-controlled.
+- `CreatedAt` is server-controlled.
+- `UpdatedAt` is server-controlled and changes on update.
+- `Title` is required, trimmed before saving, and limited to `200` characters.
+- `Type` is required, trimmed before saving, and must be one of the supported content item types.
+- `Status` is required, trimmed before saving, and must be one of the supported content item statuses.
+- `Platform` is optional, trimmed before saving, and must be one of the supported content item platforms when supplied.
+- `OwnerName` is optional, trimmed before saving, and limited to `120` characters.
+- `DueDate`, `ScheduledAt`, and `PublishedAt` are optional metadata dates.
+- `Notes` is optional, trimmed before saving, and limited to `1000` characters.
+
+Allowed ContentItem types:
+
+```text
+Teaser
+Snippet
+MusicVideo
+Visualizer
+BehindTheScenes
+TikTok
+InstagramReel
+YouTubeShort
+ArtworkPost
+```
+
+Allowed ContentItem statuses:
+
+```text
+Idea
+Planned
+InProduction
+Editing
+Ready
+Scheduled
+Published
+```
+
+Allowed ContentItem platforms:
+
+```text
+Instagram
+TikTok
+YouTube
+YouTubeShorts
+Spotify
+CrossPlatform
+Other
+```
+
+Current Credit backend validation rules:
+
+- `SongId` comes from the route.
+- `Id` is database-controlled.
+- `CreatedAt` is server-controlled.
+- `UpdatedAt` is server-controlled and changes on update.
+- `ContributorName` is required, trimmed before saving, and limited to `160` characters.
+- `Role` is required, trimmed before saving, and must be one of the supported credit roles.
+- `Status` is required, trimmed before saving, and must be one of the supported credit statuses.
+- `Contact` is optional, trimmed before saving, and limited to `160` characters.
+- `SplitPercentage` is optional and must be between `0` and `100` when supplied.
+- `Notes` is optional, trimmed before saving, and limited to `1000` characters.
+- A Song can have multiple Credits.
+- The same contributor can appear more than once with different roles.
+
+Allowed Credit roles:
+
+```text
+Artist
+FeaturedArtist
+Producer
+Songwriter
+RecordingEngineer
+MixEngineer
+MasteringEngineer
+Director
+Designer
+```
+
+Allowed Credit statuses:
+
+```text
+Pending
+Confirmed
+```
+
+Status decision:
+
+```text
+Pending
+Confirmed
+```
+
+`Invited` is intentionally not supported yet because no invite/auth/team workflow exists.
+
+Split decision:
+
+```text
+SplitPercentage is included as nullable planned split metadata.
+```
+
+No cross-record rule requires planned splits to sum to `100` in this milestone.
+
 The frontend also performs matching basic form validation for user experience, but backend validation remains the trusted source.
 
 ## Database / Migrations
@@ -534,6 +748,8 @@ PostgreSQL is expected locally on port `5432`.
 Current database tables:
 
 - `AudioAssets`
+- `ContentItems`
+- `Credits`
 - `Releases`
 - `Songs`
 - `VisualAssets`
@@ -547,6 +763,8 @@ Applied migrations:
 20260829071423_AddAudioAssetMetadata
 20260829075405_AddVisualAssetMetadata
 20260829130234_AddReleaseMetadata
+20260829133738_AddContentItemMetadata
+20260830055757_AddCreditMetadata
 ```
 
 Current `Songs` schema:
@@ -597,6 +815,35 @@ Current `Releases` schema:
 - `CreatedAt` timestamp with time zone, required.
 - `UpdatedAt` timestamp with time zone, required.
 
+Current `ContentItems` schema:
+
+- `Id` integer primary key, generated by PostgreSQL identity.
+- `SongId` integer, required, foreign key to `Songs`.
+- `Title` character varying(200), required.
+- `Type` character varying(40), required.
+- `Status` character varying(40), required.
+- `Platform` character varying(40), optional.
+- `OwnerName` character varying(120), optional.
+- `DueDate` date, optional.
+- `ScheduledAt` date, optional.
+- `PublishedAt` date, optional.
+- `Notes` character varying(1000), optional.
+- `CreatedAt` timestamp with time zone, required.
+- `UpdatedAt` timestamp with time zone, required.
+
+Current `Credits` schema:
+
+- `Id` integer primary key, generated by PostgreSQL identity.
+- `SongId` integer, required, foreign key to `Songs`.
+- `ContributorName` character varying(160), required.
+- `Role` character varying(40), required.
+- `Contact` character varying(160), optional.
+- `Status` character varying(40), required.
+- `SplitPercentage` numeric, optional.
+- `Notes` character varying(1000), optional.
+- `CreatedAt` timestamp with time zone, required.
+- `UpdatedAt` timestamp with time zone, required.
+
 Indexes:
 
 - `IX_AudioAssets_SongId`
@@ -604,6 +851,12 @@ Indexes:
 - `IX_Releases_SongId`, unique
 - `IX_VisualAssets_SongId`
 - `IX_VisualAssets_SongId_Type`
+- `IX_ContentItems_SongId`
+- `IX_ContentItems_SongId_ScheduledAt`
+- `IX_ContentItems_SongId_Status`
+- `IX_Credits_SongId`
+- `IX_Credits_SongId_Role`
+- `IX_Credits_SongId_Status`
 
 ## Packages
 
@@ -678,8 +931,10 @@ Automated tests:
 - AudioAsset API behavior has both automated test coverage and earlier pragmatic manual HTTP/browser verification.
 - VisualAsset API behavior has both automated test coverage and pragmatic manual HTTP/browser verification.
 - Release API behavior has both automated test coverage and pragmatic manual HTTP/browser verification.
+- ContentItem API behavior has both automated test coverage and pragmatic browser verification.
+- Credit API behavior has both automated test coverage and pragmatic browser verification.
 
-Verification run during the latest Release metadata milestone:
+Verification run during the latest Credits metadata milestone:
 
 ```text
 dotnet build
@@ -689,7 +944,6 @@ dotnet ef migrations list
 npm ci
 npm run lint
 npm run build
-Manual HTTP API verification
 Browser verification
 ```
 
@@ -697,13 +951,12 @@ Results:
 
 ```text
 dotnet build: succeeded, 0 warnings, 0 errors.
-dotnet test: succeeded, 73 passed, 0 failed, 0 skipped.
+dotnet test: succeeded, 113 passed, 0 failed, 0 skipped.
 dotnet ef database update: succeeded.
-dotnet ef migrations list: confirmed 20260829130234_AddReleaseMetadata is applied.
+dotnet ef migrations list: confirmed 20260830055757_AddCreditMetadata is applied.
 npm ci: succeeded, 0 vulnerabilities.
 npm run lint: completed with 0 errors and 8 warnings.
 npm run build: succeeded.
-Manual HTTP API verification: succeeded.
 Browser verification: succeeded.
 ```
 
@@ -726,6 +979,17 @@ Automated backend coverage now includes:
 - Release duplicate creation returns `409 Conflict`.
 - Release server-controlled `CreatedAt` and `UpdatedAt` behavior.
 - Song-to-Release relationship behavior, including one Release per Song and deleting Release metadata without deleting the parent Song.
+- ContentItem metadata create/read/list/update/delete success paths.
+- ContentItem `400 Bad Request` validation paths.
+- ContentItem `404 Not Found` missing Song and missing ContentItem paths.
+- ContentItem server-controlled `CreatedAt` and `UpdatedAt` behavior.
+- Song-to-ContentItem relationship behavior, including many ContentItems per Song and deleting ContentItem metadata without deleting the parent Song.
+- Credit metadata create/read/list/update/delete success paths.
+- Credit `400 Bad Request` validation paths.
+- Credit `404 Not Found` missing Song and missing Credit paths.
+- Credit server-controlled `CreatedAt` and `UpdatedAt` behavior.
+- Credit split percentage bounds.
+- Song-to-Credit relationship behavior, including many Credits per Song, the same contributor with multiple roles, and deleting Credit metadata without deleting the parent Song.
 
 Previous frontend verification during the latest AudioAsset metadata milestone:
 
@@ -827,6 +1091,37 @@ Latest browser Release checks confirmed:
 - Checklist remained clearly labeled as planned.
 - Browser verification reported no unexpected CORS/API errors. Chrome logged expected `404 Not Found` responses for the intentional empty Release state before creation and after deletion.
 
+Latest browser ContentItem checks confirmed:
+
+- Song workspace loaded at `/songs/{songId}`.
+- Content tab loaded real metadata from the backend.
+- Empty state appeared when a Song had no ContentItems.
+- Content item metadata was created through the frontend.
+- Page refresh preserved the created ContentItem metadata.
+- Content item metadata was edited through the frontend.
+- Updated title, status, platform, owner, dates, and notes persisted.
+- Delete confirmation stated that only planning metadata is removed.
+- Deleted ContentItem metadata disappeared from the Content tab.
+- The parent Song still existed after deleting ContentItem metadata.
+- Content UI remained clear that Published status is metadata only and does not post to a platform.
+- Calendar remained mock-only.
+
+Latest browser Credit checks confirmed:
+
+- Song workspace loaded at `/songs/{songId}`.
+- Credits tab loaded real metadata from the backend.
+- Empty state appeared when a Song had no Credits.
+- Credit metadata was created through the frontend.
+- Page refresh preserved the created Credit metadata.
+- Credit metadata was edited through the frontend.
+- Updated contributor name, role, contact, status, planned split, and notes persisted.
+- Multiple Credit records were added for the same Song.
+- The same contributor can appear with more than one role.
+- Delete confirmation stated that only the credit record is removed.
+- Deleted Credit metadata disappeared from the Credits tab.
+- The parent Song still existed after deleting Credit metadata.
+- Credits UI remained clear that planned splits do not create payment, royalty, legal, or team-account workflows.
+
 ## Security / Secrets Status
 
 - `appsettings.json` does not currently contain the local database password.
@@ -850,9 +1145,14 @@ Remote GitHub Actions status:
 - AudioAsset `Type` and `Status` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - VisualAsset `Type` and `Status` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - Release `ReleaseType`, `Status`, and `Platforms` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
+- ContentItem `Type`, `Status`, and `Platform` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
+- Credit `Role` and `Status` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - The API does not yet enforce only one current AudioAsset per Song + Type.
 - The API does not yet enforce only one current VisualAsset per Song + Type.
 - Release platforms are stored as a comma-separated string; a normalized platform table may become useful when real integrations exist.
+- ContentItem platform is stored as a string; richer channel/account modeling can wait until platform integrations exist.
+- Credit contributors are plain Song-scoped metadata strings; a normalized contributor directory can wait until team/auth requirements exist.
+- Planned split percentages are stored independently per Credit and are not validated to total `100` across a Song.
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - There is no frontend test script yet.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
@@ -867,18 +1167,18 @@ Remote GitHub Actions status:
 - Real visual file upload, preview/thumbnail generation, playback, and external file association.
 - Release preparation checklist persistence.
 - Distributor delivery or publishing workflow.
-- Backend content calendar or campaign tools.
-- Backend credits management.
+- Content publishing, platform delivery, and real calendar persistence.
+- Contributor directory, contracts, royalties, payment workflow, and authenticated team permissions.
 - Backend analytics.
 - Production deployment.
 
 ## Recommended Next Milestone
 
-Start the Content metadata foundation.
+Start the Analytics snapshot foundation.
 
 Suggested scope:
 
-- Add metadata-only Content items related to Song.
-- Keep content records focused on title, type, stage, owner/platform, and optional scheduled date.
+- Add metadata-only Analytics snapshot records related to Song or ContentItem.
+- Keep the first version focused on manually entered or seedable metrics, not YouTube API ingestion.
 - Add API routes and focused backend tests.
-- Connect the Content tab to real backend metadata without implementing platform publishing.
+- Connect the Analytics tab to real backend metadata without implementing YouTube integration.

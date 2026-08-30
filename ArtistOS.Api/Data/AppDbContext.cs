@@ -18,6 +18,10 @@ public class AppDbContext : DbContext
 
     public DbSet<Release> Releases { get; set; }
 
+    public DbSet<ContentItem> ContentItems { get; set; }
+
+    public DbSet<Credit> Credits { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AudioAsset>(entity =>
@@ -50,6 +54,30 @@ public class AppDbContext : DbContext
             entity.HasOne(release => release.Song)
                 .WithOne(song => song.Release)
                 .HasForeignKey<Release>(release => release.SongId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ContentItem>(entity =>
+        {
+            entity.HasIndex(contentItem => contentItem.SongId);
+            entity.HasIndex(contentItem => new { contentItem.SongId, contentItem.Status });
+            entity.HasIndex(contentItem => new { contentItem.SongId, contentItem.ScheduledAt });
+
+            entity.HasOne(contentItem => contentItem.Song)
+                .WithMany(song => song.ContentItems)
+                .HasForeignKey(contentItem => contentItem.SongId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Credit>(entity =>
+        {
+            entity.HasIndex(credit => credit.SongId);
+            entity.HasIndex(credit => new { credit.SongId, credit.Role });
+            entity.HasIndex(credit => new { credit.SongId, credit.Status });
+
+            entity.HasOne(credit => credit.Song)
+                .WithMany(song => song.Credits)
+                .HasForeignKey(credit => credit.SongId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

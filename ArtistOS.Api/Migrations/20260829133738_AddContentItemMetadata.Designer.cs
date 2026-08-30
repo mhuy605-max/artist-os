@@ -3,6 +3,7 @@ using System;
 using ArtistOS.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ArtistOS.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260829133738_AddContentItemMetadata")]
+    partial class AddContentItemMetadata
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -134,60 +137,6 @@ namespace ArtistOS.Api.Migrations
                     b.HasIndex("SongId", "Status");
 
                     b.ToTable("ContentItems");
-                });
-
-            modelBuilder.Entity("ArtistOS.Api.Models.Credit", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Contact")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<string>("ContributorName")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<int>("SongId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal?>("SplitPercentage")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SongId");
-
-                    b.HasIndex("SongId", "Role");
-
-                    b.HasIndex("SongId", "Status");
-
-                    b.ToTable("Credits");
                 });
 
             modelBuilder.Entity("ArtistOS.Api.Models.Release", b =>
@@ -346,17 +295,6 @@ namespace ArtistOS.Api.Migrations
                     b.Navigation("Song");
                 });
 
-            modelBuilder.Entity("ArtistOS.Api.Models.Credit", b =>
-                {
-                    b.HasOne("ArtistOS.Api.Models.Song", "Song")
-                        .WithMany("Credits")
-                        .HasForeignKey("SongId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Song");
-                });
-
             modelBuilder.Entity("ArtistOS.Api.Models.Release", b =>
                 {
                     b.HasOne("ArtistOS.Api.Models.Song", "Song")
@@ -384,8 +322,6 @@ namespace ArtistOS.Api.Migrations
                     b.Navigation("AudioAssets");
 
                     b.Navigation("ContentItems");
-
-                    b.Navigation("Credits");
 
                     b.Navigation("Release");
 

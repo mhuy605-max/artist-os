@@ -281,7 +281,105 @@ export interface ReleaseInfo {
   checklist: { item: string; done: boolean }[];
 }
 
-export type ContentType =
+export const CONTENT_TYPES = [
+  "Teaser",
+  "Snippet",
+  "MusicVideo",
+  "Visualizer",
+  "BehindTheScenes",
+  "TikTok",
+  "InstagramReel",
+  "YouTubeShort",
+  "ArtworkPost",
+] as const;
+
+export type ContentType = (typeof CONTENT_TYPES)[number];
+
+export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
+  Teaser: "Teaser",
+  Snippet: "Snippet",
+  MusicVideo: "Music Video",
+  Visualizer: "Visualizer",
+  BehindTheScenes: "Behind The Scenes",
+  TikTok: "TikTok",
+  InstagramReel: "Instagram Reel",
+  YouTubeShort: "YouTube Short",
+  ArtworkPost: "Artwork Post",
+};
+
+export const CONTENT_STATUSES = [
+  "Idea",
+  "Planned",
+  "InProduction",
+  "Editing",
+  "Ready",
+  "Scheduled",
+  "Published",
+] as const;
+
+export type ContentStatus = (typeof CONTENT_STATUSES)[number];
+
+export const CONTENT_STATUS_LABELS: Record<ContentStatus, string> = {
+  Idea: "Idea",
+  Planned: "Planned",
+  InProduction: "In Production",
+  Editing: "Editing",
+  Ready: "Ready",
+  Scheduled: "Scheduled",
+  Published: "Published",
+};
+
+export const CONTENT_PLATFORMS = [
+  "Instagram",
+  "TikTok",
+  "YouTube",
+  "YouTubeShorts",
+  "Spotify",
+  "CrossPlatform",
+  "Other",
+] as const;
+
+export type ContentPlatform = (typeof CONTENT_PLATFORMS)[number];
+
+export const CONTENT_PLATFORM_LABELS: Record<ContentPlatform, string> = {
+  Instagram: "Instagram",
+  TikTok: "TikTok",
+  YouTube: "YouTube",
+  YouTubeShorts: "YouTube Shorts",
+  Spotify: "Spotify",
+  CrossPlatform: "Cross Platform",
+  Other: "Other",
+};
+
+export interface ContentItem {
+  id: string | number;
+  songId: string | number;
+  title: string;
+  type: ContentType;
+  status: ContentStatus;
+  platform?: ContentPlatform | null;
+  ownerName?: string | null;
+  dueDate?: string | null;
+  scheduledAt?: string | null;
+  publishedAt?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContentItemPayload {
+  title: string;
+  type: ContentType;
+  status: ContentStatus;
+  platform?: ContentPlatform | null;
+  ownerName?: string | null;
+  dueDate?: string | null;
+  scheduledAt?: string | null;
+  publishedAt?: string | null;
+  notes?: string | null;
+}
+
+export type MockContentType =
   | "Teaser"
   | "Snippet"
   | "Music Video"
@@ -292,39 +390,79 @@ export type ContentType =
   | "YouTube Short"
   | "Artwork Post";
 
-export type ContentStage =
+export type MockContentStage =
   "Idea" | "Planned" | "In Production" | "Editing" | "Ready" | "Scheduled" | "Published";
 
-export interface ContentItem {
+export interface MockContentItem {
   id: string;
   songId: string;
   title: string;
-  type: ContentType;
-  stage: ContentStage;
+  type: MockContentType;
+  stage: MockContentStage;
   owner: string;
   scheduledFor?: string;
   platform: string;
 }
 
-export type CreditRole =
-  | "Artist"
-  | "Featured Artist"
-  | "Producer"
-  | "Songwriter"
-  | "Recording Engineer"
-  | "Mix Engineer"
-  | "Mastering Engineer"
-  | "Director"
-  | "Designer";
+export const CREDIT_ROLES = [
+  "Artist",
+  "FeaturedArtist",
+  "Producer",
+  "Songwriter",
+  "RecordingEngineer",
+  "MixEngineer",
+  "MasteringEngineer",
+  "Director",
+  "Designer",
+] as const;
+
+export type CreditRole = (typeof CREDIT_ROLES)[number];
+
+export const CREDIT_ROLE_LABELS: Record<CreditRole, string> = {
+  Artist: "Artist",
+  FeaturedArtist: "Featured Artist",
+  Producer: "Producer",
+  Songwriter: "Songwriter",
+  RecordingEngineer: "Recording Engineer",
+  MixEngineer: "Mix Engineer",
+  MasteringEngineer: "Mastering Engineer",
+  Director: "Director",
+  Designer: "Designer",
+};
+
+export const CREDIT_STATUSES = ["Pending", "Confirmed"] as const;
+
+export type CreditStatus = (typeof CREDIT_STATUSES)[number];
 
 export interface Credit {
+  id: string | number;
+  songId: string | number;
+  contributorName: string;
+  role: CreditRole;
+  contact?: string | null;
+  status: CreditStatus;
+  splitPercentage?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreditPayload {
+  contributorName: string;
+  role: CreditRole;
+  contact?: string | null;
+  status: CreditStatus;
+  splitPercentage?: number | null;
+  notes?: string | null;
+}
+
+export interface MockCredit {
   id: string;
   songId: string;
   name: string;
-  role: CreditRole;
+  role: string;
   contact: string;
   status: "Confirmed" | "Pending" | "Invited";
-  /** Planned feature — not backed by any system yet. */
   plannedSplit?: number;
 }
 

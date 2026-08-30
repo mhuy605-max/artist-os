@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Release Metadata Foundation
+Credits Metadata Foundation
 ```
 
 Implemented and verified:
@@ -53,7 +53,13 @@ Implemented and verified:
 - Release metadata model related to Song
 - Nested Release metadata API
 - Real browser-based Release tab metadata create/read/update/delete
-- Automated backend integration tests for current Song, AudioAsset, VisualAsset, and Release API behavior
+- ContentItem metadata model related to Song
+- Nested ContentItem metadata API
+- Real browser-based Content tab metadata create/read/update/delete
+- Credit metadata model related to Song
+- Nested Credit metadata API
+- Real browser-based Credits tab metadata create/read/update/delete
+- Automated backend integration tests for current Song, AudioAsset, VisualAsset, Release, ContentItem, and Credit API behavior
 - GitHub Actions CI workflow for backend build/tests and frontend lint/build
 
 Planned, not implemented yet:
@@ -63,8 +69,7 @@ Planned, not implemented yet:
 - YouTube analytics
 - Real audio file upload, playback, waveform processing, or external file storage
 - Real release publishing or distributor delivery
-- Backend content pipeline
-- Backend credits/collaboration features
+- Contributor directory, team permissions, contracts, royalties, or payout workflow
 - Backend analytics
 - Continuous delivery and production deployment
 
@@ -98,7 +103,7 @@ The `/` route redirects to `/dashboard`.
 
 ## Real Backend Integration
 
-Song CRUD, AudioAsset metadata, VisualAsset metadata, and Release metadata are connected to the ASP.NET Core backend.
+Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, ContentItem metadata, and Credit metadata are connected to the ASP.NET Core backend.
 
 Browser-based create, read, update, and delete works against:
 
@@ -107,9 +112,11 @@ http://localhost:5178/api/songs
 http://localhost:5178/api/songs/{songId}/audio-assets
 http://localhost:5178/api/songs/{songId}/visual-assets
 http://localhost:5178/api/songs/{songId}/release
+http://localhost:5178/api/songs/{songId}/content-items
+http://localhost:5178/api/songs/{songId}/credits
 ```
 
-The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. The Visuals tab loads and writes real VisualAsset metadata for the selected Song. The Release tab loads and writes real Release metadata for the selected Song. Local CORS is configured for frontend development from:
+The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. The Visuals tab loads and writes real VisualAsset metadata for the selected Song. The Release tab loads and writes real Release metadata for the selected Song. The Content tab loads and writes real ContentItem metadata for the selected Song. The Credits tab loads and writes real Credit metadata for the selected Song. Local CORS is configured for frontend development from:
 
 ```text
 http://localhost:8080
@@ -126,8 +133,8 @@ These areas are visible in the frontend but are not backend-backed yet:
 - Visual thumbnails, file upload, previews, playback, and external file association
 - Release preparation checklist
 - Release publishing and distributor delivery
-- Content
-- Credits
+- Content publishing and platform delivery
+- Contributor directory, team permissions, contracts, royalties, and payout workflow
 - Analytics
 - Calendar
 - Team
@@ -166,6 +173,10 @@ public class Song
     public ICollection<VisualAsset> VisualAssets { get; set; } = [];
 
     public Release? Release { get; set; }
+
+    public ICollection<ContentItem> ContentItems { get; set; } = [];
+
+    public ICollection<Credit> Credits { get; set; } = [];
 }
 ```
 
@@ -344,6 +355,132 @@ TikTok
 Other
 ```
 
+### ContentItem Metadata API
+
+The backend supports metadata-only content campaign items nested under a Song.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/songs/{songId}/content-items` | List content item metadata for a Song. |
+| `GET` | `/api/songs/{songId}/content-items/{contentItemId}` | Get one content item metadata record. |
+| `POST` | `/api/songs/{songId}/content-items` | Create a content item metadata record. Returns `201 Created`. |
+| `PUT` | `/api/songs/{songId}/content-items/{contentItemId}` | Update a content item metadata record. Returns `204 No Content`. |
+| `DELETE` | `/api/songs/{songId}/content-items/{contentItemId}` | Delete a content item metadata record. Returns `204 No Content` or `404` when missing. |
+
+Current `ContentItem` shape:
+
+```csharp
+public class ContentItem
+{
+    public int Id { get; set; }
+    public int SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public string Title { get; set; } = string.Empty;
+    public string Type { get; set; } = "Teaser";
+    public string Status { get; set; } = "Idea";
+    public string? Platform { get; set; }
+    public string? OwnerName { get; set; }
+    public DateOnly? DueDate { get; set; }
+    public DateOnly? ScheduledAt { get; set; }
+    public DateOnly? PublishedAt { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+```
+
+Allowed ContentItem types:
+
+```text
+Teaser
+Snippet
+MusicVideo
+Visualizer
+BehindTheScenes
+TikTok
+InstagramReel
+YouTubeShort
+ArtworkPost
+```
+
+Allowed ContentItem statuses:
+
+```text
+Idea
+Planned
+InProduction
+Editing
+Ready
+Scheduled
+Published
+```
+
+Allowed ContentItem platforms:
+
+```text
+Instagram
+TikTok
+YouTube
+YouTubeShorts
+Spotify
+CrossPlatform
+Other
+```
+
+### Credit Metadata API
+
+The backend supports metadata-only contributor credits nested under a Song.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/songs/{songId}/credits` | List credit metadata for a Song. |
+| `GET` | `/api/songs/{songId}/credits/{creditId}` | Get one credit metadata record. |
+| `POST` | `/api/songs/{songId}/credits` | Create a credit metadata record. Returns `201 Created`. |
+| `PUT` | `/api/songs/{songId}/credits/{creditId}` | Update a credit metadata record. Returns `204 No Content`. |
+| `DELETE` | `/api/songs/{songId}/credits/{creditId}` | Delete a credit metadata record. Returns `204 No Content` or `404` when missing. |
+
+Current `Credit` shape:
+
+```csharp
+public class Credit
+{
+    public int Id { get; set; }
+    public int SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public string ContributorName { get; set; } = string.Empty;
+    public string Role { get; set; } = "Artist";
+    public string? Contact { get; set; }
+    public string Status { get; set; } = "Pending";
+    public decimal? SplitPercentage { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+```
+
+Allowed Credit roles:
+
+```text
+Artist
+FeaturedArtist
+Producer
+Songwriter
+RecordingEngineer
+MixEngineer
+MasteringEngineer
+Director
+Designer
+```
+
+Allowed Credit statuses:
+
+```text
+Pending
+Confirmed
+```
+
+`SplitPercentage` is optional planned split metadata only. It does not represent payment processing, royalty settlement, accounting, or a legal split agreement.
+
 ## Architecture
 
 Current architecture:
@@ -466,6 +603,26 @@ PUT    /api/songs/{songId}/release
 DELETE /api/songs/{songId}/release
 ```
 
+Content item metadata endpoints:
+
+```text
+GET    /api/songs/{songId}/content-items
+GET    /api/songs/{songId}/content-items/{contentItemId}
+POST   /api/songs/{songId}/content-items
+PUT    /api/songs/{songId}/content-items/{contentItemId}
+DELETE /api/songs/{songId}/content-items/{contentItemId}
+```
+
+Credit metadata endpoints:
+
+```text
+GET    /api/songs/{songId}/credits
+GET    /api/songs/{songId}/credits/{creditId}
+POST   /api/songs/{songId}/credits
+PUT    /api/songs/{songId}/credits/{creditId}
+DELETE /api/songs/{songId}/credits/{creditId}
+```
+
 Example create request:
 
 ```bash
@@ -489,6 +646,8 @@ ArtistOS/
 ├── ArtistOS.Api/
 │   ├── Controllers/
 │   │   ├── AudioAssetsController.cs
+│   │   ├── ContentItemsController.cs
+│   │   ├── CreditsController.cs
 │   │   ├── ReleasesController.cs
 │   │   ├── SongsController.cs
 │   │   └── VisualAssetsController.cs
@@ -498,6 +657,8 @@ ArtistOS/
 │   ├── Migrations/
 │   ├── Models/
 │   │   ├── AudioAsset.cs
+│   │   ├── ContentItem.cs
+│   │   ├── Credit.cs
 │   │   ├── Release.cs
 │   │   ├── Song.cs
 │   │   └── VisualAsset.cs
@@ -626,6 +787,8 @@ artist_os
 Current tables:
 
 - `AudioAssets`
+- `ContentItems`
+- `Credits`
 - `Releases`
 - `Songs`
 - `VisualAssets`
@@ -639,6 +802,8 @@ Current migrations:
 20260829071423_AddAudioAssetMetadata
 20260829075405_AddVisualAssetMetadata
 20260829130234_AddReleaseMetadata
+20260829133738_AddContentItemMetadata
+20260830055757_AddCreditMetadata
 ```
 
 Large media files such as WAV, MP3, stems, artwork, and video files should not be stored directly in PostgreSQL. The planned direction is to store metadata in PostgreSQL and large files in an external provider such as Google Drive.
@@ -658,6 +823,10 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Nested VisualAsset metadata API
 - [x] Release metadata model and migration
 - [x] Nested Release metadata API
+- [x] ContentItem metadata model and migration
+- [x] Nested ContentItem metadata API
+- [x] Credit metadata model and migration
+- [x] Nested Credit metadata API
 - [x] Local frontend development CORS
 - [x] Automated backend tests
 - [ ] Automated frontend tests
@@ -672,12 +841,14 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Browser-based real AudioAsset metadata integration
 - [x] Browser-based real VisualAsset metadata integration
 - [x] Browser-based real Release metadata integration
+- [x] Browser-based real ContentItem metadata integration
+- [x] Browser-based real Credit metadata integration
 - [ ] Real audio file upload and external file association
 - [ ] Real visual file upload and external file association
 - [ ] Release preparation checklist persistence
 - [ ] Release publishing and distributor delivery
-- [ ] Backend content workflow
-- [ ] Backend credits and contributor management
+- [ ] Content publishing and platform delivery
+- [ ] Contributor directory, contracts, royalties, and payout workflow
 - [ ] Authentication and collaboration
 
 ### Integrations / Delivery

@@ -1,8 +1,8 @@
-import type { ContentItem, ContentStage } from "@/types";
+import type { MockContentItem, MockContentStage } from "@/types";
 import { mockSongs } from "./songs";
 
 /** MOCK content campaign items. */
-export const CONTENT_STAGES: ContentStage[] = [
+export const MOCK_CONTENT_STAGES: MockContentStage[] = [
   "Idea",
   "Planned",
   "In Production",
@@ -12,7 +12,7 @@ export const CONTENT_STAGES: ContentStage[] = [
   "Published",
 ];
 
-const TEMPLATE: Omit<ContentItem, "id" | "songId">[] = [
+const TEMPLATE: Omit<MockContentItem, "id" | "songId">[] = [
   {
     title: "Teaser 01 — hook loop",
     type: "Teaser",
@@ -85,7 +85,7 @@ const TEMPLATE: Omit<ContentItem, "id" | "songId">[] = [
   },
 ];
 
-export function getContentItems(songId: string): ContentItem[] {
+export function getMockContentItems(songId: string): MockContentItem[] {
   const index = mockSongs.findIndex((s) => s.id === songId);
   if (index < 0) return [];
   const depth = [6, 7, 9, 9, 0, 4, 0, 1][index] ?? 0;
