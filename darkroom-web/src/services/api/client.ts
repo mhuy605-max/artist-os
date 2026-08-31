@@ -7,6 +7,8 @@
 export const API_BASE_URL =
   (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "http://localhost:5178";
 
+export const unauthorizedEventName = "artist-os:unauthorized";
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -29,6 +31,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...(init?.headers ?? {}),
@@ -39,6 +42,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new Event(unauthorizedEventName));
+    }
+
     const text = await response.text().catch(() => "");
     throw new ApiError(text || `Request failed (${response.status})`, response.status);
   }

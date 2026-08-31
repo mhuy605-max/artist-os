@@ -9,7 +9,7 @@ public class VisualAssetsApiTests
     public async Task CreateVisualAsset_WithValidPayload_ReturnsCreatedMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/visual-assets", new
@@ -46,7 +46,7 @@ public class VisualAssetsApiTests
     public async Task CreateVisualAsset_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/songs/999999/visual-assets", ValidVisualAsset());
 
@@ -60,7 +60,7 @@ public class VisualAssetsApiTests
     public async Task CreateVisualAsset_WithInvalidType_ReturnsBadRequest(string type)
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/visual-assets", new
@@ -79,7 +79,7 @@ public class VisualAssetsApiTests
     public async Task CreateVisualAsset_WithInvalidStatus_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/visual-assets", new
@@ -98,7 +98,7 @@ public class VisualAssetsApiTests
     public async Task CreateVisualAsset_WithInvalidVersion_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/visual-assets", new
@@ -121,7 +121,7 @@ public class VisualAssetsApiTests
     public async Task CreateVisualAsset_WithInvalidDimensions_ReturnsBadRequest(int width, int height)
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/visual-assets", new
@@ -142,7 +142,7 @@ public class VisualAssetsApiTests
     public async Task CreateVisualAsset_WithNegativeFileSize_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/visual-assets", new
@@ -162,7 +162,7 @@ public class VisualAssetsApiTests
     public async Task GetVisualAssets_ReturnsCreatedMetadataForSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateVisualAsset(client, song.Id);
 
@@ -177,7 +177,7 @@ public class VisualAssetsApiTests
     public async Task GetVisualAsset_WithExistingAsset_ReturnsMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateVisualAsset(client, song.Id);
 
@@ -193,7 +193,7 @@ public class VisualAssetsApiTests
     public async Task GetVisualAsset_WithMissingAsset_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.GetAsync($"/api/songs/{song.Id}/visual-assets/999999");
@@ -205,7 +205,7 @@ public class VisualAssetsApiTests
     public async Task UpdateVisualAsset_WithValidPayload_ReturnsNoContentAndPreservesUploadedAt()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateVisualAsset(client, song.Id);
 
@@ -242,7 +242,7 @@ public class VisualAssetsApiTests
     public async Task UpdateVisualAsset_WithInvalidInput_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateVisualAsset(client, song.Id);
 
@@ -265,7 +265,7 @@ public class VisualAssetsApiTests
     public async Task UpdateVisualAsset_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PutAsJsonAsync("/api/songs/999999/visual-assets/1", ValidVisualAsset());
 
@@ -276,7 +276,7 @@ public class VisualAssetsApiTests
     public async Task UpdateVisualAsset_WithMissingAsset_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PutAsJsonAsync(
@@ -290,7 +290,7 @@ public class VisualAssetsApiTests
     public async Task DeleteVisualAsset_WithExistingAsset_ReturnsNoContentAndDoesNotDeleteSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateVisualAsset(client, song.Id);
 
@@ -307,7 +307,7 @@ public class VisualAssetsApiTests
     public async Task DeleteVisualAsset_WithMissingAsset_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.DeleteAsync($"/api/songs/{song.Id}/visual-assets/999999");
@@ -319,7 +319,7 @@ public class VisualAssetsApiTests
     public async Task SongCanHaveManyVisualAssets()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var cover = await CreateVisualAsset(client, song.Id, "CoverArt", "cover_v1.png");
         var video = await CreateVisualAsset(client, song.Id, "MusicVideo", "final_cut.mov");

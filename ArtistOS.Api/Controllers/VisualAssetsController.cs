@@ -1,11 +1,14 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
+using ArtistOS.Api.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/songs/{songId:int}/visual-assets")]
 public class VisualAssetsController : ControllerBase
@@ -20,7 +23,8 @@ public class VisualAssetsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<VisualAssetResponse>>> GetVisualAssets(int songId)
     {
-        if (!await SongExists(songId))
+        var currentUserId = User.GetUserId();
+        if (!await UserOwnsSong(songId, currentUserId))
         {
             return NotFound();
         }
@@ -54,10 +58,18 @@ public class VisualAssetsController : ControllerBase
         int songId,
         int visualAssetId)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var visualAsset = await _context.VisualAssets
             .AsNoTracking()
             .FirstOrDefaultAsync(visualAsset =>
-                visualAsset.SongId == songId && visualAsset.Id == visualAssetId);
+                visualAsset.SongId == songId &&
+                visualAsset.Id == visualAssetId &&
+                visualAsset.Song.OwnerUserId == currentUserId);
 
         if (visualAsset is null)
         {
@@ -72,7 +84,8 @@ public class VisualAssetsController : ControllerBase
         int songId,
         CreateVisualAssetRequest request)
     {
-        if (!await SongExists(songId))
+        var currentUserId = User.GetUserId();
+        if (!await UserOwnsSong(songId, currentUserId))
         {
             return NotFound();
         }
@@ -106,9 +119,17 @@ public class VisualAssetsController : ControllerBase
         int visualAssetId,
         UpdateVisualAssetRequest request)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var existingVisualAsset = await _context.VisualAssets
             .FirstOrDefaultAsync(visualAsset =>
-                visualAsset.SongId == songId && visualAsset.Id == visualAssetId);
+                visualAsset.SongId == songId &&
+                visualAsset.Id == visualAssetId &&
+                visualAsset.Song.OwnerUserId == currentUserId);
 
         if (existingVisualAsset is null)
         {
@@ -132,9 +153,17 @@ public class VisualAssetsController : ControllerBase
     [HttpDelete("{visualAssetId:int}")]
     public async Task<IActionResult> DeleteVisualAsset(int songId, int visualAssetId)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var visualAsset = await _context.VisualAssets
             .FirstOrDefaultAsync(visualAsset =>
-                visualAsset.SongId == songId && visualAsset.Id == visualAssetId);
+                visualAsset.SongId == songId &&
+                visualAsset.Id == visualAssetId &&
+                visualAsset.Song.OwnerUserId == currentUserId);
 
         if (visualAsset is null)
         {
@@ -147,9 +176,10 @@ public class VisualAssetsController : ControllerBase
         return NoContent();
     }
 
-    private async Task<bool> SongExists(int songId)
+    private async Task<bool> UserOwnsSong(int songId, int? userId)
     {
-        return await _context.Songs.AnyAsync(song => song.Id == songId);
+        return userId is not null &&
+            await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
     private static VisualAssetResponse ToResponse(VisualAsset visualAsset)

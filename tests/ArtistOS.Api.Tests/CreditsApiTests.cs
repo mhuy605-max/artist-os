@@ -9,7 +9,7 @@ public class CreditsApiTests
     public async Task CreateCredit_WithValidPayload_ReturnsCreatedMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/credits", new
@@ -44,7 +44,7 @@ public class CreditsApiTests
     public async Task CreateCredit_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/songs/999999/credits", ValidCredit());
 
@@ -58,7 +58,7 @@ public class CreditsApiTests
     public async Task CreateCredit_WithInvalidRole_ReturnsBadRequest(string role)
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/credits", new
@@ -75,7 +75,7 @@ public class CreditsApiTests
     public async Task CreateCredit_WithInvalidStatus_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/credits", new
@@ -94,7 +94,7 @@ public class CreditsApiTests
     public async Task CreateCredit_WithInvalidSplitPercentage_ReturnsBadRequest(decimal splitPercentage)
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/credits", new
@@ -112,7 +112,7 @@ public class CreditsApiTests
     public async Task CreateCredit_WithEmptyContributorName_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/credits", new
@@ -129,7 +129,7 @@ public class CreditsApiTests
     public async Task GetCredits_ReturnsCreatedMetadataForSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var credit = await CreateCredit(client, song.Id);
 
@@ -144,7 +144,7 @@ public class CreditsApiTests
     public async Task GetCredit_WithExistingCredit_ReturnsMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var credit = await CreateCredit(client, song.Id);
 
@@ -160,7 +160,7 @@ public class CreditsApiTests
     public async Task GetCredit_WithMissingCredit_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.GetAsync($"/api/songs/{song.Id}/credits/999999");
@@ -172,7 +172,7 @@ public class CreditsApiTests
     public async Task UpdateCredit_WithValidPayload_ReturnsNoContentAndUpdatesTimestamp()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var credit = await CreateCredit(client, song.Id);
 
@@ -210,7 +210,7 @@ public class CreditsApiTests
     public async Task UpdateCredit_WithInvalidRole_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var credit = await CreateCredit(client, song.Id);
 
@@ -228,7 +228,7 @@ public class CreditsApiTests
     public async Task UpdateCredit_WithInvalidSplitPercentage_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var credit = await CreateCredit(client, song.Id);
 
@@ -247,7 +247,7 @@ public class CreditsApiTests
     public async Task UpdateCredit_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PutAsJsonAsync("/api/songs/999999/credits/1", ValidCredit());
 
@@ -258,7 +258,7 @@ public class CreditsApiTests
     public async Task UpdateCredit_WithMissingCredit_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PutAsJsonAsync($"/api/songs/{song.Id}/credits/999999", ValidCredit());
@@ -270,7 +270,7 @@ public class CreditsApiTests
     public async Task DeleteCredit_WithExistingCredit_ReturnsNoContentAndDoesNotDeleteSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var credit = await CreateCredit(client, song.Id);
 
@@ -287,7 +287,7 @@ public class CreditsApiTests
     public async Task DeleteCredit_WithMissingCredit_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.DeleteAsync($"/api/songs/{song.Id}/credits/999999");
@@ -299,7 +299,7 @@ public class CreditsApiTests
     public async Task SongCanHaveManyCredits()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var producer = await CreateCredit(client, song.Id, "Kira Mott", "Producer");
         var songwriter = await CreateCredit(client, song.Id, "Aden Ruiz", "Songwriter");
@@ -318,7 +318,7 @@ public class CreditsApiTests
     public async Task SameContributorCanHaveMultipleRoles()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var artist = await CreateCredit(client, song.Id, "Vera Sol", "Artist");
         var songwriter = await CreateCredit(client, song.Id, "Vera Sol", "Songwriter");

@@ -20,7 +20,7 @@ public class ReleaseChecklistApiTests
     public async Task CreateRelease_InitializesDefaultChecklistItems()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var release = await CreateRelease(client, song.Id);
 
@@ -38,7 +38,7 @@ public class ReleaseChecklistApiTests
     public async Task GetChecklist_WithStableOrdering_ReturnsItemsBySortOrder()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
 
@@ -54,7 +54,7 @@ public class ReleaseChecklistApiTests
     public async Task GetChecklist_WithMissingSongOrRelease_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var missingSong = await client.GetAsync("/api/songs/999999/release/checklist");
@@ -68,7 +68,7 @@ public class ReleaseChecklistApiTests
     public async Task GetChecklistItem_WithExistingItem_ReturnsMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
         var item = (await GetChecklist(client, song.Id)).First();
@@ -87,7 +87,7 @@ public class ReleaseChecklistApiTests
     public async Task GetChecklistItem_WithMissingItem_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
 
@@ -100,7 +100,7 @@ public class ReleaseChecklistApiTests
     public async Task UpdateChecklistItem_MarksCompleteAndSetsCompletedAtServerSide()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
         var item = (await GetChecklist(client, song.Id)).First();
@@ -131,7 +131,7 @@ public class ReleaseChecklistApiTests
     public async Task UpdateChecklistItem_MarksIncompleteAndClearsCompletedAt()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
         var item = (await GetChecklist(client, song.Id)).First();
@@ -156,7 +156,7 @@ public class ReleaseChecklistApiTests
     public async Task UpdateChecklistItem_WithLongNotes_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
         var item = (await GetChecklist(client, song.Id)).First();
@@ -172,7 +172,7 @@ public class ReleaseChecklistApiTests
     public async Task UpdateChecklistItem_WithMissingItem_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
 
@@ -187,7 +187,7 @@ public class ReleaseChecklistApiTests
     public async Task UpdatingChecklistItem_DoesNotDeleteReleaseOrSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var release = await CreateRelease(client, song.Id);
         var item = (await GetChecklist(client, song.Id)).First();

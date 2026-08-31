@@ -1,11 +1,14 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
+using ArtistOS.Api.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/songs/{songId:int}/release")]
 public class ReleasesController : ControllerBase
@@ -20,7 +23,8 @@ public class ReleasesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ReleaseResponse>> GetRelease(int songId)
     {
-        if (!await SongExists(songId))
+        var currentUserId = User.GetUserId();
+        if (!await UserOwnsSong(songId, currentUserId))
         {
             return NotFound();
         }
@@ -42,7 +46,8 @@ public class ReleasesController : ControllerBase
         int songId,
         CreateReleaseRequest request)
     {
-        if (!await SongExists(songId))
+        var currentUserId = User.GetUserId();
+        if (!await UserOwnsSong(songId, currentUserId))
         {
             return NotFound();
         }
@@ -86,8 +91,15 @@ public class ReleasesController : ControllerBase
         int songId,
         UpdateReleaseRequest request)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var release = await _context.Releases
-            .FirstOrDefaultAsync(release => release.SongId == songId);
+            .FirstOrDefaultAsync(release =>
+                release.SongId == songId && release.Song.OwnerUserId == currentUserId);
 
         if (release is null)
         {
@@ -111,8 +123,15 @@ public class ReleasesController : ControllerBase
     [HttpDelete]
     public async Task<IActionResult> DeleteRelease(int songId)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var release = await _context.Releases
-            .FirstOrDefaultAsync(release => release.SongId == songId);
+            .FirstOrDefaultAsync(release =>
+                release.SongId == songId && release.Song.OwnerUserId == currentUserId);
 
         if (release is null)
         {
@@ -125,9 +144,10 @@ public class ReleasesController : ControllerBase
         return NoContent();
     }
 
-    private async Task<bool> SongExists(int songId)
+    private async Task<bool> UserOwnsSong(int songId, int? userId)
     {
-        return await _context.Songs.AnyAsync(song => song.Id == songId);
+        return userId is not null &&
+            await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
     private static ReleaseResponse ToResponse(Release release)

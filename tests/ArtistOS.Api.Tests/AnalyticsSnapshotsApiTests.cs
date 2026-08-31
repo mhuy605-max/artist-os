@@ -9,7 +9,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task CreateAnalyticsSnapshot_WithValidPayload_ReturnsCreatedMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/analytics", new
@@ -44,7 +44,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task CreateAnalyticsSnapshot_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/songs/999999/analytics", ValidSnapshot());
 
@@ -58,7 +58,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task CreateAnalyticsSnapshot_WithInvalidPlatform_ReturnsBadRequest(string platform)
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/analytics", new
@@ -79,7 +79,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task CreateAnalyticsSnapshot_WithMissingSnapshotDate_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/analytics", new
@@ -104,7 +104,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task CreateAnalyticsSnapshot_WithNegativeMetric_ReturnsBadRequest(string metric)
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var payload = new Dictionary<string, object?>
@@ -128,7 +128,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task CreateAnalyticsSnapshot_WithDuplicatePlatformAndDate_ReturnsConflict()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateAnalyticsSnapshot(client, song.Id);
 
@@ -141,7 +141,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task GetAnalyticsSnapshots_ReturnsSnapshotsOrderedByDate()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var later = await CreateAnalyticsSnapshot(client, song.Id, "YouTube", "2026-08-30");
         var earlier = await CreateAnalyticsSnapshot(client, song.Id, "YouTube", "2026-08-29");
@@ -159,7 +159,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task GetAnalyticsSnapshot_WithExistingSnapshot_ReturnsMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var snapshot = await CreateAnalyticsSnapshot(client, song.Id);
 
@@ -175,7 +175,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task GetAnalyticsSnapshot_WithMissingSnapshot_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.GetAsync($"/api/songs/{song.Id}/analytics/999999");
@@ -187,7 +187,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task UpdateAnalyticsSnapshot_WithValidPayload_ReturnsNoContentAndPreservesCreatedAt()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var snapshot = await CreateAnalyticsSnapshot(client, song.Id);
 
@@ -222,7 +222,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task UpdateAnalyticsSnapshot_WithInvalidPlatform_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var snapshot = await CreateAnalyticsSnapshot(client, song.Id);
 
@@ -244,7 +244,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task UpdateAnalyticsSnapshot_WithNegativeMetric_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var snapshot = await CreateAnalyticsSnapshot(client, song.Id);
 
@@ -266,7 +266,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task UpdateAnalyticsSnapshot_WithDuplicatePlatformAndDate_ReturnsConflict()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateAnalyticsSnapshot(client, song.Id, "YouTube", "2026-08-30");
         var snapshot = await CreateAnalyticsSnapshot(client, song.Id, "TikTok", "2026-08-31");
@@ -289,7 +289,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task UpdateAnalyticsSnapshot_WithMissingSongOrSnapshot_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var missingSong = await client.PutAsJsonAsync("/api/songs/999999/analytics/1", ValidSnapshot());
@@ -305,7 +305,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task DeleteAnalyticsSnapshot_WithExistingSnapshot_ReturnsNoContentAndDoesNotDeleteSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var snapshot = await CreateAnalyticsSnapshot(client, song.Id);
 
@@ -322,7 +322,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task DeleteAnalyticsSnapshot_WithMissingSnapshot_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.DeleteAsync($"/api/songs/{song.Id}/analytics/999999");
@@ -334,7 +334,7 @@ public class AnalyticsSnapshotsApiTests
     public async Task SongCanHaveManyAnalyticsSnapshotsAcrossDates()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var first = await CreateAnalyticsSnapshot(client, song.Id, "YouTube", "2026-08-29");
         var second = await CreateAnalyticsSnapshot(client, song.Id, "YouTube", "2026-08-30");

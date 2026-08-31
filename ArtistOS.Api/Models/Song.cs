@@ -14,6 +14,10 @@ public class Song
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    public int? OwnerUserId { get; set; }
+
+    public User? OwnerUser { get; set; }
+
     public ICollection<AudioAsset> AudioAssets { get; set; } = [];
 
     public ICollection<VisualAsset> VisualAssets { get; set; } = [];

@@ -1,4 +1,7 @@
 using ArtistOS.Api.Data;
+using ArtistOS.Api.Models;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +14,28 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection")
     ));
 
+builder.Services.AddScoped<PasswordHasher<User>>();
+
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "artist_os_session";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Events.OnRedirectToLogin = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        };
+    });
+
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddCors(options =>
@@ -19,8 +44,9 @@ if (builder.Environment.IsDevelopment())
         {
             policy
                 .WithOrigins("http://localhost:8080")
-                .WithMethods("GET", "POST", "PUT", "DELETE")
-                .AllowAnyHeader();
+                .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .AllowAnyHeader()
+                .AllowCredentials();
         });
     });
 }
@@ -46,6 +72,7 @@ if (app.Environment.IsDevelopment())
     app.UseCors(LocalFrontendCorsPolicy);
 }
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

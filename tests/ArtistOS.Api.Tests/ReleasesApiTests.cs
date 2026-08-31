@@ -9,7 +9,7 @@ public class ReleasesApiTests
     public async Task CreateRelease_WithValidPayload_ReturnsCreatedMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/release", new
@@ -46,7 +46,7 @@ public class ReleasesApiTests
     public async Task CreateRelease_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/songs/999999/release", ValidRelease());
 
@@ -57,7 +57,7 @@ public class ReleasesApiTests
     public async Task CreateRelease_WithDuplicateForSong_ReturnsConflict()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
 
@@ -70,7 +70,7 @@ public class ReleasesApiTests
     public async Task CreateRelease_WithInvalidStatus_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/release", new
@@ -87,7 +87,7 @@ public class ReleasesApiTests
     public async Task CreateRelease_WithInvalidReleaseType_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/release", new
@@ -104,7 +104,7 @@ public class ReleasesApiTests
     public async Task CreateRelease_WithInvalidPlatform_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/release", new
@@ -121,7 +121,7 @@ public class ReleasesApiTests
     public async Task GetRelease_WithExistingRelease_ReturnsMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var release = await CreateRelease(client, song.Id);
 
@@ -137,7 +137,7 @@ public class ReleasesApiTests
     public async Task GetRelease_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.GetAsync("/api/songs/999999/release");
 
@@ -148,7 +148,7 @@ public class ReleasesApiTests
     public async Task GetRelease_WithSongWithoutRelease_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.GetAsync($"/api/songs/{song.Id}/release");
@@ -160,7 +160,7 @@ public class ReleasesApiTests
     public async Task UpdateRelease_WithValidPayload_ReturnsNoContentAndUpdatesTimestamp()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var release = await CreateRelease(client, song.Id);
 
@@ -199,7 +199,7 @@ public class ReleasesApiTests
     public async Task UpdateRelease_WithInvalidStatus_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
 
@@ -217,7 +217,7 @@ public class ReleasesApiTests
     public async Task UpdateRelease_WithMissingRelease_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PutAsJsonAsync($"/api/songs/{song.Id}/release", ValidRelease());
@@ -229,7 +229,7 @@ public class ReleasesApiTests
     public async Task UpdateRelease_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PutAsJsonAsync("/api/songs/999999/release", ValidRelease());
 
@@ -240,7 +240,7 @@ public class ReleasesApiTests
     public async Task DeleteRelease_WithExistingRelease_ReturnsNoContentAndDoesNotDeleteSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
 
@@ -257,7 +257,7 @@ public class ReleasesApiTests
     public async Task DeleteRelease_WithMissingRelease_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.DeleteAsync($"/api/songs/{song.Id}/release");
@@ -269,7 +269,7 @@ public class ReleasesApiTests
     public async Task OneSongCannotHaveMultipleReleaseRows()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
 

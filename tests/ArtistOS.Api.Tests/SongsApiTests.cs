@@ -9,7 +9,7 @@ public class SongsApiTests
     public async Task CreateSong_WithValidPayload_ReturnsCreatedSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/songs", new
         {
@@ -35,7 +35,7 @@ public class SongsApiTests
     public async Task CreateSong_WithEmptyTitle_ReturnsBadRequest(string title)
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/songs", new
         {
@@ -50,7 +50,7 @@ public class SongsApiTests
     public async Task CreateSong_WithTitleOverMaxLength_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/songs", new
         {
@@ -65,7 +65,7 @@ public class SongsApiTests
     public async Task CreateSong_WithInvalidStatus_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/songs", new
         {
@@ -80,7 +80,7 @@ public class SongsApiTests
     public async Task GetSongs_ReturnsCreatedSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var created = await CreateSong(client);
 
         var songs = await client.GetFromJsonAsync<List<SongResponse>>("/api/songs");
@@ -93,7 +93,7 @@ public class SongsApiTests
     public async Task GetSong_WithExistingSong_ReturnsSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var created = await CreateSong(client);
 
         var response = await client.GetAsync($"/api/songs/{created.Id}");
@@ -108,7 +108,7 @@ public class SongsApiTests
     public async Task GetSong_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.GetAsync("/api/songs/999999");
 
@@ -119,7 +119,7 @@ public class SongsApiTests
     public async Task UpdateSong_WithValidPayload_ReturnsNoContentAndPreservesCreatedAt()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var created = await CreateSong(client);
 
         var response = await client.PutAsJsonAsync($"/api/songs/{created.Id}", new
@@ -144,7 +144,7 @@ public class SongsApiTests
     public async Task UpdateSong_WithInvalidTitle_ReturnsBadRequest(string title)
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var created = await CreateSong(client);
 
         var response = await client.PutAsJsonAsync($"/api/songs/{created.Id}", new
@@ -160,7 +160,7 @@ public class SongsApiTests
     public async Task UpdateSong_WithInvalidStatus_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var created = await CreateSong(client);
 
         var response = await client.PutAsJsonAsync($"/api/songs/{created.Id}", new
@@ -176,7 +176,7 @@ public class SongsApiTests
     public async Task UpdateSong_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PutAsJsonAsync("/api/songs/999999", new
         {
@@ -191,7 +191,7 @@ public class SongsApiTests
     public async Task DeleteSong_WithExistingSong_ReturnsNoContentAndRemovesSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var created = await CreateSong(client);
 
         var response = await client.DeleteAsync($"/api/songs/{created.Id}");
@@ -205,7 +205,7 @@ public class SongsApiTests
     public async Task DeleteSong_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.DeleteAsync("/api/songs/999999");
 

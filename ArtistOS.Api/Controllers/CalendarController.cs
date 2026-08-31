@@ -1,11 +1,14 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
+using ArtistOS.Api.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/calendar")]
 public class CalendarController : ControllerBase
@@ -27,10 +30,17 @@ public class CalendarController : ControllerBase
             return BadRequest("The from date must be on or before the to date.");
         }
 
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var releases = await _context.Releases
             .AsNoTracking()
             .Include(release => release.Song)
             .Where(release => release.ReleaseDate != null)
+            .Where(release => release.Song.OwnerUserId == currentUserId)
             .Where(release =>
                 (!from.HasValue || release.ReleaseDate >= from) &&
                 (!to.HasValue || release.ReleaseDate <= to))
@@ -39,6 +49,7 @@ public class CalendarController : ControllerBase
         var contentItems = await _context.ContentItems
             .AsNoTracking()
             .Include(contentItem => contentItem.Song)
+            .Where(contentItem => contentItem.Song.OwnerUserId == currentUserId)
             .Where(contentItem =>
                 (contentItem.DueDate != null &&
                     (!from.HasValue || contentItem.DueDate >= from) &&

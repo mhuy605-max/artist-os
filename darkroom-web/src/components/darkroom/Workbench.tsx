@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { Check, ChevronLeft, ChevronRight, Plus, Search, Trash2 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import {
   AlertDialog,
@@ -49,21 +50,17 @@ import {
   formatNumber,
 } from "@/components/darkroom/Primitives";
 import { analyticsApi } from "@/services/api/analytics";
+import { authApi, authQueryKey } from "@/services/api/auth";
 import { audioAssetsApi } from "@/services/api/audioAssets";
 import { calendarApi } from "@/services/api/calendar";
 import { contentItemsApi } from "@/services/api/contentItems";
 import { creditsApi } from "@/services/api/credits";
+import { dashboardApi } from "@/services/api/dashboard";
 import { releaseChecklistApi } from "@/services/api/releaseChecklist";
 import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
 import { visualAssetsApi } from "@/services/api/visualAssets";
-import { workspacePerformance } from "@/services/mock/analytics";
-import {
-  getSongActivity,
-  getSongTasks,
-  globalActivity,
-  upcomingItems,
-} from "@/services/mock/activity";
+import { getSongActivity, getSongTasks } from "@/services/mock/activity";
 import { getSongMeta } from "@/services/mock/songs";
 import { teamMembers, getSongTeam } from "@/services/mock/team";
 import {
@@ -112,6 +109,11 @@ import {
   type CreditPayload,
   type CreditRole,
   type CreditStatus,
+  type DashboardActivityItem,
+  type DashboardAnalyticsItem,
+  type DashboardPipelineItem,
+  type DashboardReleaseReadiness,
+  type DashboardUpcomingItem,
   type Release,
   type ReleaseChecklistItem,
   type ReleaseChecklistItemPayload,
@@ -162,6 +164,8 @@ function analyticsSnapshotsQueryKey(songId: string) {
 function calendarQueryKey(from: string, to: string) {
   return ["calendar", from, to];
 }
+
+const dashboardQueryKey = ["dashboard"];
 
 function useSongs() {
   return useQuery({
@@ -428,95 +432,271 @@ function LifecycleProgress({ status }: { status: string }) {
 }
 
 export function DashboardPage() {
-  const songs = useSongs();
-  const activeSongs = (songs.data ?? []).slice(0, 4);
+  const dashboard = useQuery({
+    queryKey: dashboardQueryKey,
+    queryFn: dashboardApi.getDashboard,
+  });
+  const data = dashboard.data;
+  const maxPipelineCount = Math.max(...(data?.pipeline.map((item) => item.count) ?? [0]), 1);
 
   return (
     <AppShell>
       <PageHeader eyebrow="Dashboard" title="Command center" />
-      <FallbackNotice />
-      {songs.isLoading ? (
-        <LoadingState label="Loading songs" />
-      ) : songs.isError ? (
+      {dashboard.isLoading ? (
+        <LoadingState label="Loading dashboard" />
+      ) : dashboard.isError ? (
         <ErrorState
-          detail="The Song API returned an error. Start the backend or check the API response."
-          onRetry={() => songs.refetch()}
+          detail="The Dashboard API returned an error. Start the backend or check the API response."
+          onRetry={() => dashboard.refetch()}
         />
-      ) : (
-        <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
-          <Panel title="Active projects" label="Real songs + mock metadata">
-            {activeSongs.length ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {activeSongs.map((song) => (
-                  <SongCard key={normalizeId(song.id)} song={song} />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="No songs yet"
-                detail="Create songs from the Songs page to populate active projects."
-              />
-            )}
-          </Panel>
-          <Panel title="Upcoming" label="Mock schedule">
+      ) : data ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricBlock label="Total songs" value={String(data.summary.totalSongs)} />
+            <MetricBlock
+              label="Active"
+              value={String(data.summary.activeSongs)}
+              detail="Statuses before Released"
+            />
+            <MetricBlock
+              label="Upcoming releases"
+              value={String(data.summary.upcomingReleases)}
+              detail="Future non-released plans"
+            />
+            <MetricBlock
+              label="Scheduled content"
+              value={String(data.summary.scheduledContent)}
+              detail="Future non-published posts"
+            />
+          </div>
+
+          {data.summary.totalSongs === 0 ? (
+            <EmptyState
+              title="No songs yet"
+              detail="Create your first Song from the Songs page to populate the command center."
+            />
+          ) : null}
+
+          <Panel title="Song lifecycle pipeline" label="Real Song statuses">
             <div className="space-y-3">
-              {upcomingItems.slice(0, 7).map((item) => (
-                <div
-                  key={item.id}
-                  className="grid grid-cols-[74px_1fr] gap-3 border-b border-border pb-3 last:border-0"
-                >
-                  <p className="meta-tech">{formatDate(item.date)}</p>
-                  <div>
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.song} / {item.kind}
-                    </p>
-                  </div>
-                </div>
+              {data.pipeline.map((item) => (
+                <DashboardPipelineRow key={item.status} item={item} maxCount={maxPipelineCount} />
               ))}
             </div>
           </Panel>
-          <Panel title="Recent activity" label="Mock feed">
-            <Timeline
-              items={globalActivity.map((item) => ({
-                id: item.id,
-                title: item.action,
-                meta: `${item.actor} / ${formatDate(item.at)}`,
-                detail: item.songTitle,
-              }))}
-            />
-          </Panel>
-          <Panel title="Performance snapshot" label="Mock analytics">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <MetricBlock
-                label="Total views"
-                value={formatNumber(workspacePerformance.totalViews)}
-                detail="+18.4% / 30d"
-              />
-              <MetricBlock
-                label="Top release"
-                value={workspacePerformance.topRelease}
-                detail={`${formatNumber(workspacePerformance.topReleaseViews)} views`}
-              />
-              <MetricBlock
-                label="Content posts"
-                value={String(workspacePerformance.contentPosts)}
-                detail="Campaign output"
-              />
-              <MetricBlock
-                label="Avg content"
-                value={formatNumber(workspacePerformance.avgContentViews)}
-                detail="Mock performance"
-              />
-            </div>
-            <div className="mt-4">
-              <MiniBars values={workspacePerformance.monthly.map((item) => item.value)} />
-            </div>
-          </Panel>
+
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <Panel title="Upcoming work" label="Real Release + Content dates">
+              {data.upcoming.length ? (
+                <div className="space-y-3">
+                  {data.upcoming.map((item) => (
+                    <DashboardUpcomingRow key={dashboardUpcomingKey(item)} item={item} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title="No upcoming dates"
+                  detail="Future Release dates and Content due or scheduled dates will appear here."
+                />
+              )}
+            </Panel>
+
+            <Panel title="Release readiness" label="Derived checklist progress">
+              {data.releaseReadiness.length ? (
+                <div className="space-y-3">
+                  {data.releaseReadiness.map((item) => (
+                    <DashboardReadinessRow key={normalizeId(item.releaseId)} item={item} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title="No release plans"
+                  detail="Create Release metadata to track checklist readiness."
+                />
+              )}
+            </Panel>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <Panel title="Analytics overview" label="Latest stored snapshots">
+              {data.analyticsOverview.length ? (
+                <div className="space-y-3">
+                  {data.analyticsOverview.map((item) => (
+                    <DashboardAnalyticsRow
+                      key={`${normalizeId(item.songId)}-${item.platform}`}
+                      item={item}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title="No analytics snapshots"
+                  detail="Manually recorded analytics snapshots will appear here once added."
+                />
+              )}
+              <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
+                Analytics are based on stored snapshots only. No external platform sync is active.
+              </p>
+            </Panel>
+
+            <Panel title="Recent activity" label="Derived from source timestamps">
+              {data.recentActivity.length ? (
+                <div className="space-y-3">
+                  {data.recentActivity.map((item) => (
+                    <DashboardActivityRow
+                      key={`${item.type}-${normalizeId(item.songId)}-${item.occurredAt}`}
+                      item={item}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title="No recent activity"
+                  detail="Created or updated source records will appear here without fake users or audit history."
+                />
+              )}
+            </Panel>
+          </div>
         </div>
+      ) : (
+        <EmptyState
+          title="Dashboard unavailable"
+          detail="The backend returned no dashboard payload."
+        />
       )}
     </AppShell>
   );
+}
+
+function DashboardPipelineRow({
+  item,
+  maxCount,
+}: {
+  item: DashboardPipelineItem;
+  maxCount: number;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-[170px_1fr_48px] sm:items-center">
+      <div className="flex items-center gap-2">
+        <StatusBadge status={item.status} />
+        <span className="text-sm font-medium uppercase">{item.label}</span>
+      </div>
+      <div className="h-2 bg-background">
+        <div
+          className="h-full bg-foreground"
+          style={{ width: `${item.count === 0 ? 0 : Math.max(8, (item.count / maxCount) * 100)}%` }}
+        />
+      </div>
+      <p className="font-mono text-sm text-muted-foreground sm:text-right">{item.count}</p>
+    </div>
+  );
+}
+
+function DashboardUpcomingRow({ item }: { item: DashboardUpcomingItem }) {
+  return (
+    <Link
+      to="/songs/$songId"
+      params={{ songId: normalizeId(item.songId) }}
+      className="grid grid-cols-[88px_1fr] gap-3 border-b border-border pb-3 last:border-0 hover:bg-panel"
+    >
+      <p className="meta-tech">{formatDate(item.date)}</p>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium uppercase">{item.title}</p>
+          <StatusBadge status={item.status} />
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {dashboardUpcomingLabel(item)} / {item.songTitle}
+          {item.platform ? ` / ${item.platform}` : ""}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function DashboardReadinessRow({ item }: { item: DashboardReleaseReadiness }) {
+  return (
+    <Link
+      to="/songs/$songId"
+      params={{ songId: normalizeId(item.songId) }}
+      className="block border border-border bg-background p-3 hover:border-border-strong"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium uppercase">{item.songTitle}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {item.releaseDate ? formatDate(item.releaseDate) : "No release date"}
+          </p>
+        </div>
+        <StatusBadge status={item.status} />
+      </div>
+      <div className="mt-4 h-2 bg-panel">
+        <div className="h-full bg-foreground" style={{ width: `${item.readinessPercentage}%` }} />
+      </div>
+      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {item.completedItems} / {item.totalItems} complete
+        </span>
+        <span>{item.readinessPercentage}%</span>
+      </div>
+    </Link>
+  );
+}
+
+function DashboardAnalyticsRow({ item }: { item: DashboardAnalyticsItem }) {
+  return (
+    <Link
+      to="/songs/$songId"
+      params={{ songId: normalizeId(item.songId) }}
+      className="block border-b border-border pb-3 last:border-0 hover:bg-panel"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium uppercase">{item.songTitle}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {analyticsPlatformLabel(item.platform)} / {formatDate(item.snapshotDate)}
+          </p>
+        </div>
+        <p className="font-mono text-sm">{formatNumber(item.views)} views</p>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:grid-cols-4">
+        <span>{formatNumber(item.likes)} likes</span>
+        <span>{formatNumber(item.comments)} comments</span>
+        <span>{formatWatchTime(item.watchTimeMinutes)}</span>
+        <span>{formatNumber(item.subscribersGained)} subs</span>
+      </div>
+    </Link>
+  );
+}
+
+function DashboardActivityRow({ item }: { item: DashboardActivityItem }) {
+  return (
+    <Link
+      to="/songs/$songId"
+      params={{ songId: normalizeId(item.songId) }}
+      className="grid grid-cols-[18px_1fr] gap-3 hover:bg-panel"
+    >
+      <div className="pt-1.5">
+        <span className="block h-2 w-2 bg-foreground" />
+      </div>
+      <div className="border-b border-border pb-3 last:border-0">
+        <p className="text-sm font-medium">{item.description}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {item.songTitle} / {formatDate(item.occurredAt)}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function dashboardUpcomingKey(item: DashboardUpcomingItem) {
+  return `${item.sourceType}-${normalizeId(item.sourceId)}-${item.eventType}-${item.date}`;
+}
+
+function dashboardUpcomingLabel(item: DashboardUpcomingItem) {
+  if (item.eventType === "ReleaseDate") return "Release";
+  if (item.eventType === "ContentDue") return "Content due";
+  return "Scheduled content";
 }
 
 export function SongsPage() {
@@ -3610,6 +3790,41 @@ export function SettingsPage() {
 }
 
 export function LoginPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const authMutation = useMutation({
+    mutationFn: () => {
+      if (mode === "register") {
+        return authApi.register({
+          email: email.trim(),
+          password,
+          displayName: displayName.trim() || null,
+        });
+      }
+
+      return authApi.login({ email: email.trim(), password });
+    },
+    onSuccess: (user) => {
+      queryClient.setQueryData(authQueryKey, user);
+      navigate({ to: "/dashboard" });
+    },
+    onError: (caught) => {
+      setError(caught instanceof Error ? caught.message : "Authentication failed.");
+    },
+  });
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    authMutation.mutate();
+  }
+
   return (
     <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-[1.2fr_0.8fr]">
       <section className="relative hidden overflow-hidden border-r border-border p-10 lg:flex lg:flex-col lg:justify-between">
@@ -3621,7 +3836,7 @@ export function LoginPage() {
           <p className="label-tech">DARKROOM SYSTEM</p>
           <h1 className="mt-4 display-xl uppercase">Music workflow control room</h1>
           <p className="mt-5 text-sm text-muted-foreground">
-            Frontend-only login shell. Authentication is planned for a later backend phase.
+            First-party DARKROOM SYSTEM authentication backed by the ASP.NET API.
           </p>
         </div>
       </section>
@@ -3630,16 +3845,72 @@ export function LoginPage() {
           <div className="mb-10 w-48 lg:hidden">
             <Logo />
           </div>
-          <p className="label-tech">Sign in</p>
+          <p className="label-tech">{mode === "register" ? "Create account" : "Sign in"}</p>
           <h2 className="mt-3 display-lg uppercase">DARKROOM SYSTEM</h2>
-          <div className="mt-8 space-y-4">
-            <Input type="email" placeholder="Email" />
-            <Input type="password" placeholder="Password" />
-            <Button className="w-full">Sign in</Button>
-            <p className="text-xs text-muted-foreground">
-              Mock-only. No authentication request is sent.
-            </p>
-          </div>
+          <form className="mt-8 space-y-4" onSubmit={submit}>
+            <div>
+              <label className="label-tech" htmlFor="auth-email">
+                Email
+              </label>
+              <Input
+                id="auth-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="mt-2"
+                required
+              />
+            </div>
+            {mode === "register" ? (
+              <div>
+                <label className="label-tech" htmlFor="auth-display-name">
+                  Display name
+                </label>
+                <Input
+                  id="auth-display-name"
+                  autoComplete="name"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  className="mt-2"
+                />
+              </div>
+            ) : null}
+            <div>
+              <label className="label-tech" htmlFor="auth-password">
+                Password
+              </label>
+              <Input
+                id="auth-password"
+                type="password"
+                autoComplete={mode === "register" ? "new-password" : "current-password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="mt-2"
+                required
+                minLength={8}
+              />
+            </div>
+            {error ? <p className="text-sm text-muted-foreground">{error}</p> : null}
+            <Button className="w-full" disabled={authMutation.isPending}>
+              {authMutation.isPending
+                ? "Working"
+                : mode === "register"
+                  ? "Create account"
+                  : "Sign in"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setError("");
+                setMode(mode === "register" ? "login" : "register");
+              }}
+            >
+              {mode === "register" ? "Use existing account" : "Create account"}
+            </Button>
+          </form>
         </div>
       </section>
     </div>

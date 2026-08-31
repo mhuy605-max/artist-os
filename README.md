@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Calendar Persistence / Domain Aggregation Foundation
+Backend Resource Ownership Enforcement
 ```
 
 Implemented and verified:
@@ -42,7 +42,15 @@ Implemented and verified:
 - Song CRUD API with request/response DTOs
 - Development OpenAPI mapping
 - Development CORS for the local frontend
+- User authentication API with register, login, logout, and current-session endpoints
+- Secure password hashing through ASP.NET Core Identity's `PasswordHasher<TUser>`
+- Backend-issued HttpOnly cookie session for local frontend/backend development
+- `User` model and nullable Song ownership field
+- Backend resource ownership enforcement for Songs, nested Song workspace resources, Calendar, and Dashboard
+- Two-user ownership checks for cross-user `404` behavior and legacy unowned Song invisibility
 - DARKROOM SYSTEM React frontend
+- Real login/register flow connected to the ASP.NET Core backend
+- Protected frontend app shell routes for authenticated workspace access
 - Real browser-based Song CRUD integration between frontend and backend
 - AudioAsset metadata model related to Song
 - Nested AudioAsset metadata API
@@ -67,12 +75,16 @@ Implemented and verified:
 - Real browser-based Release tab checklist persistence and progress tracking
 - Calendar aggregate API over Release and Content dates
 - Real browser-based Calendar month view backed by persisted Song, Release, and ContentItem metadata
-- Automated backend integration tests for current Song, AudioAsset, VisualAsset, Release, ReleaseChecklistItem, ContentItem, Credit, AnalyticsSnapshot, and Calendar API behavior
-- GitHub Actions CI workflow for backend build/tests and frontend lint/build
+- Dashboard aggregate API over existing Artist OS source records
+- Real browser-based Dashboard summary, pipeline, upcoming work, release readiness, analytics overview, and recent activity
+- Automated backend integration tests for current Song, AudioAsset, VisualAsset, Release, ReleaseChecklistItem, ContentItem, Credit, AnalyticsSnapshot, Calendar, and Dashboard API behavior
+- Automated backend integration tests for authentication, session behavior, and Song owner assignment
+- Automated frontend test foundation for shared UI, auth flow, Dashboard, Songs, and Create Song behavior
+- GitHub Actions CI workflow for backend build/tests and frontend lint/test/build
 
 Planned, not implemented yet:
 
-- Real authentication
+- Password reset, email verification, social login, MFA, and production refresh-token/session infrastructure
 - Google Drive integration
 - YouTube analytics
 - Real audio file upload, playback, waveform processing, or external file storage
@@ -95,6 +107,8 @@ DARKROOM SYSTEM currently includes:
 - Tailwind CSS
 - DARKROOM SYSTEM design system
 - Responsive app shell with desktop sidebar and mobile drawer
+- Real login/register route backed by the ASP.NET Core auth API
+- Authenticated workspace route guard for dashboard, songs, song workspace, calendar, team, and settings
 - Local transparent logo asset
 
 Current routes:
@@ -113,7 +127,20 @@ The `/` route redirects to `/dashboard`.
 
 ## Real Backend Integration
 
-Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, and the Calendar aggregate are connected to the ASP.NET Core backend.
+Authentication, Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, the Calendar aggregate, and the Dashboard aggregate are connected to the ASP.NET Core backend.
+
+The frontend uses a backend-issued HttpOnly cookie session. API requests include credentials so the ASP.NET Core backend can identify the current user.
+
+Existing Song workspace, Calendar, and Dashboard backend endpoints require an authenticated session. Normal users only receive data owned by their own account. Missing resources, cross-user resources, and legacy unowned Songs return `404 Not Found`; unauthenticated requests return `401 Unauthorized`.
+
+Auth endpoints:
+
+```text
+http://localhost:5178/api/auth/register
+http://localhost:5178/api/auth/login
+http://localhost:5178/api/auth/logout
+http://localhost:5178/api/auth/me
+```
 
 Browser-based create, read, update, and delete works against the current mutable Song workspace APIs:
 
@@ -134,7 +161,13 @@ The read-only Calendar aggregate works against:
 http://localhost:5178/api/calendar
 ```
 
-The Song workspace loads real Song data by id. The Audio tab loads and writes real AudioAsset metadata for the selected Song. The Visuals tab loads and writes real VisualAsset metadata for the selected Song. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected Song. The Content tab loads and writes real ContentItem metadata for the selected Song. The Credits tab loads and writes real Credit metadata for the selected Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected Song. The Calendar route reads Release and ContentItem dates from the backend and links entries back to the Song workspace. Local CORS is configured for frontend development from:
+The read-only Dashboard aggregate works against:
+
+```text
+http://localhost:5178/api/dashboard
+```
+
+The Song workspace loads real Song data by id for the current user. New Songs created while signed in receive the current user's `OwnerUserId` from the backend; the client does not send ownership. The Audio tab loads and writes real AudioAsset metadata for the selected owned Song. The Visuals tab loads and writes real VisualAsset metadata for the selected owned Song. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected owned Song. The Content tab loads and writes real ContentItem metadata for the selected owned Song. The Credits tab loads and writes real Credit metadata for the selected owned Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected owned Song. The Calendar route reads the current user's Release and ContentItem dates from the backend and links entries back to the Song workspace. The Dashboard route reads real user-scoped aggregate data from the backend. Local CORS is configured for frontend development from:
 
 ```text
 http://localhost:8080
@@ -146,7 +179,6 @@ If the backend is unreachable during local development, the Song API service use
 
 These areas are visible in the frontend but are not backend-backed yet:
 
-- Dashboard metadata beyond real Song records
 - Audio waveform display, file upload, playback, and external file association
 - Visual thumbnails, file upload, previews, playback, and external file association
 - Automatic release checklist completion from asset/content/credit records
@@ -157,7 +189,36 @@ These areas are visible in the frontend but are not backend-backed yet:
 - Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync
 - Team
 - Settings
-- Authentication
+- Team roles, collaboration permissions, and multi-user workspace management
+
+### Authentication API
+
+The backend supports minimal first-party authentication for local Artist OS users.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/auth/register` | Create a user, hash the password, issue a session cookie, and return a safe user response. |
+| `POST` | `/api/auth/login` | Verify credentials, issue a session cookie, and return a safe user response. |
+| `POST` | `/api/auth/logout` | Clear the current session cookie. Requires an authenticated session. |
+| `GET` | `/api/auth/me` | Return the current authenticated user without password/hash fields. |
+
+Current `User` shape:
+
+```csharp
+public class User
+{
+    public int Id { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string NormalizedEmail { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public string? DisplayName { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public ICollection<Song> Songs { get; set; } = [];
+}
+```
+
+`PasswordHash` is stored only in the database model and is not returned by auth responses.
 
 ## Current Features
 
@@ -165,11 +226,11 @@ These areas are visible in the frontend but are not backend-backed yet:
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/songs` | List all songs ordered by `Id`. |
-| `GET` | `/api/songs/{id}` | Get one song by id. Returns `404` when missing. |
+| `GET` | `/api/songs` | List the current user's songs ordered by `Id`. |
+| `GET` | `/api/songs/{id}` | Get one owned song by id. Returns `404` when missing or not owned. |
 | `POST` | `/api/songs` | Create a new song. Returns `201 Created`. |
 | `PUT` | `/api/songs/{id}` | Update an existing song. Returns `204 No Content`. |
-| `DELETE` | `/api/songs/{id}` | Delete a song. Returns `204 No Content` or `404` when missing. |
+| `DELETE` | `/api/songs/{id}` | Delete an owned song. Returns `204 No Content` or `404` when missing or not owned. |
 
 Current `Song` shape:
 
@@ -185,6 +246,9 @@ public class Song
     public string Status { get; set; } = "Demo";
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public int? OwnerUserId { get; set; }
+    public User? OwnerUser { get; set; }
 
     public ICollection<AudioAsset> AudioAssets { get; set; } = [];
 
@@ -607,6 +671,23 @@ ContentPublished
 
 Entries include source type, source id, Song id, Song title, event type, title, date, status, optional platform, read-only editability metadata, and a navigation target back to `/songs/{songId}`.
 
+### Dashboard Aggregate API
+
+The backend exposes a read-only Dashboard aggregate assembled from existing persisted Artist OS records. There is no Dashboard table, cached KPI table, ActivityLog, or audit history in the current implementation.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/dashboard` | Return portfolio summary, Song pipeline counts, upcoming Release/Content work, Release checklist readiness, latest analytics snapshots, and derived recent activity. |
+
+Current summary definitions:
+
+- `TotalSongs`: current user's persisted Songs.
+- `ActiveSongs`: current user's Songs whose status is not `Released`.
+- `UpcomingReleases`: current user's Releases with `ReleaseDate >=` current UTC date and status not `Released`.
+- `ScheduledContent`: current user's ContentItems with `ScheduledAt >=` current UTC date and status not `Published`.
+
+Analytics overview uses latest-snapshot-per-Song-and-platform semantics. It does not sum historical snapshots or imply live external analytics sync.
+
 ## Architecture
 
 Current architecture:
@@ -665,6 +746,11 @@ Current backend packages:
 - xUnit
 - ASP.NET Core `WebApplicationFactory`
 - EF Core SQLite in-memory test database
+- Vitest
+- React Testing Library
+- jest-dom
+- user-event
+- jsdom
 
 ### CI
 
@@ -673,7 +759,7 @@ GitHub Actions is configured to verify pushes to `main` and pull requests target
 The CI workflow checks:
 
 - Backend restore, build, and tests
-- Frontend dependency install, lint, and build
+- Frontend dependency install, lint, tests, and build
 
 No PostgreSQL credentials or production secrets are required for the CI foundation. Backend tests use an isolated in-memory SQLite database.
 
@@ -690,6 +776,8 @@ These are local development URLs, not production deployment URLs.
 
 ## API
 
+All endpoints below, except `POST /api/auth/register` and `POST /api/auth/login`, require the backend session cookie. Song-scoped endpoints only return data owned by the current user.
+
 Song endpoints:
 
 ```text
@@ -698,6 +786,15 @@ GET    /api/songs/{id}
 POST   /api/songs
 PUT    /api/songs/{id}
 DELETE /api/songs/{id}
+```
+
+Auth endpoints:
+
+```text
+POST   /api/auth/register
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/me
 ```
 
 Audio asset metadata endpoints:
@@ -774,6 +871,12 @@ GET    /api/calendar
 GET    /api/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
 ```
 
+Dashboard aggregate endpoint:
+
+```text
+GET    /api/dashboard
+```
+
 Example create request:
 
 ```bash
@@ -797,10 +900,12 @@ ArtistOS/
 ├── ArtistOS.Api/
 │   ├── Controllers/
 │   │   ├── AnalyticsSnapshotsController.cs
+│   │   ├── AuthController.cs
 │   │   ├── AudioAssetsController.cs
 │   │   ├── CalendarController.cs
 │   │   ├── ContentItemsController.cs
 │   │   ├── CreditsController.cs
+│   │   ├── DashboardController.cs
 │   │   ├── ReleaseChecklistController.cs
 │   │   ├── ReleasesController.cs
 │   │   ├── SongsController.cs
@@ -817,6 +922,7 @@ ArtistOS/
 │   │   ├── Release.cs
 │   │   ├── ReleaseChecklistItem.cs
 │   │   ├── Song.cs
+│   │   ├── User.cs
 │   │   └── VisualAsset.cs
 │   ├── Properties/
 │   │   └── launchSettings.json
@@ -930,6 +1036,17 @@ dotnet test
 
 The backend tests use an isolated in-memory SQLite database through `WebApplicationFactory`; they do not connect to or wipe the local `artist_os` PostgreSQL database.
 
+### 8. Run Frontend Tests
+
+From the frontend project folder:
+
+```bash
+cd darkroom-web
+npm run test
+```
+
+The frontend tests use mocked frontend API services. They do not require the ASP.NET backend, PostgreSQL, or network access.
+
 ## Database
 
 Artist OS currently uses PostgreSQL for persistence and EF Core migrations for schema evolution.
@@ -949,10 +1066,13 @@ Current tables:
 - `ReleaseChecklistItems`
 - `Releases`
 - `Songs`
+- `Users`
 - `VisualAssets`
 - `__EFMigrationsHistory`
 
 Calendar currently has no dedicated table. It is a read model assembled from `Releases.ReleaseDate`, `ContentItems.DueDate`, `ContentItems.ScheduledAt`, and `ContentItems.PublishedAt`.
+
+Dashboard currently has no dedicated table. It is a read model assembled from existing Songs, Releases, ReleaseChecklistItems, ContentItems, Credits, AudioAssets, VisualAssets, and AnalyticsSnapshots.
 
 Current migrations:
 
@@ -966,6 +1086,7 @@ Current migrations:
 20260830055757_AddCreditMetadata
 20260830061847_AddAnalyticsSnapshotMetadata
 20260830104509_AddReleaseChecklistItems
+20260830165052_AddUserAuthenticationFoundation
 ```
 
 Large media files such as WAV, MP3, stems, artwork, and video files should not be stored directly in PostgreSQL. The planned direction is to store metadata in PostgreSQL and large files in an external provider such as Google Drive.
@@ -994,9 +1115,13 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] AnalyticsSnapshot metadata model and migration
 - [x] Nested AnalyticsSnapshot metadata API
 - [x] Calendar aggregate API
+- [x] Dashboard aggregate API
+- [x] User authentication model and migration
+- [x] Cookie-based auth API
+- [x] Backend resource ownership enforcement
 - [x] Local frontend development CORS
 - [x] Automated backend tests
-- [ ] Automated frontend tests
+- [x] Automated frontend tests
 
 ### Product
 
@@ -1013,6 +1138,9 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Browser-based real Credit metadata integration
 - [x] Browser-based real AnalyticsSnapshot metadata integration
 - [x] Browser-based real Calendar integration from Release and Content dates
+- [x] Browser-based real Dashboard aggregation
+- [x] Real login/register frontend integration
+- [x] Authenticated frontend route guard
 - [ ] Real audio file upload and external file association
 - [ ] Real visual file upload and external file association
 - [ ] Release publishing and distributor delivery
@@ -1020,7 +1148,7 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [ ] Standalone calendar events, reminders, and drag/drop rescheduling
 - [ ] Contributor directory, contracts, royalties, and payout workflow
 - [ ] Automated external analytics ingestion
-- [ ] Authentication and collaboration
+- [ ] Team collaboration permissions
 
 ### Integrations / Delivery
 

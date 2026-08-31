@@ -45,11 +45,29 @@ export interface Song {
   title: string;
   status: string;
   createdAt: string;
+  ownerUserId?: string | number | null;
 }
 
 export interface SongPayload {
   title: string;
   status: SongStatus;
+}
+
+export interface AuthUser {
+  id: string | number;
+  email: string;
+  displayName?: string | null;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  displayName?: string | null;
 }
 
 /* ---------- Mocked (backend not implemented yet) ---------- */
@@ -573,4 +591,73 @@ export interface CalendarEntry {
   platform?: string | null;
   isEditable: boolean;
   navigationTarget: string;
+}
+
+export interface DashboardSummary {
+  totalSongs: number;
+  activeSongs: number;
+  upcomingReleases: number;
+  scheduledContent: number;
+}
+
+export interface DashboardPipelineItem {
+  status: SongStatus;
+  label: string;
+  count: number;
+}
+
+export interface DashboardUpcomingItem {
+  sourceType: "Release" | "ContentItem";
+  sourceId: string | number;
+  songId: string | number;
+  songTitle: string;
+  eventType: "ReleaseDate" | "ContentDue" | "ContentScheduled";
+  title: string;
+  date: string;
+  status: string;
+  platform?: string | null;
+  navigationTarget: string;
+}
+
+export interface DashboardReleaseReadiness {
+  releaseId: string | number;
+  songId: string | number;
+  songTitle: string;
+  releaseDate?: string | null;
+  status: string;
+  completedItems: number;
+  totalItems: number;
+  readinessPercentage: number;
+  navigationTarget: string;
+}
+
+export interface DashboardAnalyticsItem {
+  songId: string | number;
+  songTitle: string;
+  platform: AnalyticsPlatform;
+  snapshotDate: string;
+  views: number;
+  likes: number;
+  comments: number;
+  watchTimeMinutes: number;
+  subscribersGained: number;
+  navigationTarget: string;
+}
+
+export interface DashboardActivityItem {
+  type: string;
+  songId: string | number;
+  songTitle: string;
+  description: string;
+  occurredAt: string;
+  navigationTarget: string;
+}
+
+export interface DashboardResponse {
+  summary: DashboardSummary;
+  pipeline: DashboardPipelineItem[];
+  upcoming: DashboardUpcomingItem[];
+  releaseReadiness: DashboardReleaseReadiness[];
+  analyticsOverview: DashboardAnalyticsItem[];
+  recentActivity: DashboardActivityItem[];
 }

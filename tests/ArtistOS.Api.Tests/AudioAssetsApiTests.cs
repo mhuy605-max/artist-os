@@ -9,7 +9,7 @@ public class AudioAssetsApiTests
     public async Task CreateAudioAsset_WithValidPayload_ReturnsCreatedMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/audio-assets", new
@@ -44,7 +44,7 @@ public class AudioAssetsApiTests
     public async Task CreateAudioAsset_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/songs/999999/audio-assets", ValidAudioAsset());
 
@@ -58,7 +58,7 @@ public class AudioAssetsApiTests
     public async Task CreateAudioAsset_WithInvalidType_ReturnsBadRequest(string type)
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/audio-assets", new
@@ -77,7 +77,7 @@ public class AudioAssetsApiTests
     public async Task CreateAudioAsset_WithInvalidStatus_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/audio-assets", new
@@ -96,7 +96,7 @@ public class AudioAssetsApiTests
     public async Task CreateAudioAsset_WithInvalidVersion_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/audio-assets", new
@@ -115,7 +115,7 @@ public class AudioAssetsApiTests
     public async Task CreateAudioAsset_WithNegativeDuration_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/audio-assets", new
@@ -135,7 +135,7 @@ public class AudioAssetsApiTests
     public async Task CreateAudioAsset_WithNegativeFileSize_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/audio-assets", new
@@ -155,7 +155,7 @@ public class AudioAssetsApiTests
     public async Task GetAudioAssets_ReturnsCreatedMetadataForSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateAudioAsset(client, song.Id);
 
@@ -170,7 +170,7 @@ public class AudioAssetsApiTests
     public async Task GetAudioAsset_WithExistingAsset_ReturnsMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateAudioAsset(client, song.Id);
 
@@ -186,7 +186,7 @@ public class AudioAssetsApiTests
     public async Task GetAudioAsset_WithMissingAsset_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.GetAsync($"/api/songs/{song.Id}/audio-assets/999999");
@@ -198,7 +198,7 @@ public class AudioAssetsApiTests
     public async Task UpdateAudioAsset_WithValidPayload_ReturnsNoContentAndPreservesUploadedAt()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateAudioAsset(client, song.Id);
 
@@ -233,7 +233,7 @@ public class AudioAssetsApiTests
     public async Task UpdateAudioAsset_WithInvalidType_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateAudioAsset(client, song.Id);
 
@@ -253,7 +253,7 @@ public class AudioAssetsApiTests
     public async Task UpdateAudioAsset_WithInvalidStatus_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateAudioAsset(client, song.Id);
 
@@ -273,7 +273,7 @@ public class AudioAssetsApiTests
     public async Task UpdateAudioAsset_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PutAsJsonAsync("/api/songs/999999/audio-assets/1", ValidAudioAsset());
 
@@ -284,7 +284,7 @@ public class AudioAssetsApiTests
     public async Task UpdateAudioAsset_WithMissingAsset_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PutAsJsonAsync(
@@ -298,7 +298,7 @@ public class AudioAssetsApiTests
     public async Task DeleteAudioAsset_WithExistingAsset_ReturnsNoContentAndDoesNotDeleteSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var asset = await CreateAudioAsset(client, song.Id);
 
@@ -315,7 +315,7 @@ public class AudioAssetsApiTests
     public async Task DeleteAudioAsset_WithMissingAsset_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.DeleteAsync($"/api/songs/{song.Id}/audio-assets/999999");
@@ -327,7 +327,7 @@ public class AudioAssetsApiTests
     public async Task SongCanHaveManyAudioAssets()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var mix = await CreateAudioAsset(client, song.Id, "Mix", "mix_v1.wav");
         var master = await CreateAudioAsset(client, song.Id, "Master", "master_v1.wav");

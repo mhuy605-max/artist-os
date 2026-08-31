@@ -1,11 +1,14 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
+using ArtistOS.Api.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/songs/{songId:int}/credits")]
 public class CreditsController : ControllerBase
@@ -20,7 +23,8 @@ public class CreditsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CreditResponse>>> GetCredits(int songId)
     {
-        if (!await SongExists(songId))
+        var currentUserId = User.GetUserId();
+        if (!await UserOwnsSong(songId, currentUserId))
         {
             return NotFound();
         }
@@ -50,10 +54,18 @@ public class CreditsController : ControllerBase
     [HttpGet("{creditId:int}")]
     public async Task<ActionResult<CreditResponse>> GetCredit(int songId, int creditId)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var credit = await _context.Credits
             .AsNoTracking()
             .FirstOrDefaultAsync(credit =>
-                credit.SongId == songId && credit.Id == creditId);
+                credit.SongId == songId &&
+                credit.Id == creditId &&
+                credit.Song.OwnerUserId == currentUserId);
 
         if (credit is null)
         {
@@ -68,7 +80,8 @@ public class CreditsController : ControllerBase
         int songId,
         CreateCreditRequest request)
     {
-        if (!await SongExists(songId))
+        var currentUserId = User.GetUserId();
+        if (!await UserOwnsSong(songId, currentUserId))
         {
             return NotFound();
         }
@@ -102,9 +115,17 @@ public class CreditsController : ControllerBase
         int creditId,
         UpdateCreditRequest request)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var credit = await _context.Credits
             .FirstOrDefaultAsync(credit =>
-                credit.SongId == songId && credit.Id == creditId);
+                credit.SongId == songId &&
+                credit.Id == creditId &&
+                credit.Song.OwnerUserId == currentUserId);
 
         if (credit is null)
         {
@@ -127,9 +148,17 @@ public class CreditsController : ControllerBase
     [HttpDelete("{creditId:int}")]
     public async Task<IActionResult> DeleteCredit(int songId, int creditId)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var credit = await _context.Credits
             .FirstOrDefaultAsync(credit =>
-                credit.SongId == songId && credit.Id == creditId);
+                credit.SongId == songId &&
+                credit.Id == creditId &&
+                credit.Song.OwnerUserId == currentUserId);
 
         if (credit is null)
         {
@@ -142,9 +171,10 @@ public class CreditsController : ControllerBase
         return NoContent();
     }
 
-    private async Task<bool> SongExists(int songId)
+    private async Task<bool> UserOwnsSong(int songId, int? userId)
     {
-        return await _context.Songs.AnyAsync(song => song.Id == songId);
+        return userId is not null &&
+            await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
     private static CreditResponse ToResponse(Credit credit)

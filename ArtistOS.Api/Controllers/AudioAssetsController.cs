@@ -1,11 +1,14 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
+using ArtistOS.Api.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/songs/{songId:int}/audio-assets")]
 public class AudioAssetsController : ControllerBase
@@ -20,7 +23,8 @@ public class AudioAssetsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AudioAssetResponse>>> GetAudioAssets(int songId)
     {
-        if (!await SongExists(songId))
+        var currentUserId = User.GetUserId();
+        if (!await UserOwnsSong(songId, currentUserId))
         {
             return NotFound();
         }
@@ -51,10 +55,18 @@ public class AudioAssetsController : ControllerBase
     [HttpGet("{audioAssetId:int}")]
     public async Task<ActionResult<AudioAssetResponse>> GetAudioAsset(int songId, int audioAssetId)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var audioAsset = await _context.AudioAssets
             .AsNoTracking()
             .FirstOrDefaultAsync(audioAsset =>
-                audioAsset.SongId == songId && audioAsset.Id == audioAssetId);
+                audioAsset.SongId == songId &&
+                audioAsset.Id == audioAssetId &&
+                audioAsset.Song.OwnerUserId == currentUserId);
 
         if (audioAsset is null)
         {
@@ -69,7 +81,8 @@ public class AudioAssetsController : ControllerBase
         int songId,
         CreateAudioAssetRequest request)
     {
-        if (!await SongExists(songId))
+        var currentUserId = User.GetUserId();
+        if (!await UserOwnsSong(songId, currentUserId))
         {
             return NotFound();
         }
@@ -102,9 +115,17 @@ public class AudioAssetsController : ControllerBase
         int audioAssetId,
         UpdateAudioAssetRequest request)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var existingAudioAsset = await _context.AudioAssets
             .FirstOrDefaultAsync(audioAsset =>
-                audioAsset.SongId == songId && audioAsset.Id == audioAssetId);
+                audioAsset.SongId == songId &&
+                audioAsset.Id == audioAssetId &&
+                audioAsset.Song.OwnerUserId == currentUserId);
 
         if (existingAudioAsset is null)
         {
@@ -127,9 +148,17 @@ public class AudioAssetsController : ControllerBase
     [HttpDelete("{audioAssetId:int}")]
     public async Task<IActionResult> DeleteAudioAsset(int songId, int audioAssetId)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var audioAsset = await _context.AudioAssets
             .FirstOrDefaultAsync(audioAsset =>
-                audioAsset.SongId == songId && audioAsset.Id == audioAssetId);
+                audioAsset.SongId == songId &&
+                audioAsset.Id == audioAssetId &&
+                audioAsset.Song.OwnerUserId == currentUserId);
 
         if (audioAsset is null)
         {
@@ -142,9 +171,10 @@ public class AudioAssetsController : ControllerBase
         return NoContent();
     }
 
-    private async Task<bool> SongExists(int songId)
+    private async Task<bool> UserOwnsSong(int songId, int? userId)
     {
-        return await _context.Songs.AnyAsync(song => song.Id == songId);
+        return userId is not null &&
+            await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
     private static AudioAssetResponse ToResponse(AudioAsset audioAsset)

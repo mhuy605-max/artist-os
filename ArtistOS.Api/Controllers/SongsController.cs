@@ -1,11 +1,14 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
+using ArtistOS.Api.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class SongsController : ControllerBase
@@ -20,15 +23,23 @@ public class SongsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<SongResponse>>> GetSongs()
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         return await _context.Songs
             .AsNoTracking()
+            .Where(song => song.OwnerUserId == currentUserId)
             .OrderBy(song => song.Id)
             .Select(song => new SongResponse
             {
                 Id = song.Id,
                 Title = song.Title,
                 Status = song.Status,
-                CreatedAt = song.CreatedAt
+                CreatedAt = song.CreatedAt,
+                OwnerUserId = song.OwnerUserId
             })
             .ToListAsync();
     }
@@ -36,9 +47,15 @@ public class SongsController : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<SongResponse>> GetSong(int id)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var song = await _context.Songs
             .AsNoTracking()
-            .FirstOrDefaultAsync(song => song.Id == id);
+            .FirstOrDefaultAsync(song => song.Id == id && song.OwnerUserId == currentUserId);
 
         if (song is null)
         {
@@ -51,11 +68,18 @@ public class SongsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<SongResponse>> CreateSong(CreateSongRequest request)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var song = new Song
         {
             Title = request.Title.Trim(),
             Status = NormalizeStatus(request.Status),
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            OwnerUserId = currentUserId
         };
 
         _context.Songs.Add(song);
@@ -67,7 +91,14 @@ public class SongsController : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateSong(int id, UpdateSongRequest request)
     {
-        var existingSong = await _context.Songs.FindAsync(id);
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var existingSong = await _context.Songs
+            .FirstOrDefaultAsync(song => song.Id == id && song.OwnerUserId == currentUserId);
 
         if (existingSong is null)
         {
@@ -85,7 +116,14 @@ public class SongsController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteSong(int id)
     {
-        var song = await _context.Songs.FindAsync(id);
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var song = await _context.Songs
+            .FirstOrDefaultAsync(song => song.Id == id && song.OwnerUserId == currentUserId);
 
         if (song is null)
         {
@@ -105,7 +143,8 @@ public class SongsController : ControllerBase
             Id = song.Id,
             Title = song.Title,
             Status = song.Status,
-            CreatedAt = song.CreatedAt
+            CreatedAt = song.CreatedAt,
+            OwnerUserId = song.OwnerUserId
         };
     }
 

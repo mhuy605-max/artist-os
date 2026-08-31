@@ -9,7 +9,7 @@ public class ContentItemsApiTests
     public async Task CreateContentItem_WithValidPayload_ReturnsCreatedMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/content-items", new
@@ -50,7 +50,7 @@ public class ContentItemsApiTests
     public async Task CreateContentItem_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/songs/999999/content-items", ValidContentItem());
 
@@ -64,7 +64,7 @@ public class ContentItemsApiTests
     public async Task CreateContentItem_WithInvalidType_ReturnsBadRequest(string type)
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/content-items", new
@@ -81,7 +81,7 @@ public class ContentItemsApiTests
     public async Task CreateContentItem_WithInvalidStatus_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/content-items", new
@@ -98,7 +98,7 @@ public class ContentItemsApiTests
     public async Task CreateContentItem_WithInvalidPlatform_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/content-items", new
@@ -116,7 +116,7 @@ public class ContentItemsApiTests
     public async Task CreateContentItem_WithEmptyTitle_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PostAsJsonAsync($"/api/songs/{song.Id}/content-items", new
@@ -133,7 +133,7 @@ public class ContentItemsApiTests
     public async Task GetContentItems_ReturnsCreatedMetadataForSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var item = await CreateContentItem(client, song.Id);
 
@@ -148,7 +148,7 @@ public class ContentItemsApiTests
     public async Task GetContentItem_WithExistingItem_ReturnsMetadata()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var item = await CreateContentItem(client, song.Id);
 
@@ -164,7 +164,7 @@ public class ContentItemsApiTests
     public async Task GetContentItem_WithMissingItem_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.GetAsync($"/api/songs/{song.Id}/content-items/999999");
@@ -176,7 +176,7 @@ public class ContentItemsApiTests
     public async Task UpdateContentItem_WithValidPayload_ReturnsNoContentAndUpdatesTimestamp()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var item = await CreateContentItem(client, song.Id);
 
@@ -220,7 +220,7 @@ public class ContentItemsApiTests
     public async Task UpdateContentItem_WithInvalidType_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var item = await CreateContentItem(client, song.Id);
 
@@ -238,7 +238,7 @@ public class ContentItemsApiTests
     public async Task UpdateContentItem_WithInvalidStatus_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var item = await CreateContentItem(client, song.Id);
 
@@ -256,7 +256,7 @@ public class ContentItemsApiTests
     public async Task UpdateContentItem_WithMissingSong_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.PutAsJsonAsync("/api/songs/999999/content-items/1", ValidContentItem());
 
@@ -267,7 +267,7 @@ public class ContentItemsApiTests
     public async Task UpdateContentItem_WithMissingItem_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.PutAsJsonAsync(
@@ -281,7 +281,7 @@ public class ContentItemsApiTests
     public async Task DeleteContentItem_WithExistingItem_ReturnsNoContentAndDoesNotDeleteSong()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var item = await CreateContentItem(client, song.Id);
 
@@ -298,7 +298,7 @@ public class ContentItemsApiTests
     public async Task DeleteContentItem_WithMissingItem_ReturnsNotFound()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
 
         var response = await client.DeleteAsync($"/api/songs/{song.Id}/content-items/999999");
@@ -310,7 +310,7 @@ public class ContentItemsApiTests
     public async Task SongCanHaveManyContentItems()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var teaser = await CreateContentItem(client, song.Id, "Teaser 01", "Teaser");
         var shortItem = await CreateContentItem(client, song.Id, "Short 01", "YouTubeShort");

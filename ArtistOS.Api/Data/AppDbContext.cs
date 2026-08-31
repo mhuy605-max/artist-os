@@ -12,6 +12,8 @@ public class AppDbContext : DbContext
 
     public DbSet<Song> Songs { get; set; }
 
+    public DbSet<User> Users { get; set; }
+
     public DbSet<AudioAsset> AudioAssets { get; set; }
 
     public DbSet<VisualAsset> VisualAssets { get; set; }
@@ -28,6 +30,22 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasIndex(user => user.NormalizedEmail)
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<Song>(entity =>
+        {
+            entity.HasIndex(song => song.OwnerUserId);
+
+            entity.HasOne(song => song.OwnerUser)
+                .WithMany(user => user.Songs)
+                .HasForeignKey(song => song.OwnerUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
         modelBuilder.Entity<AudioAsset>(entity =>
         {
             entity.HasIndex(audioAsset => audioAsset.SongId);

@@ -9,4 +9,6 @@ public class SongResponse
     public string Status { get; set; } = string.Empty;
 
     public DateTime CreatedAt { get; set; }
+
+    public int? OwnerUserId { get; set; }
 }

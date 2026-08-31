@@ -9,7 +9,7 @@ public class CalendarApiTests
     public async Task GetCalendar_WithNoDatedRecords_ReturnsEmptyList()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client, "No Dates");
         await CreateRelease(client, song.Id, releaseDate: null);
         await CreateContentItem(
@@ -29,7 +29,7 @@ public class CalendarApiTests
     public async Task GetCalendar_IncludesReleaseDateAndSkipsUndatedRelease()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var datedSong = await CreateSong(client, "Night Drive");
         var undatedSong = await CreateSong(client, "No Release Date");
         var release = await CreateRelease(client, datedSong.Id, "2026-09-20");
@@ -55,7 +55,7 @@ public class CalendarApiTests
     public async Task GetCalendar_IncludesContentDateEntryTypes()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client, "Static Lover");
         var content = await CreateContentItem(
             client,
@@ -92,7 +92,7 @@ public class CalendarApiTests
     public async Task GetCalendar_AppliesInclusiveDateFilters()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client, "Filter Song");
         await CreateRelease(client, song.Id, "2026-09-01");
         await CreateContentItem(
@@ -116,7 +116,7 @@ public class CalendarApiTests
     public async Task GetCalendar_WithOnlyFromOrTo_AppliesOneSidedFilter()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client, "One Sided Filter");
         await CreateContentItem(
             client,
@@ -140,7 +140,7 @@ public class CalendarApiTests
     public async Task GetCalendar_WithFromAfterTo_ReturnsBadRequest()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
 
         var response = await client.GetAsync("/api/calendar?from=2026-09-30&to=2026-09-01");
 
@@ -151,7 +151,7 @@ public class CalendarApiTests
     public async Task GetCalendar_ReturnsDeterministicChronologicalOrdering()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var beta = await CreateSong(client, "Beta Song");
         var alpha = await CreateSong(client, "Alpha Song");
         await CreateRelease(client, beta.Id, "2026-09-20");
@@ -173,7 +173,7 @@ public class CalendarApiTests
     public async Task GetCalendar_ReflectsUpdatedReleaseDate()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client, "Moving Release");
         await CreateRelease(client, song.Id, "2026-09-20");
 
@@ -195,7 +195,7 @@ public class CalendarApiTests
     public async Task GetCalendar_ReflectsUpdatedContentDates()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client, "Moving Content");
         var content = await CreateContentItem(client, song.Id, scheduledAt: "2026-09-20");
 
@@ -221,7 +221,7 @@ public class CalendarApiTests
     public async Task GetCalendar_ReflectsDeletesFromSourceDomains()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client, "Delete Sources");
         await CreateRelease(client, song.Id, "2026-09-20");
         var content = await CreateContentItem(client, song.Id, dueDate: "2026-09-21");
@@ -240,7 +240,7 @@ public class CalendarApiTests
     public async Task GetCalendar_ReflectsSongCascadeDelete()
     {
         await using var factory = new ArtistOsApiFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client, "Cascade Calendar");
         await CreateRelease(client, song.Id, "2026-09-20");
         await CreateContentItem(client, song.Id, dueDate: "2026-09-21");

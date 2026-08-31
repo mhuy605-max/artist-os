@@ -1,11 +1,14 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
+using ArtistOS.Api.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/songs/{songId:int}/analytics")]
 public class AnalyticsSnapshotsController : ControllerBase
@@ -21,7 +24,8 @@ public class AnalyticsSnapshotsController : ControllerBase
     public async Task<ActionResult<IEnumerable<AnalyticsSnapshotResponse>>> GetAnalyticsSnapshots(
         int songId)
     {
-        if (!await SongExists(songId))
+        var currentUserId = User.GetUserId();
+        if (!await UserOwnsSong(songId, currentUserId))
         {
             return NotFound();
         }
@@ -53,10 +57,18 @@ public class AnalyticsSnapshotsController : ControllerBase
         int songId,
         int analyticsSnapshotId)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var snapshot = await _context.AnalyticsSnapshots
             .AsNoTracking()
             .FirstOrDefaultAsync(snapshot =>
-                snapshot.SongId == songId && snapshot.Id == analyticsSnapshotId);
+                snapshot.SongId == songId &&
+                snapshot.Id == analyticsSnapshotId &&
+                snapshot.Song.OwnerUserId == currentUserId);
 
         if (snapshot is null)
         {
@@ -71,7 +83,8 @@ public class AnalyticsSnapshotsController : ControllerBase
         int songId,
         CreateAnalyticsSnapshotRequest request)
     {
-        if (!await SongExists(songId))
+        var currentUserId = User.GetUserId();
+        if (!await UserOwnsSong(songId, currentUserId))
         {
             return NotFound();
         }
@@ -112,9 +125,17 @@ public class AnalyticsSnapshotsController : ControllerBase
         int analyticsSnapshotId,
         UpdateAnalyticsSnapshotRequest request)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var snapshot = await _context.AnalyticsSnapshots
             .FirstOrDefaultAsync(snapshot =>
-                snapshot.SongId == songId && snapshot.Id == analyticsSnapshotId);
+                snapshot.SongId == songId &&
+                snapshot.Id == analyticsSnapshotId &&
+                snapshot.Song.OwnerUserId == currentUserId);
 
         if (snapshot is null)
         {
@@ -127,6 +148,7 @@ public class AnalyticsSnapshotsController : ControllerBase
         var duplicateExists = await _context.AnalyticsSnapshots.AnyAsync(existing =>
             existing.SongId == songId &&
             existing.Id != analyticsSnapshotId &&
+            existing.Song.OwnerUserId == currentUserId &&
             existing.Platform == platform &&
             existing.SnapshotDate == snapshotDate);
 
@@ -153,9 +175,17 @@ public class AnalyticsSnapshotsController : ControllerBase
         int songId,
         int analyticsSnapshotId)
     {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var snapshot = await _context.AnalyticsSnapshots
             .FirstOrDefaultAsync(snapshot =>
-                snapshot.SongId == songId && snapshot.Id == analyticsSnapshotId);
+                snapshot.SongId == songId &&
+                snapshot.Id == analyticsSnapshotId &&
+                snapshot.Song.OwnerUserId == currentUserId);
 
         if (snapshot is null)
         {
@@ -168,9 +198,10 @@ public class AnalyticsSnapshotsController : ControllerBase
         return NoContent();
     }
 
-    private async Task<bool> SongExists(int songId)
+    private async Task<bool> UserOwnsSong(int songId, int? userId)
     {
-        return await _context.Songs.AnyAsync(song => song.Id == songId);
+        return userId is not null &&
+            await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
     private async Task<bool> SnapshotExists(int songId, string platform, DateOnly snapshotDate)
