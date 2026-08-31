@@ -26,4 +26,13 @@ export const visualAssetsApi = {
   deleteVisualAsset(songId: string, visualAssetId: string): Promise<void> {
     return http.delete<void>(`/api/songs/${songId}/visual-assets/${visualAssetId}`);
   },
+
+  uploadVisualAssetFile(songId: string, visualAssetId: string, file: File): Promise<VisualAsset> {
+    const formData = new FormData();
+    formData.append("file", file);
+    return http.form<VisualAsset>(
+      `/api/songs/${songId}/visual-assets/${visualAssetId}/upload`,
+      formData,
+    );
+  },
 };

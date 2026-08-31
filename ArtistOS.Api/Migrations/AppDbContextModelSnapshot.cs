@@ -82,6 +82,9 @@ namespace ArtistOS.Api.Migrations
                     b.Property<int?>("DurationSeconds")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("ExternalFileReferenceId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -113,6 +116,8 @@ namespace ArtistOS.Api.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ExternalFileReferenceId");
 
                     b.HasIndex("SongId");
 
@@ -237,6 +242,149 @@ namespace ArtistOS.Api.Migrations
                     b.HasIndex("SongId", "Status");
 
                     b.ToTable("Credits");
+                });
+
+            modelBuilder.Entity("ArtistOS.Api.Models.ExternalFileReference", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int?>("GoogleDriveConnectionId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsFolder")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("LinkedResourceId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LinkedResourceType")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("MimeType")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int>("OwnerUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("SongId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WebViewLink")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GoogleDriveConnectionId");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("SongId");
+
+                    b.HasIndex("OwnerUserId", "Provider", "ExternalId")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerUserId", "Provider", "ResourceType", "SongId");
+
+                    b.ToTable("ExternalFileReferences");
+                });
+
+            modelBuilder.Entity("ArtistOS.Api.Models.GoogleDriveConnection", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ConnectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("GoogleEmail")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<bool>("GoogleEmailVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("GoogleSubject")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("GrantedScopes")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("LastSuccessfulRefreshAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProtectedRefreshToken")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RootFolderId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "GoogleSubject");
+
+                    b.ToTable("GoogleDriveConnections");
                 });
 
             modelBuilder.Entity("ArtistOS.Api.Models.Release", b =>
@@ -425,6 +573,9 @@ namespace ArtistOS.Api.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("ExternalFileReferenceId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -463,6 +614,8 @@ namespace ArtistOS.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ExternalFileReferenceId");
+
                     b.HasIndex("SongId");
 
                     b.HasIndex("SongId", "Type");
@@ -483,11 +636,18 @@ namespace ArtistOS.Api.Migrations
 
             modelBuilder.Entity("ArtistOS.Api.Models.AudioAsset", b =>
                 {
+                    b.HasOne("ArtistOS.Api.Models.ExternalFileReference", "ExternalFileReference")
+                        .WithMany()
+                        .HasForeignKey("ExternalFileReferenceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ArtistOS.Api.Models.Song", "Song")
                         .WithMany("AudioAssets")
                         .HasForeignKey("SongId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ExternalFileReference");
 
                     b.Navigation("Song");
                 });
@@ -512,6 +672,42 @@ namespace ArtistOS.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Song");
+                });
+
+            modelBuilder.Entity("ArtistOS.Api.Models.ExternalFileReference", b =>
+                {
+                    b.HasOne("ArtistOS.Api.Models.GoogleDriveConnection", "GoogleDriveConnection")
+                        .WithMany("ExternalFileReferences")
+                        .HasForeignKey("GoogleDriveConnectionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ArtistOS.Api.Models.User", "OwnerUser")
+                        .WithMany("ExternalFileReferences")
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ArtistOS.Api.Models.Song", "Song")
+                        .WithMany("ExternalFileReferences")
+                        .HasForeignKey("SongId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("GoogleDriveConnection");
+
+                    b.Navigation("OwnerUser");
+
+                    b.Navigation("Song");
+                });
+
+            modelBuilder.Entity("ArtistOS.Api.Models.GoogleDriveConnection", b =>
+                {
+                    b.HasOne("ArtistOS.Api.Models.User", "User")
+                        .WithOne("GoogleDriveConnection")
+                        .HasForeignKey("ArtistOS.Api.Models.GoogleDriveConnection", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ArtistOS.Api.Models.Release", b =>
@@ -548,13 +744,25 @@ namespace ArtistOS.Api.Migrations
 
             modelBuilder.Entity("ArtistOS.Api.Models.VisualAsset", b =>
                 {
+                    b.HasOne("ArtistOS.Api.Models.ExternalFileReference", "ExternalFileReference")
+                        .WithMany()
+                        .HasForeignKey("ExternalFileReferenceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ArtistOS.Api.Models.Song", "Song")
                         .WithMany("VisualAssets")
                         .HasForeignKey("SongId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("ExternalFileReference");
+
                     b.Navigation("Song");
+                });
+
+            modelBuilder.Entity("ArtistOS.Api.Models.GoogleDriveConnection", b =>
+                {
+                    b.Navigation("ExternalFileReferences");
                 });
 
             modelBuilder.Entity("ArtistOS.Api.Models.Release", b =>
@@ -572,6 +780,8 @@ namespace ArtistOS.Api.Migrations
 
                     b.Navigation("Credits");
 
+                    b.Navigation("ExternalFileReferences");
+
                     b.Navigation("Release");
 
                     b.Navigation("VisualAssets");
@@ -579,6 +789,10 @@ namespace ArtistOS.Api.Migrations
 
             modelBuilder.Entity("ArtistOS.Api.Models.User", b =>
                 {
+                    b.Navigation("ExternalFileReferences");
+
+                    b.Navigation("GoogleDriveConnection");
+
                     b.Navigation("Songs");
                 });
 #pragma warning restore 612, 618

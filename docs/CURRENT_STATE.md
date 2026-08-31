@@ -1,12 +1,12 @@
 # Artist OS Current State
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 ## Current Phase
 
-Cookie Auth -> JWT Bearer Auth Migration.
+Google Drive Media Upload MVP + Audio / Visual Asset File Association.
 
-Current focus: Artist OS now uses ASP.NET Core JWT Bearer authentication for frontend/backend API authentication. Existing user-scoped authorization remains unchanged: the current authenticated `User.Id` owns Songs, nested Song workspace resources, Calendar entries, and Dashboard aggregates. Team permissions, refresh-token rotation, password recovery, external OAuth, Google Drive, YouTube, publishing, file handling, and production deployment remain future work.
+Current focus: Google Drive upload is implemented for existing AudioAsset and VisualAsset records. Authenticated DARKROOM SYSTEM users can connect Google Drive, refresh access backend-side, provision/reuse the DARKROOM SYSTEM root folder, provision/reuse an owned Song workspace folder tree, upload one Audio or Visual file per metadata asset, and persist the file association through provider-neutral `ExternalFileReference` rows. Google OAuth remains separate from Artist OS JWT authentication. Google token material stays backend-only and protected before database storage. Replace/version workflow, external Drive deletion, download, Drive browsing, Picker, synchronization, YouTube, publishing, and production deployment remain future work.
 
 ## Completed
 
@@ -151,6 +151,44 @@ Current focus: Artist OS now uses ASP.NET Core JWT Bearer authentication for fro
 - Browser-based two-user ownership verification confirmed that each user can only see their own Song data and receives `404` for the other user's Song and nested routes.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
+- Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
+- `GoogleDriveConnection` model created and related one-to-one with `User`.
+- Google Drive connection DTOs created for connect, status, and disconnect.
+- Google Drive connection API implemented at `GET /api/integrations/google-drive/status`, `POST /api/integrations/google-drive/connect`, `GET /api/integrations/google-drive/callback`, and `POST /api/integrations/google-drive/disconnect`.
+- Official `Google.Apis.Auth` package added for Google OAuth authorization URL creation, code exchange, token revocation, and ID token validation.
+- Google OAuth scopes are limited to `openid`, `email`, and `https://www.googleapis.com/auth/drive.file`.
+- Google OAuth state is protected with ASP.NET Core Data Protection and includes initiating `User.Id`, nonce, PKCE code verifier, issue time, and expiration.
+- Google refresh tokens are protected with ASP.NET Core Data Protection before being stored in PostgreSQL.
+- Reconnect preserves an existing protected refresh token when Google does not return a replacement refresh token.
+- Google Drive disconnect removes the current user's local connection after best-effort token revocation.
+- Settings now reads real Google Drive connection status and supports connect, reconnect, and disconnect actions.
+- Google Drive connection behavior is covered by automated backend integration-style tests using a fake Google OAuth provider.
+- Google Drive Settings behavior is covered by focused frontend tests using mocked API services.
+- Official `Google.Apis.Drive.v3` package added for Drive v3 API support.
+- Backend-only Google access-token refresh added for Drive API operations.
+- `ExternalFileReference` model created for provider-neutral external folder/file references.
+- ExternalFileReference EF Core migration created and applied.
+- Drive workspace API implemented at `GET /api/songs/{songId}/drive-workspace` and `POST /api/songs/{songId}/drive-workspace/provision`.
+- Drive workspace provisioning creates/reuses `DARKROOM SYSTEM`, `Songs`, Song root, `Audio`, `Visuals`, `Release`, and `Content` folders.
+- `GoogleDriveConnection.RootFolderId` is the canonical persisted root folder reference after provisioning.
+- Song folder and section folder references are persisted in `ExternalFileReferences`.
+- Repeated Drive workspace provisioning reuses persisted references when Drive folders still exist.
+- Missing/deleted root or Song folder references are recovered by creating and saving replacement folders.
+- Song workspace Overview now includes a small Google Drive provisioning panel.
+- Google Drive workspace behavior is covered by automated backend tests using a fake Drive API client.
+- Backend-mediated Google Drive upload implemented for AudioAsset and VisualAsset files.
+- AudioAsset uploads target the provisioned Song `Audio` folder.
+- VisualAsset uploads target the provisioned Song `Visuals` folder.
+- Uploads stream from the ASP.NET multipart file stream into the Google Drive v3 upload client abstraction.
+- `ExternalFileReference` now stores uploaded file references with safe metadata including display name, MIME type, size, web view link, resource type, and asset association context.
+- AudioAsset and VisualAsset now have nullable `ExternalFileReferenceId` links, so existing metadata-only assets remain valid.
+- Successful uploads synchronize cached `FileName`, `FileSizeBytes`, and `UploadedAt` from the confirmed Drive result.
+- Re-upload to an already-linked asset returns a conflict; replace/version workflow remains planned.
+- Deleting Artist OS asset metadata does not automatically delete the external Google Drive binary.
+- If Drive upload succeeds but database persistence fails, the backend attempts best-effort cleanup of the newly-created Drive file.
+- Audio and Visuals tabs now show no-file-linked, upload-pending, linked-file, and Open in Drive states.
+- Google Drive media upload behavior is covered by automated backend tests using fake OAuth and fake Drive clients.
+- Focused frontend upload tests cover metadata-only upload action, successful linked-file display, backend failure display, and absence of token text.
 
 ## Current Implementation
 
@@ -192,9 +230,15 @@ AnalyticsSnapshotsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ReleaseChecklistController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 CalendarController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 DashboardController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+GoogleDriveIntegrationController -> GoogleDriveConnectionService -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+DriveWorkspacesController -> GoogleDriveWorkspaceService -> GoogleDriveApiClient -> Google Drive API
+DriveWorkspacesController -> GoogleDriveWorkspaceService -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+AudioAssetsController -> GoogleDriveAssetUploadService -> GoogleDriveApiClient -> Google Drive API
+VisualAssetsController -> GoogleDriveAssetUploadService -> GoogleDriveApiClient -> Google Drive API
+GoogleDriveAssetUploadService -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ```
 
-No backend repository or service layer has been introduced yet. This is intentional because current Auth, Song, AudioAsset metadata, VisualAsset metadata, Release metadata, ReleaseChecklist metadata, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, Calendar aggregate behavior, and Dashboard aggregate behavior do not contain enough business logic to justify those abstractions.
+No backend repository layer has been introduced. Google Drive services exist because OAuth state protection, token exchange/refresh, folder provisioning, media upload, external file reference persistence, and best-effort upload cleanup are integration/security concerns that would make controllers too large and sensitive.
 
 Development-only backend CORS is configured in `ArtistOS.Api/Program.cs` using the named policy `LocalFrontend`.
 
@@ -222,11 +266,13 @@ Current frontend architecture:
 TanStack Router routes
   -> DARKROOM SYSTEM app shell/pages
   -> TanStack Query
-  -> isolated Auth, Song, AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, AnalyticsSnapshot, Calendar, and Dashboard API services
+  -> isolated Auth, Song, AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, AnalyticsSnapshot, Calendar, Dashboard, Google Drive, and Drive Workspace API services
   -> ASP.NET Core API
 ```
 
 Future workspace areas use centralized mock modules under `darkroom-web/src/services/mock/`. They are visually present for architecture and navigation, but they are not backend-backed yet.
+
+Settings now uses a dedicated Google Drive API service for connection status, connect, reconnect, and disconnect.
 
 ## Current Frontend Routes
 
@@ -372,6 +418,31 @@ The frontend also uses the real backend for the Dashboard aggregate:
 GET    /api/dashboard
 ```
 
+The frontend also uses the real backend for Google Drive connection status and lifecycle:
+
+```text
+GET    /api/integrations/google-drive/status
+POST   /api/integrations/google-drive/connect
+GET    /api/integrations/google-drive/callback
+POST   /api/integrations/google-drive/disconnect
+```
+
+The frontend also uses the real backend for safe Song Drive workspace inspection and provisioning:
+
+```text
+GET    /api/songs/{songId}/drive-workspace
+POST   /api/songs/{songId}/drive-workspace/provision
+```
+
+The frontend also uses the real backend for AudioAsset and VisualAsset Google Drive upload:
+
+```text
+POST   /api/songs/{songId}/audio-assets/{audioAssetId}/upload
+POST   /api/songs/{songId}/visual-assets/{visualAssetId}/upload
+```
+
+`POST /api/integrations/google-drive/connect` returns a Google authorization URL. The frontend performs full browser navigation to Google from that URL. The callback endpoint does not require an Artist OS Bearer header because Google redirects the browser directly back to the backend; instead, it validates protected, expiring OAuth state created during the authenticated connect request.
+
 Current frontend API base URL behavior:
 
 - `VITE_API_BASE_URL` controls the backend URL.
@@ -411,8 +482,8 @@ When the backend is running with CORS configured, the fallback notice does not a
 
 These frontend areas are mock-only and do not have backend persistence yet:
 
-- Audio waveform display, file upload, playback, and external file association.
-- Visual thumbnails, file upload, previews, playback, and external file association.
+- Audio waveform display, playback, replace/version workflow, and external Drive file deletion.
+- Visual thumbnails, previews, playback, replace/version workflow, and external Drive file deletion.
 - Automatic release checklist completion from asset/content/credit records.
 - Content publishing and platform delivery.
 - Contributor directory, team permissions, contracts, royalties, and payout workflow.
@@ -1171,6 +1242,8 @@ Current database tables:
 - `AudioAssets`
 - `ContentItems`
 - `Credits`
+- `ExternalFileReferences`
+- `GoogleDriveConnections`
 - `Releases`
 - `ReleaseChecklistItems`
 - `Songs`
@@ -1191,6 +1264,8 @@ Applied migrations:
 20260830061847_AddAnalyticsSnapshotMetadata
 20260830104509_AddReleaseChecklistItems
 20260830165052_AddUserAuthenticationFoundation
+20260831103457_AddGoogleDriveConnectionFoundation
+20260831115419_AddExternalFileReferenceFoundation
 ```
 
 No migration was created for Calendar. The Calendar API is an aggregate read model over existing `Releases` and `ContentItems` columns.
@@ -1198,6 +1273,12 @@ No migration was created for Calendar. The Calendar API is an aggregate read mod
 No migration was created for Dashboard. The Dashboard API is an aggregate read model over existing source tables.
 
 The `AddUserAuthenticationFoundation` migration created the `Users` table and added nullable `Songs.OwnerUserId` so existing Songs remain valid.
+
+The `AddGoogleDriveConnectionFoundation` migration created the `GoogleDriveConnections` table for one user-owned Google Drive connection per Artist OS user.
+
+The `AddExternalFileReferenceFoundation` migration created the `ExternalFileReferences` table for provider-neutral external folder/file metadata owned by an Artist OS user.
+
+The `AddAssetFileUploadReferences` migration added nullable AudioAsset/VisualAsset links to `ExternalFileReferences` and added safe uploaded file metadata fields to `ExternalFileReferences`.
 
 Current `Songs` schema:
 
@@ -1217,6 +1298,41 @@ Current `Users` schema:
 - `CreatedAt` timestamp with time zone, required.
 - `UpdatedAt` timestamp with time zone, required.
 
+Current `GoogleDriveConnections` schema:
+
+- `Id` integer primary key, generated by PostgreSQL identity.
+- `UserId` integer, required, unique foreign key to `Users`.
+- `GoogleSubject` character varying(255), required.
+- `GoogleEmail` character varying(254), required.
+- `GoogleEmailVerified` boolean, required.
+- `ProtectedRefreshToken` text, optional.
+- `GrantedScopes` character varying(500), required.
+- `Status` character varying(40), required.
+- `RootFolderId` character varying(255), optional.
+- `ConnectedAt` timestamp with time zone, required.
+- `UpdatedAt` timestamp with time zone, required.
+- `LastSuccessfulRefreshAt` timestamp with time zone, optional.
+- `RevokedAt` timestamp with time zone, optional.
+
+Current `ExternalFileReferences` schema:
+
+- `Id` integer primary key, generated by PostgreSQL identity.
+- `OwnerUserId` integer, required, foreign key to `Users`.
+- `SongId` integer, optional, foreign key to `Songs`.
+- `GoogleDriveConnectionId` integer, optional, foreign key to `GoogleDriveConnections`.
+- `Provider` character varying(40), required.
+- `ExternalId` character varying(255), required.
+- `ResourceType` character varying(80), required.
+- `IsFolder` boolean, required.
+- `DisplayName` character varying(255), required.
+- `MimeType` character varying(255), optional.
+- `SizeBytes` bigint, optional.
+- `WebViewLink` character varying(2048), optional.
+- `LinkedResourceType` character varying(80), optional.
+- `LinkedResourceId` integer, optional.
+- `CreatedAt` timestamp with time zone, required.
+- `UpdatedAt` timestamp with time zone, required.
+
 Current `AudioAssets` schema:
 
 - `Id` integer primary key, generated by PostgreSQL identity.
@@ -1229,6 +1345,7 @@ Current `AudioAssets` schema:
 - `FileSizeBytes` bigint, optional.
 - `UploadedAt` timestamp with time zone, required.
 - `IsCurrent` boolean, required.
+- `ExternalFileReferenceId` integer, optional, foreign key to `ExternalFileReferences`.
 
 Current `VisualAssets` schema:
 
@@ -1243,6 +1360,7 @@ Current `VisualAssets` schema:
 - `FileSizeBytes` bigint, optional.
 - `UploadedAt` timestamp with time zone, required.
 - `IsCurrent` boolean, required.
+- `ExternalFileReferenceId` integer, optional, foreign key to `ExternalFileReferences`.
 
 Current `Releases` schema:
 
@@ -1348,11 +1466,15 @@ Indexes:
 - `IX_ReleaseChecklistItems_ReleaseId`
 - `IX_ReleaseChecklistItems_ReleaseId_Key`, unique
 - `IX_ReleaseChecklistItems_ReleaseId_SortOrder`
+- `IX_GoogleDriveConnections_UserId`, unique
+- `IX_GoogleDriveConnections_UserId_GoogleSubject`
 
 ## Packages
 
 Current backend packages:
 
+- `Google.Apis.Auth` version `1.76.0`
+- `Microsoft.AspNetCore.Authentication.JwtBearer` version `10.0.11`
 - `Microsoft.AspNetCore.OpenApi` version `10.0.11`
 - `Microsoft.EntityFrameworkCore.Design` version `10.0.11`
 - `Npgsql.EntityFrameworkCore.PostgreSQL` version `10.0.3`
@@ -1416,7 +1538,7 @@ Frontend expected API behavior:
 - Unreachable backend host triggers an explicit development fallback notice.
 - Non-unreachable API errors show an error state and retry action.
 - Mock-only areas are labeled as mock-only.
-- Audio file upload/playback/waveform behavior is explicitly described as future work.
+- Audio playback/waveform behavior is explicitly described as future work.
 - Calendar standalone events, reminders, drag/drop rescheduling, and external calendar sync are described as future work.
 - Dashboard external analytics sync, notifications, audit history, and automatic readiness are described as future work.
 - Browser requests from `http://localhost:8080` to `http://localhost:5178` are allowed in Development by the backend CORS policy.
@@ -1440,7 +1562,7 @@ Automated tests:
 - Frontend tests use Vitest with jsdom and a shared setup file.
 - Frontend component tests use a fresh TanStack Query `QueryClient` per render with retries disabled.
 - Frontend tests mock API services such as `authApi`, `dashboardApi`, and `songsApi` instead of depending on ASP.NET, PostgreSQL, localhost, or network availability.
-- Frontend automated test foundation currently has 26 focused tests.
+- Frontend automated test foundation currently has 32 focused tests.
 - Auth API behavior has automated integration-style coverage for registration, duplicate email, login, invalid credentials, current JWT, logout semantics, password hash safety, malformed tokens, expired tokens, and unauthenticated access.
 - Song owner assignment has automated integration-style coverage for authenticated creates and spoofed owner rejection.
 - Resource ownership has automated integration-style coverage for unauthenticated `401`, cross-user `404`, nested Song resource scoping, Calendar/Dashboard scoping, and legacy unowned Song invisibility.
@@ -1455,6 +1577,9 @@ Automated tests:
 - Calendar aggregate API behavior has both automated test coverage and pragmatic browser verification.
 - Dashboard aggregate API behavior has both automated test coverage and pragmatic browser verification.
 - Authentication/session behavior has both automated test coverage and pragmatic browser verification.
+- Google Drive connection behavior has automated backend coverage for unauthenticated access, disconnected status, protected state, callback success, invalid/expired state, denied OAuth, user isolation, safe status responses, protected refresh-token persistence, reconnect refresh-token preservation, and disconnect behavior.
+- Google Drive workspace behavior has automated backend coverage for unauthenticated access, owned Song provisioning, cross-user `404`, missing Google connection, `ReauthRequired` connection, root provisioning, idempotent repeated provisioning, Song folder creation, persisted external reference reuse, deleted root recovery, deleted Song folder recovery, connection ownership isolation, refresh failure reauth marking, and no-token API responses.
+- Google Drive Settings behavior has automated frontend coverage for disconnected, connected, reconnect-needed, connect navigation, disconnect mutation, API error, and no-token-rendering states.
 
 Verification run during the latest Cookie Auth -> JWT Bearer Auth Migration milestone:
 
@@ -1482,6 +1607,116 @@ dotnet ef migrations list: succeeded; AddUserAuthenticationFoundation is listed 
 Browser two-user ownership check: completed with a named Playwright CLI session. Verified User A and User B receive different JWTs, `/auth/me` succeeds with valid Bearer tokens, each user can see only their own Song data, Dashboard and Calendar are scoped per user, cross-user Song and nested audio access return `404 Not Found`, missing/invalid tokens return `401 Unauthorized`, logout clears the frontend token, and refresh restores the app from the valid `sessionStorage` token.
 ```
 
+Verification run during the Google Drive Discovery Architecture Report milestone:
+
+```text
+dotnet build
+dotnet test
+git status --short ArtistOS.Api/Migrations
+Google/OAuth/Drive runtime-code and credential scan
+```
+
+Results:
+
+```text
+dotnet build: succeeded, 0 warnings, 0 errors.
+dotnet test: succeeded, 202 passed, 0 failed, 0 skipped.
+No EF migration was created for this documentation-only milestone.
+No Google OAuth or Drive runtime code was added.
+No Google credentials were added.
+JWT auth runtime code was unchanged.
+Frontend tests were not run because no frontend files changed.
+```
+
+Verification run during the Google Drive Connection Foundation milestone:
+
+```text
+npm ci
+npm run lint
+npm run test
+npm run build
+dotnet build
+dotnet test
+dotnet ef database update
+dotnet ef migrations list
+Security scan for Google credential/token leakage
+```
+
+Results:
+
+```text
+npm ci: succeeded, 0 vulnerabilities.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run test: succeeded, 32 passed, 0 failed, 0 skipped.
+npm run build: succeeded.
+dotnet build: succeeded, 0 warnings, 0 errors.
+dotnet test: succeeded, 215 passed, 0 failed, 0 skipped.
+dotnet ef database update: succeeded; AddGoogleDriveConnectionFoundation was applied.
+dotnet ef migrations list: succeeded; AddGoogleDriveConnectionFoundation is listed.
+Security scan found no real Google secrets. Google token references are expected code/test/doc symbols only.
+Real Google OAuth browser verification is blocked until Google Cloud OAuth credentials are configured in User Secrets.
+```
+
+Verification run during the Google Drive Folder Provisioning + External File Reference Foundation milestone:
+
+```text
+dotnet build -c Release /p:UseAppHost=false
+dotnet test -c Release /p:UseAppHost=false
+dotnet ef database update --configuration Release
+npm ci
+npm install
+npm run lint
+npm run test
+npm run build
+```
+
+Results:
+
+```text
+dotnet build -c Release /p:UseAppHost=false: succeeded, 0 warnings, 0 errors.
+dotnet test -c Release /p:UseAppHost=false: succeeded, 230 passed, 0 failed, 0 skipped.
+dotnet ef database update --configuration Release: succeeded; AddExternalFileReferenceFoundation was applied.
+npm ci: blocked by a Windows EPERM file lock on native frontend dependency binaries.
+npm install: succeeded, 0 vulnerabilities; Windows reported cleanup locks on native temp dependency folders.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run test: succeeded, 32 passed, 0 failed, 0 skipped.
+npm run build: succeeded.
+Real Google Drive folder verification was not performed in this automated run; it requires manually retrying against the local authenticated browser session with the new backend code running.
+```
+
+Verification run during the Google Drive Media Upload MVP milestone:
+
+```text
+dotnet build
+dotnet build -c Release /p:UseAppHost=false
+dotnet test -c Release /p:UseAppHost=false
+dotnet ef database update --configuration Release
+dotnet ef migrations list --configuration Release
+npm ci
+npm install
+npm run lint
+npm run test
+npm run build
+Sensitive-string scan for token/code/secret/session URI patterns
+```
+
+Results:
+
+```text
+dotnet build: blocked by running local ArtistOS.Api process 6224 locking Debug ArtistOS.Api.exe.
+dotnet build -c Release /p:UseAppHost=false: succeeded, 0 warnings, 0 errors.
+dotnet test -c Release /p:UseAppHost=false: succeeded, 247 passed, 0 failed, 0 skipped.
+dotnet ef database update --configuration Release: succeeded; AddAssetFileUploadReferences was applied.
+dotnet ef migrations list --configuration Release: succeeded; AddAssetFileUploadReferences is listed as applied.
+npm ci: blocked by a Windows EPERM file lock on lightningcss native dependency binary.
+npm install: succeeded, 0 vulnerabilities.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run test: succeeded, 35 passed, 0 failed, 0 skipped.
+npm run build: succeeded.
+Sensitive-string scan found expected docs/code field names and fake test tokens only; no real Google credential pattern was found in source/docs.
+Real Google Drive upload browser verification was not performed in this automated run; it requires an authenticated local browser session, connected Google account, and a small user-selected test file.
+```
+
 Automated frontend coverage now includes:
 
 - StatusBadge canonical Song label rendering and fallback status rendering.
@@ -1504,9 +1739,15 @@ Automated frontend coverage now includes:
 - Logout action.
 - JWT login response storage in `sessionStorage`.
 - Shared API client Bearer header attachment.
+- Shared API client multipart upload request behavior without forcing JSON content type.
 - Stored-token session restore through backend `/api/auth/me`.
 - Invalid-token clearing on `401`.
 - Frontend token clearing during logout.
+- Audio asset metadata-only upload action.
+- Audio upload service call with selected browser `File`.
+- Linked Drive file display with provider, size, and Open in Drive link.
+- Upload backend failure display.
+- Linked-file UI does not render Google token material.
 
 Automated backend coverage now includes:
 
@@ -1521,6 +1762,18 @@ Automated backend coverage now includes:
 - VisualAsset `400 Bad Request` validation paths.
 - VisualAsset `404 Not Found` missing Song and missing VisualAsset paths.
 - Song-to-VisualAsset relationship behavior, including many VisualAssets per Song and deleting VisualAsset metadata without deleting the parent Song.
+- Audio/Visual upload authentication, ownership, and cross-Song asset scoping.
+- Audio/Visual upload validation for empty, unsupported, and oversized files.
+- Audio upload uses the provisioned Drive `Audio` folder and persists an `AudioAssetFile` external reference.
+- Visual upload uses the provisioned Drive `Visuals` folder and persists a `VisualAssetFile` external reference.
+- Successful upload synchronizes cached asset filename, file size, and uploaded timestamp.
+- Re-upload to an already-linked asset returns `409 Conflict`.
+- Missing Google connection and `ReauthRequired` connection return conflict responses.
+- Google access-token refresh failure marks the connection `ReauthRequired`.
+- Drive upload failure does not create a successful external reference or asset association.
+- Database persistence failure after Drive success attempts best-effort Drive file cleanup.
+- Upload responses do not return Google token material.
+- Metadata-only assets without external file references continue to read successfully.
 - Release metadata create/read/update/delete success paths.
 - Release `400 Bad Request` validation paths.
 - Release `404 Not Found` missing Song and missing Release paths.
@@ -1773,6 +2026,15 @@ Latest browser Dashboard checks confirmed:
 - JWT access tokens use `sub` for stable `User.Id`, plus email and a token id.
 - JWT validation checks issuer, audience, lifetime, signature, and signing key.
 - The JWT signing key is not stored in tracked appsettings files and should be configured through .NET User Secrets or environment variables.
+- Google OAuth client id and client secret are not stored in tracked appsettings files and should be configured through .NET User Secrets or environment variables.
+- Google refresh tokens are protected with ASP.NET Core Data Protection before persistence in `GoogleDriveConnections.ProtectedRefreshToken`.
+- Google access tokens and refresh tokens are not returned to the React frontend.
+- Google Drive API access tokens are refreshed on demand backend-side from the protected refresh token and are not persisted or returned to the frontend.
+- Drive workspace API responses return safe folder metadata only.
+- Drive upload API responses return safe asset and external reference metadata only; Google token material is not returned.
+- Resumable upload session URIs are not logged or returned.
+- Google OAuth state is protected and expiring, and callback handling does not depend on the browser supplying an Artist OS Bearer header.
+- Production deployment must configure persistent/shared Data Protection keys appropriate to the hosting topology.
 - Frontend route protection is implemented for the app shell.
 - Backend resource authorization is enforced across existing Song workspace APIs, Calendar, and Dashboard.
 - `OwnerUserId` is the current backend security boundary for normal user data access.
@@ -1805,6 +2067,10 @@ Remote GitHub Actions status:
 - Password reset, email verification, account management, refresh-token/session rotation, revocation, and rate limiting are not implemented yet.
 - The API does not yet enforce only one current AudioAsset per Song + Type.
 - The API does not yet enforce only one current VisualAsset per Song + Type.
+- Current upload limits are MVP/development application limits only; production hosting and reverse proxies will need matching request-size configuration.
+- Drive upload and PostgreSQL persistence are not one atomic transaction; the backend attempts best-effort Drive cleanup if persistence fails after upload succeeds.
+- Deleting AudioAsset or VisualAsset metadata does not automatically delete linked external Drive binaries.
+- Replacing an already-linked asset file is intentionally blocked until a version/replace workflow exists.
 - Release platforms are stored as a comma-separated string; a normalized platform table may become useful when real integrations exist.
 - ContentItem platform is stored as a string; richer channel/account modeling can wait until platform integrations exist.
 - Credit contributors are plain Song-scoped metadata strings; a normalized contributor directory can wait until team/auth requirements exist.
@@ -1823,10 +2089,10 @@ Remote GitHub Actions status:
 
 - Team collaboration or permissions.
 - Password reset, email verification, social login, MFA, account management, and production session hardening.
-- Google Drive integration.
+- Google Drive download, Drive browsing, Picker, synchronization, external file deletion, and replace/version workflow.
 - YouTube integration and automated analytics ingestion.
-- Real audio file upload, playback, waveform processing, and external file association.
-- Real visual file upload, preview/thumbnail generation, playback, and external file association.
+- Audio playback and waveform processing.
+- Visual preview/thumbnail generation and playback.
 - Automatic Release checklist completion based on asset/content/credit metadata.
 - Distributor delivery or publishing workflow.
 - Content publishing and platform delivery.
@@ -1837,7 +2103,7 @@ Remote GitHub Actions status:
 
 ## Google Drive Compatibility
 
-JWT authentication remains separate from future Google OAuth.
+JWT authentication remains separate from Google OAuth.
 
 Expected future shape:
 
@@ -1845,19 +2111,19 @@ Expected future shape:
 JWT authenticated DARKROOM user
   -> User.Id
   -> owned Songs
-  -> future IntegrationConnection
+  -> GoogleDriveConnection
   -> backend-managed Google Drive OAuth tokens
 ```
 
-Google OAuth tokens should remain backend-managed later and must not be exposed to the React frontend or embedded into Artist OS JWT access tokens.
+Google OAuth tokens are backend-managed and must not be exposed to the React frontend or embedded into Artist OS JWT access tokens.
 
 ## Recommended Next Milestone
 
-Start the Google Drive Discovery Architecture Report milestone.
+Start the asset replace/version workflow planning milestone only after approval.
 
 Suggested scope:
 
-- Produce an architecture report only; do not implement Google Drive OAuth or API calls yet.
-- Define how Artist OS metadata should map to future Google Drive file references.
-- Identify OAuth scopes, credential handling, storage boundaries, and migration implications.
-- Keep YouTube analytics, publishing, team roles, and production deployment out of this milestone.
+- Decide whether replacing a linked file creates a new `ExternalFileReference` version or a separate asset record.
+- Add explicit user action for replacing/deleting external Drive files.
+- Keep browser Drive Picker, arbitrary browsing, playback, waveform, thumbnails, YouTube, and publishing out of the milestone.
+- Do not change Song behavior.

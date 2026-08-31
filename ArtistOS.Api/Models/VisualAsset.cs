@@ -30,4 +30,8 @@ public class VisualAsset
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
 
     public bool IsCurrent { get; set; }
+
+    public int? ExternalFileReferenceId { get; set; }
+
+    public ExternalFileReference? ExternalFileReference { get; set; }
 }

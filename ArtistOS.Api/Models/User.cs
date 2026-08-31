@@ -22,4 +22,8 @@ public class User
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<Song> Songs { get; set; } = [];
+
+    public GoogleDriveConnection? GoogleDriveConnection { get; set; }
+
+    public ICollection<ExternalFileReference> ExternalFileReferences { get; set; } = [];
 }

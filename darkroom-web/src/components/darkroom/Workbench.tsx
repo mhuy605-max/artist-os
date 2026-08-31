@@ -1,7 +1,17 @@
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Check, ChevronLeft, ChevronRight, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  FolderTree,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import {
@@ -56,6 +66,13 @@ import { calendarApi } from "@/services/api/calendar";
 import { contentItemsApi } from "@/services/api/contentItems";
 import { creditsApi } from "@/services/api/credits";
 import { dashboardApi } from "@/services/api/dashboard";
+import { driveWorkspaceApi, driveWorkspaceQueryKey } from "@/services/api/driveWorkspace";
+import {
+  googleDriveApi,
+  googleDriveConnectionQueryKey,
+  openGoogleAuthorizationUrl,
+  type GoogleDriveConnectionStatus,
+} from "@/services/api/googleDrive";
 import { releaseChecklistApi } from "@/services/api/releaseChecklist";
 import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
@@ -109,6 +126,8 @@ import {
   type CreditPayload,
   type CreditRole,
   type CreditStatus,
+  type DriveWorkspace,
+  type ExternalFileReference,
   type DashboardActivityItem,
   type DashboardAnalyticsItem,
   type DashboardPipelineItem,
@@ -943,6 +962,7 @@ function OverviewTab({ song }: { song: Song }) {
       <Panel title="Lifecycle progress" label="Real status">
         <LifecycleProgress status={song.status} />
       </Panel>
+      <DriveWorkspacePanel songId={id} />
       <Panel title="Project info" label="Real + mock">
         <dl className="grid grid-cols-2 gap-3 text-sm">
           <Info label="Title" value={song.title} />
@@ -1001,6 +1021,110 @@ function OverviewTab({ song }: { song: Song }) {
   );
 }
 
+function DriveWorkspacePanel({ songId }: { songId: string }) {
+  const queryClient = useQueryClient();
+  const connection = useQuery({
+    queryKey: googleDriveConnectionQueryKey,
+    queryFn: googleDriveApi.getStatus,
+  });
+  const workspace = useQuery({
+    queryKey: driveWorkspaceQueryKey(songId),
+    queryFn: () => driveWorkspaceApi.getWorkspace(songId),
+    retry: false,
+  });
+  const provision = useMutation({
+    mutationFn: () => driveWorkspaceApi.provisionWorkspace(songId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(driveWorkspaceQueryKey(songId), data);
+      queryClient.invalidateQueries({ queryKey: googleDriveConnectionQueryKey });
+    },
+  });
+  const connected = connection.data?.connected === true;
+  const needsReconnect = connection.data?.status === "ReauthRequired";
+
+  return (
+    <Panel title="Google Drive" label="Backend folder provisioning">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium uppercase">
+            {connected ? "Connected" : needsReconnect ? "Reconnect required" : "Not connected"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Drive workspace {workspace.data?.isProvisioned ? "provisioned" : "not provisioned"}
+          </p>
+        </div>
+        <FolderTree className="h-5 w-5 text-muted-foreground" />
+      </div>
+
+      {workspace.isLoading || connection.isLoading ? (
+        <p className="mt-4 text-xs uppercase text-muted-foreground">Checking Drive workspace</p>
+      ) : connected && workspace.data?.isProvisioned ? (
+        <DriveWorkspaceTree workspace={workspace.data} />
+      ) : (
+        <div className="mt-4 border border-border bg-background p-3">
+          <p className="text-sm font-medium uppercase">DARKROOM SYSTEM</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Create the Song folder structure before attaching media in a later milestone.
+          </p>
+        </div>
+      )}
+
+      {workspace.isError && connected ? (
+        <p className="mt-3 text-xs uppercase text-muted-foreground">
+          Drive workspace metadata is not available yet.
+        </p>
+      ) : null}
+      {needsReconnect ? (
+        <p className="mt-3 text-xs uppercase text-muted-foreground">
+          Reconnect Google Drive in Settings before provisioning folders.
+        </p>
+      ) : null}
+
+      <div className="mt-4">
+        <Button
+          onClick={() => provision.mutate()}
+          disabled={!connected || provision.isPending || workspace.data?.isProvisioned === true}
+        >
+          {provision.isPending
+            ? "Creating"
+            : workspace.data?.isProvisioned
+              ? "Workspace ready"
+              : "Create Drive Workspace"}
+        </Button>
+      </div>
+
+      {provision.isError ? (
+        <p className="mt-3 text-xs uppercase text-destructive">
+          Drive workspace could not be created.
+        </p>
+      ) : null}
+    </Panel>
+  );
+}
+
+function DriveWorkspaceTree({ workspace }: { workspace: DriveWorkspace }) {
+  const songFolderName = workspace.songFolder?.name ?? "Song";
+  const folders = [
+    workspace.folders.audio?.name ?? "Audio",
+    workspace.folders.visuals?.name ?? "Visuals",
+    workspace.folders.release?.name ?? "Release",
+    workspace.folders.content?.name ?? "Content",
+  ];
+
+  return (
+    <div className="mt-4 border border-border bg-background p-3 font-mono text-xs">
+      <p>DARKROOM SYSTEM</p>
+      <p className="mt-1 pl-3">Songs</p>
+      <p className="mt-1 pl-6">{songFolderName}</p>
+      <div className="mt-1 space-y-1 pl-9 text-muted-foreground">
+        {folders.map((folder) => (
+          <p key={folder}>{folder}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function useAudioAssetMutations(songId: string) {
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: audioAssetsQueryKey(songId) });
@@ -1022,6 +1146,11 @@ function useAudioAssetMutations(songId: string) {
     }),
     remove: useMutation({
       mutationFn: (audioAssetId: string) => audioAssetsApi.deleteAudioAsset(songId, audioAssetId),
+      onSuccess: invalidate,
+    }),
+    upload: useMutation({
+      mutationFn: ({ audioAssetId, file }: { audioAssetId: string; file: File }) =>
+        audioAssetsApi.uploadAudioAssetFile(songId, audioAssetId, file),
       onSuccess: invalidate,
     }),
   };
@@ -1064,6 +1193,86 @@ function formatFileSize(bytes?: number | null) {
   if (bytes == null) return "No file size";
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function AssetFileUploadPanel({
+  linkedFile,
+  accept,
+  uploadLabel,
+  isPending,
+  error,
+  onUpload,
+}: {
+  linkedFile?: ExternalFileReference | null;
+  accept: string;
+  uploadLabel: string;
+  isPending: boolean;
+  error: unknown;
+  onUpload: (file: File) => void;
+}) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  if (linkedFile) {
+    return (
+      <div className="mt-3 border border-border bg-panel p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="label-tech">File linked</p>
+            <p className="mt-1 truncate text-sm font-medium">{linkedFile.displayName}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatFileSize(linkedFile.sizeBytes)} / {linkedFile.provider}
+            </p>
+          </div>
+          {linkedFile.webViewLink ? (
+            <Button variant="outline" size="sm" asChild>
+              <a href={linkedFile.webViewLink} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-4 w-4" />
+                Open in Drive
+              </a>
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 border border-dashed border-border bg-panel p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="label-tech">No file linked</p>
+          {selectedFile ? (
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {selectedFile.name} / {formatFileSize(selectedFile.size)}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            className="max-w-56 text-xs"
+            type="file"
+            accept={accept}
+            disabled={isPending}
+            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!selectedFile || isPending}
+            onClick={() => {
+              if (selectedFile) onUpload(selectedFile);
+            }}
+          >
+            <Upload className="h-4 w-4" />
+            {isPending ? "Uploading" : uploadLabel}
+          </Button>
+        </div>
+      </div>
+      {error instanceof Error ? (
+        <p className="mt-2 text-xs text-muted-foreground">{error.message}</p>
+      ) : null}
+    </div>
+  );
 }
 
 function numberOrNull(value: string) {
@@ -1320,6 +1529,19 @@ function AudioAssetRow({ songId, asset }: { songId: string; asset: AudioAsset })
           </AlertDialog>
         </div>
       </div>
+      <AssetFileUploadPanel
+        linkedFile={asset.linkedFile}
+        accept=".wav,.mp3,.flac,.m4a,audio/wav,audio/x-wav,audio/mpeg,audio/flac,audio/mp4"
+        uploadLabel="Upload file"
+        isPending={mutations.upload.isPending}
+        error={mutations.upload.error}
+        onUpload={(file) =>
+          mutations.upload.mutate({
+            audioAssetId: String(asset.id),
+            file,
+          })
+        }
+      />
     </div>
   );
 }
@@ -1350,8 +1572,8 @@ function AudioTab({ songId }: { songId: string }) {
       <Panel title="Audio metadata" label="Real backend data">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Metadata is persisted through the ASP.NET API. Actual file upload, playback, and
-            waveform generation are planned for later.
+            Metadata is persisted through the ASP.NET API. Audio files can now be uploaded to the
+            linked Google Drive workspace; playback and waveform generation are planned for later.
           </p>
           <AudioAssetFormDialog
             songId={songId}
@@ -1419,6 +1641,11 @@ function useVisualAssetMutations(songId: string) {
     remove: useMutation({
       mutationFn: (visualAssetId: string) =>
         visualAssetsApi.deleteVisualAsset(songId, visualAssetId),
+      onSuccess: invalidate,
+    }),
+    upload: useMutation({
+      mutationFn: ({ visualAssetId, file }: { visualAssetId: string; file: File }) =>
+        visualAssetsApi.uploadVisualAssetFile(songId, visualAssetId, file),
       onSuccess: invalidate,
     }),
   };
@@ -1735,6 +1962,19 @@ function VisualAssetRow({ songId, asset }: { songId: string; asset: VisualAsset 
           </AlertDialog>
         </div>
       </div>
+      <AssetFileUploadPanel
+        linkedFile={asset.linkedFile}
+        accept=".png,.jpg,.jpeg,.webp,.mp4,.mov,.webm,image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
+        uploadLabel="Upload file"
+        isPending={mutations.upload.isPending}
+        error={mutations.upload.error}
+        onUpload={(file) =>
+          mutations.upload.mutate({
+            visualAssetId: String(asset.id),
+            file,
+          })
+        }
+      />
     </div>
   );
 }
@@ -1765,8 +2005,8 @@ function VisualsTab({ songId }: { songId: string }) {
       <Panel title="Visual metadata" label="Real backend data">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Metadata is persisted through the ASP.NET API. Thumbnails, file upload, playback, and
-            Google Drive association are placeholders for later milestones.
+            Metadata is persisted through the ASP.NET API. Visual files can now be uploaded to the
+            linked Google Drive workspace; thumbnails, previews, and playback are planned for later.
           </p>
           <VisualAssetFormDialog
             songId={songId}
@@ -1794,7 +2034,7 @@ function VisualsTab({ songId }: { songId: string }) {
               ) : (
                 <EmptyState
                   title={`No ${visualTypeLabel(type).toLowerCase()} metadata`}
-                  detail="Add a visual metadata record now. Actual media upload and preview generation will arrive in a later milestone."
+                  detail="Add a visual metadata record now, then upload a linked Drive file from the saved asset row."
                 />
               )}
             </Panel>
@@ -3757,6 +3997,26 @@ export function TeamPage() {
 }
 
 export function SettingsPage() {
+  const queryClient = useQueryClient();
+  const googleDriveQuery = useQuery({
+    queryKey: googleDriveConnectionQueryKey,
+    queryFn: googleDriveApi.getStatus,
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: googleDriveApi.connect,
+    onSuccess: (response) => {
+      openGoogleAuthorizationUrl(response.authorizationUrl);
+    },
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: googleDriveApi.disconnect,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: googleDriveConnectionQueryKey });
+    },
+  });
+
   return (
     <AppShell>
       <PageHeader eyebrow="Settings" title="Workspace controls" />
@@ -3768,13 +4028,16 @@ export function SettingsPage() {
             </p>
           </Panel>
         ))}
-        <Panel title="Integrations" label="Coming later" className="lg:col-span-2">
+        <Panel title="Integrations" label="Connections" className="lg:col-span-2">
           <div className="grid gap-3 sm:grid-cols-2">
-            <FileRow
-              title="Google Drive"
-              meta="Media storage provider"
-              status="Not Connected"
-              detail="Coming later"
+            <GoogleDriveIntegrationCard
+              connection={googleDriveQuery.data}
+              isLoading={googleDriveQuery.isLoading}
+              error={googleDriveQuery.error}
+              isConnecting={connectMutation.isPending}
+              isDisconnecting={disconnectMutation.isPending}
+              onConnect={() => connectMutation.mutate()}
+              onDisconnect={() => disconnectMutation.mutate()}
             />
             <FileRow
               title="YouTube"
@@ -3786,6 +4049,81 @@ export function SettingsPage() {
         </Panel>
       </div>
     </AppShell>
+  );
+}
+
+function GoogleDriveIntegrationCard({
+  connection,
+  isLoading,
+  error,
+  isConnecting,
+  isDisconnecting,
+  onConnect,
+  onDisconnect,
+}: {
+  connection?: GoogleDriveConnectionStatus;
+  isLoading: boolean;
+  error: unknown;
+  isConnecting: boolean;
+  isDisconnecting: boolean;
+  onConnect: () => void;
+  onDisconnect: () => void;
+}) {
+  const connected = connection?.connected === true;
+  const needsAttention = connection?.status === "ReauthRequired";
+  const title = "Google Drive";
+  const status = needsAttention
+    ? "Connection needs attention"
+    : connected
+      ? "Connected"
+      : "Not connected";
+  const detail = connected
+    ? `Connected ${formatDate(connection.connectedAt ?? "")}`
+    : needsAttention
+      ? "Reconnect to restore backend access."
+      : "Connect media storage access.";
+  const actionLabel = needsAttention ? "Reconnect" : connected ? "Disconnect" : "Connect";
+  const busy = isConnecting || isDisconnecting;
+
+  return (
+    <div className="border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="label-tech">{title}</p>
+          <p className="mt-2 text-sm text-muted-foreground">Media storage provider</p>
+        </div>
+        <span
+          className={cn(
+            "shrink-0 border px-2 py-1 text-[10px] uppercase",
+            connected && !needsAttention
+              ? "border-foreground bg-foreground text-background"
+              : "border-border text-muted-foreground",
+          )}
+        >
+          {isLoading ? "Checking" : status}
+        </span>
+      </div>
+
+      <div className="mt-5 space-y-2">
+        <p className="truncate text-sm font-medium">
+          {connected || needsAttention ? connection?.email : "Not connected"}
+        </p>
+        <p className="text-xs uppercase text-muted-foreground">{isLoading ? "Loading" : detail}</p>
+        {error ? (
+          <p className="text-xs uppercase text-destructive">Google Drive status did not load.</p>
+        ) : null}
+      </div>
+
+      <div className="mt-5">
+        <Button
+          variant={connected && !needsAttention ? "outline" : "default"}
+          onClick={connected && !needsAttention ? onDisconnect : onConnect}
+          disabled={busy || isLoading}
+        >
+          {busy ? "Working" : actionLabel}
+        </Button>
+      </div>
+    </div>
   );
 }
 

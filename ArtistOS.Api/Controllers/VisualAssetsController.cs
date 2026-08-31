@@ -1,5 +1,6 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
+using ArtistOS.Api.Integrations.GoogleDrive;
 using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -14,10 +15,14 @@ namespace ArtistOS.Api.Controllers;
 public class VisualAssetsController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly GoogleDriveAssetUploadService _uploadService;
 
-    public VisualAssetsController(AppDbContext context)
+    public VisualAssetsController(
+        AppDbContext context,
+        GoogleDriveAssetUploadService uploadService)
     {
         _context = context;
+        _uploadService = uploadService;
     }
 
     [HttpGet]
@@ -29,28 +34,19 @@ public class VisualAssetsController : ControllerBase
             return NotFound();
         }
 
-        return await _context.VisualAssets
+        var visualAssets = await _context.VisualAssets
             .AsNoTracking()
+            .Include(visualAsset => visualAsset.ExternalFileReference)
             .Where(visualAsset => visualAsset.SongId == songId)
             .OrderBy(visualAsset => visualAsset.Type)
             .ThenByDescending(visualAsset => visualAsset.IsCurrent)
             .ThenByDescending(visualAsset => visualAsset.Version)
             .ThenByDescending(visualAsset => visualAsset.UploadedAt)
-            .Select(visualAsset => new VisualAssetResponse
-            {
-                Id = visualAsset.Id,
-                SongId = visualAsset.SongId,
-                Type = visualAsset.Type,
-                FileName = visualAsset.FileName,
-                Version = visualAsset.Version,
-                Status = visualAsset.Status,
-                Width = visualAsset.Width,
-                Height = visualAsset.Height,
-                FileSizeBytes = visualAsset.FileSizeBytes,
-                UploadedAt = visualAsset.UploadedAt,
-                IsCurrent = visualAsset.IsCurrent
-            })
             .ToListAsync();
+
+        return visualAssets
+            .Select(AssetFileResponseMapper.ToVisualAssetResponse)
+            .ToList();
     }
 
     [HttpGet("{visualAssetId:int}")]
@@ -66,6 +62,7 @@ public class VisualAssetsController : ControllerBase
 
         var visualAsset = await _context.VisualAssets
             .AsNoTracking()
+            .Include(visualAsset => visualAsset.ExternalFileReference)
             .FirstOrDefaultAsync(visualAsset =>
                 visualAsset.SongId == songId &&
                 visualAsset.Id == visualAssetId &&
@@ -76,7 +73,7 @@ public class VisualAssetsController : ControllerBase
             return NotFound();
         }
 
-        return ToResponse(visualAsset);
+        return AssetFileResponseMapper.ToVisualAssetResponse(visualAsset);
     }
 
     [HttpPost]
@@ -110,7 +107,7 @@ public class VisualAssetsController : ControllerBase
         return CreatedAtAction(
             nameof(GetVisualAsset),
             new { songId, visualAssetId = visualAsset.Id },
-            ToResponse(visualAsset));
+            AssetFileResponseMapper.ToVisualAssetResponse(visualAsset));
     }
 
     [HttpPut("{visualAssetId:int}")]
@@ -150,6 +147,31 @@ public class VisualAssetsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{visualAssetId:int}/upload")]
+    [RequestSizeLimit(GoogleDriveUploadLimits.RequestBodyMaxBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = GoogleDriveUploadLimits.RequestBodyMaxBytes)]
+    public async Task<ActionResult<VisualAssetResponse>> UploadVisualAssetFile(
+        int songId,
+        int visualAssetId,
+        [FromForm] IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await _uploadService.UploadVisualAssetAsync(
+            currentUserId.Value,
+            songId,
+            visualAssetId,
+            file,
+            cancellationToken);
+
+        return ToVisualUploadActionResult(result);
+    }
+
     [HttpDelete("{visualAssetId:int}")]
     public async Task<IActionResult> DeleteVisualAsset(int songId, int visualAssetId)
     {
@@ -182,21 +204,32 @@ public class VisualAssetsController : ControllerBase
             await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
-    private static VisualAssetResponse ToResponse(VisualAsset visualAsset)
+    private ActionResult<VisualAssetResponse> ToVisualUploadActionResult(
+        GoogleDriveAssetUploadResult result)
     {
-        return new VisualAssetResponse
+        return result.Status switch
         {
-            Id = visualAsset.Id,
-            SongId = visualAsset.SongId,
-            Type = visualAsset.Type,
-            FileName = visualAsset.FileName,
-            Version = visualAsset.Version,
-            Status = visualAsset.Status,
-            Width = visualAsset.Width,
-            Height = visualAsset.Height,
-            FileSizeBytes = visualAsset.FileSizeBytes,
-            UploadedAt = visualAsset.UploadedAt,
-            IsCurrent = visualAsset.IsCurrent
+            GoogleDriveAssetUploadStatus.Success => result.VisualAsset!,
+            GoogleDriveAssetUploadStatus.AssetNotFound => NotFound(),
+            GoogleDriveAssetUploadStatus.InvalidFile => BadRequest(new { error = result.Detail }),
+            GoogleDriveAssetUploadStatus.UnsupportedFileType => BadRequest(new { error = result.Detail }),
+            GoogleDriveAssetUploadStatus.FileTooLarge => BadRequest(new { error = result.Detail }),
+            GoogleDriveAssetUploadStatus.AlreadyLinked => Conflict(new { error = result.Detail }),
+            GoogleDriveAssetUploadStatus.GoogleDriveNotConnected => Problem(
+                title: "Google Drive is not connected.",
+                statusCode: StatusCodes.Status409Conflict),
+            GoogleDriveAssetUploadStatus.GoogleDriveReauthRequired => Problem(
+                title: "Google Drive authorization needs to be refreshed.",
+                statusCode: StatusCodes.Status409Conflict),
+            GoogleDriveAssetUploadStatus.WorkspaceUnavailable => Problem(
+                title: "Google Drive workspace is unavailable.",
+                statusCode: StatusCodes.Status502BadGateway),
+            GoogleDriveAssetUploadStatus.GoogleDriveUnavailable => Problem(
+                title: "Google Drive upload failed.",
+                statusCode: StatusCodes.Status502BadGateway),
+            _ => Problem(
+                title: "Uploaded file could not be saved in Artist OS.",
+                statusCode: StatusCodes.Status500InternalServerError)
         };
     }
 

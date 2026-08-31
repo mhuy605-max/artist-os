@@ -23,4 +23,6 @@ public class VisualAssetResponse
     public DateTime UploadedAt { get; set; }
 
     public bool IsCurrent { get; set; }
+
+    public ExternalFileReferenceResponse? LinkedFile { get; set; }
 }

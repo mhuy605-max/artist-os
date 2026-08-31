@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Cookie Auth -> JWT Bearer Auth Migration
+Google Drive Media Upload MVP + Audio / Visual Asset File Association
 ```
 
 Implemented and verified:
@@ -82,13 +82,27 @@ Implemented and verified:
 - Automated backend integration tests for authentication, session behavior, and Song owner assignment
 - Automated frontend test foundation for shared UI, auth flow, Dashboard, Songs, and Create Song behavior
 - GitHub Actions CI workflow for backend build/tests and frontend lint/test/build
+- Google Drive OAuth connection foundation
+- User-owned Google Drive connection persistence
+- Protected Google refresh-token storage using ASP.NET Core Data Protection
+- Settings integration for Google Drive connect/status/disconnect
+- Google Drive API client support through the official Drive v3 package
+- Backend-only Google access-token refresh for Drive API operations
+- Idempotent DARKROOM SYSTEM root folder provisioning
+- Idempotent Song Drive workspace folder provisioning
+- Provider-neutral `ExternalFileReference` persistence for Drive folder references
+- Song workspace Google Drive panel for safe folder provisioning
+- Backend-mediated Google Drive upload for AudioAsset and VisualAsset files
+- Persisted AudioAsset and VisualAsset file association through `ExternalFileReference`
+- Safe linked-file display in the Audio and Visuals tabs
 
 Planned, not implemented yet:
 
 - Password reset, email verification, social login, MFA, and production refresh-token/session infrastructure
-- Google Drive integration
+- Google Drive replace/version workflow, Drive browsing, Picker, download, and synchronization
 - YouTube analytics
-- Real audio file upload, playback, waveform processing, or external file storage
+- Audio playback, waveform processing, and replace/version workflow
+- Visual thumbnail/preview generation, playback, and replace/version workflow
 - Real release publishing or distributor delivery
 - Automatic checklist completion from asset/content/credit records
 - Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync
@@ -128,7 +142,7 @@ The `/` route redirects to `/dashboard`.
 
 ## Real Backend Integration
 
-Authentication, Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, the Calendar aggregate, and the Dashboard aggregate are connected to the ASP.NET Core backend.
+Authentication, Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, the Calendar aggregate, the Dashboard aggregate, Google Drive connection status/connect/disconnect, Song Drive workspace provisioning, and AudioAsset/VisualAsset Drive file upload are connected to the ASP.NET Core backend.
 
 The frontend sends `Authorization: Bearer <access_token>` on authenticated API requests so the ASP.NET Core backend can identify the current user from validated JWT claims.
 
@@ -168,7 +182,30 @@ The read-only Dashboard aggregate works against:
 http://localhost:5178/api/dashboard
 ```
 
-The Song workspace loads real Song data by id for the current user. New Songs created while signed in receive the current user's `OwnerUserId` from the backend; the client does not send ownership. The Audio tab loads and writes real AudioAsset metadata for the selected owned Song. The Visuals tab loads and writes real VisualAsset metadata for the selected owned Song. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected owned Song. The Content tab loads and writes real ContentItem metadata for the selected owned Song. The Credits tab loads and writes real Credit metadata for the selected owned Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected owned Song. The Calendar route reads the current user's Release and ContentItem dates from the backend and links entries back to the Song workspace. The Dashboard route reads real user-scoped aggregate data from the backend. The frontend stores the current access token in `sessionStorage`, so refresh works within the browser session; invalid/expired tokens and logout clear that token. Local CORS is configured for frontend development from:
+Google Drive connection endpoints:
+
+```text
+http://localhost:5178/api/integrations/google-drive/status
+http://localhost:5178/api/integrations/google-drive/connect
+http://localhost:5178/api/integrations/google-drive/callback
+http://localhost:5178/api/integrations/google-drive/disconnect
+```
+
+Google Drive Song workspace endpoints:
+
+```text
+http://localhost:5178/api/songs/{songId}/drive-workspace
+http://localhost:5178/api/songs/{songId}/drive-workspace/provision
+```
+
+Google Drive media upload endpoints:
+
+```text
+http://localhost:5178/api/songs/{songId}/audio-assets/{audioAssetId}/upload
+http://localhost:5178/api/songs/{songId}/visual-assets/{visualAssetId}/upload
+```
+
+The Song workspace loads real Song data by id for the current user. New Songs created while signed in receive the current user's `OwnerUserId` from the backend; the client does not send ownership. The Audio tab loads and writes real AudioAsset metadata for the selected owned Song and can upload one linked Drive file per metadata record. The Visuals tab loads and writes real VisualAsset metadata for the selected owned Song and can upload one linked Drive file per metadata record. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected owned Song. The Content tab loads and writes real ContentItem metadata for the selected owned Song. The Credits tab loads and writes real Credit metadata for the selected owned Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected owned Song. The Calendar route reads the current user's Release and ContentItem dates from the backend and links entries back to the Song workspace. The Dashboard route reads real user-scoped aggregate data from the backend. The frontend stores the current access token in `sessionStorage`, so refresh works within the browser session; invalid/expired tokens and logout clear that token. Local CORS is configured for frontend development from:
 
 ```text
 http://localhost:8080
@@ -176,12 +213,14 @@ http://localhost:8080
 
 If the backend is unreachable during local development, the Song API service uses an explicit in-memory fallback so the frontend remains navigable. The UI shows a fallback notice in that mode. Other API errors are surfaced instead of hidden.
 
+Google Drive OAuth tokens remain backend-only and are not exposed to the React frontend. Drive folder provisioning and AudioAsset/VisualAsset upload association are implemented for owned Songs. Drive browsing, Picker, download, media preview/playback, automatic folder rename, replace/version workflow, and external file deletion are still planned.
+
 ## Mock-Only Areas
 
 These areas are visible in the frontend but are not backend-backed yet:
 
-- Audio waveform display, file upload, playback, and external file association
-- Visual thumbnails, file upload, previews, playback, and external file association
+- Audio waveform display, playback, replace/version workflow, and external file deletion
+- Visual thumbnails, previews, playback, replace/version workflow, and external file deletion
 - Automatic release checklist completion from asset/content/credit records
 - Release publishing and distributor delivery
 - Content publishing and platform delivery
@@ -746,6 +785,8 @@ Current backend packages:
 | --- | --- |
 | `Microsoft.AspNetCore.OpenApi` | `10.0.11` |
 | `Microsoft.AspNetCore.Authentication.JwtBearer` | `10.0.11` |
+| `Google.Apis.Auth` | `1.76.0` |
+| `Google.Apis.Drive.v3` | `1.75.0.4218` |
 | `Microsoft.EntityFrameworkCore.Design` | `10.0.11` |
 | `Npgsql.EntityFrameworkCore.PostgreSQL` | `10.0.3` |
 
@@ -824,6 +865,7 @@ GET    /api/songs/{songId}/audio-assets/{audioAssetId}
 POST   /api/songs/{songId}/audio-assets
 PUT    /api/songs/{songId}/audio-assets/{audioAssetId}
 DELETE /api/songs/{songId}/audio-assets/{audioAssetId}
+POST   /api/songs/{songId}/audio-assets/{audioAssetId}/upload
 ```
 
 Visual asset metadata endpoints:
@@ -834,6 +876,7 @@ GET    /api/songs/{songId}/visual-assets/{visualAssetId}
 POST   /api/songs/{songId}/visual-assets
 PUT    /api/songs/{songId}/visual-assets/{visualAssetId}
 DELETE /api/songs/{songId}/visual-assets/{visualAssetId}
+POST   /api/songs/{songId}/visual-assets/{visualAssetId}/upload
 ```
 
 Release metadata endpoints:
@@ -1017,6 +1060,21 @@ dotnet user-secrets set "Jwt:SigningKey" "YOUR_LONG_DEVELOPMENT_SIGNING_KEY"
 
 Use a long random development value. Do not commit the signing key or expose it to the React frontend.
 
+Configure Google Drive OAuth credentials with User Secrets before real OAuth browser verification:
+
+```bash
+dotnet user-secrets set "GoogleDrive:ClientId" "YOUR_GOOGLE_OAUTH_CLIENT_ID"
+dotnet user-secrets set "GoogleDrive:ClientSecret" "YOUR_GOOGLE_OAUTH_CLIENT_SECRET"
+```
+
+The local Google OAuth callback URI is:
+
+```text
+http://localhost:5178/api/integrations/google-drive/callback
+```
+
+Do not commit Google OAuth credentials or expose them to the React frontend.
+
 ### 4. Apply EF Core Migrations
 
 ```bash
@@ -1090,6 +1148,8 @@ Current tables:
 - `AudioAssets`
 - `ContentItems`
 - `Credits`
+- `ExternalFileReferences`
+- `GoogleDriveConnections`
 - `ReleaseChecklistItems`
 - `Releases`
 - `Songs`
@@ -1114,9 +1174,28 @@ Current migrations:
 20260830061847_AddAnalyticsSnapshotMetadata
 20260830104509_AddReleaseChecklistItems
 20260830165052_AddUserAuthenticationFoundation
+20260831103457_AddGoogleDriveConnectionFoundation
+20260831115419_AddExternalFileReferenceFoundation
+20260831185232_AddAssetFileUploadReferences
 ```
 
-Large media files such as WAV, MP3, stems, artwork, and video files should not be stored directly in PostgreSQL. The planned direction is to store metadata in PostgreSQL and large files in an external provider such as Google Drive.
+Large media files such as WAV, MP3, stems, artwork, and video files are not stored directly in PostgreSQL. AudioAsset and VisualAsset upload stores the binary file in Google Drive, then PostgreSQL stores Artist OS metadata, ownership, and a provider-neutral `ExternalFileReference`.
+
+Current upload limits:
+
+```text
+Audio: 500 MB
+Visual images: 100 MB
+Visual video: 2 GB
+```
+
+Supported audio upload types: WAV, MP3, FLAC, M4A.
+
+Supported visual upload types: PNG, JPG/JPEG, WEBP, MP4, MOV, WEBM.
+
+After a successful upload, Google Drive is the source of truth for the binary file, Drive file id, actual filename, MIME type, and actual size. Artist OS remains the source of truth for workflow metadata such as asset type, version, status, and current flag. The first MVP synchronizes cached `FileName`, `FileSizeBytes`, and `UploadedAt` from the confirmed Drive upload result.
+
+Deleting an AudioAsset or VisualAsset metadata record does not automatically delete the external Google Drive binary. Re-upload to an already-linked asset is rejected until a later replace/version workflow is implemented. If Drive upload succeeds but database persistence fails, Artist OS attempts best-effort cleanup of the newly-created Drive file and logs a reconciliation warning if cleanup fails.
 
 ## Roadmap
 
@@ -1146,6 +1225,10 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] User authentication model and migration
 - [x] JWT Bearer auth API
 - [x] Backend resource ownership enforcement
+- [x] Google Drive connection model and migration
+- [x] Protected Google refresh-token storage foundation
+- [x] ExternalFileReference model and migration
+- [x] Optional AudioAsset/VisualAsset external file reference links
 - [x] Local frontend development CORS
 - [x] Automated backend tests
 - [x] Automated frontend tests
@@ -1168,8 +1251,10 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Browser-based real Dashboard aggregation
 - [x] Real login/register frontend integration
 - [x] Authenticated frontend route guard
-- [ ] Real audio file upload and external file association
-- [ ] Real visual file upload and external file association
+- [x] Browser-based Google Drive connection Settings integration
+- [x] Song workspace Google Drive folder provisioning panel
+- [x] Real audio file upload and external file association
+- [x] Real visual file upload and external file association
 - [ ] Release publishing and distributor delivery
 - [ ] Content publishing and platform delivery
 - [ ] Standalone calendar events, reminders, and drag/drop rescheduling
@@ -1179,7 +1264,12 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 
 ### Integrations / Delivery
 
-- [ ] Google Drive integration
+- [x] Google Drive connection foundation
+- [x] Google Drive API client foundation
+- [x] Google Drive folder provisioning
+- [x] Provider-neutral external folder reference persistence
+- [x] Google Drive file upload and asset file association
+- [ ] Google Drive browsing and Picker
 - [ ] YouTube analytics
 - [x] GitHub Actions CI foundation
 - [ ] CD and production deployment

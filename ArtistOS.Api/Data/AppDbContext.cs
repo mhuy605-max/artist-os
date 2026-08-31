@@ -28,6 +28,10 @@ public class AppDbContext : DbContext
 
     public DbSet<ReleaseChecklistItem> ReleaseChecklistItems { get; set; }
 
+    public DbSet<GoogleDriveConnection> GoogleDriveConnections { get; set; }
+
+    public DbSet<ExternalFileReference> ExternalFileReferences { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<User>(entity =>
@@ -46,26 +50,89 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
+        modelBuilder.Entity<GoogleDriveConnection>(entity =>
+        {
+            entity.HasIndex(connection => connection.UserId)
+                .IsUnique();
+            entity.HasIndex(connection => new
+            {
+                connection.UserId,
+                connection.GoogleSubject
+            });
+
+            entity.HasOne(connection => connection.User)
+                .WithOne(user => user.GoogleDriveConnection)
+                .HasForeignKey<GoogleDriveConnection>(connection => connection.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ExternalFileReference>(entity =>
+        {
+            entity.HasIndex(reference => reference.OwnerUserId);
+            entity.HasIndex(reference => reference.SongId);
+            entity.HasIndex(reference => new
+            {
+                reference.OwnerUserId,
+                reference.Provider,
+                reference.ResourceType,
+                reference.SongId
+            });
+            entity.HasIndex(reference => new
+            {
+                reference.OwnerUserId,
+                reference.Provider,
+                reference.ExternalId
+            })
+                .IsUnique();
+
+            entity.HasOne(reference => reference.OwnerUser)
+                .WithMany(user => user.ExternalFileReferences)
+                .HasForeignKey(reference => reference.OwnerUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(reference => reference.Song)
+                .WithMany(song => song.ExternalFileReferences)
+                .HasForeignKey(reference => reference.SongId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(reference => reference.GoogleDriveConnection)
+                .WithMany(connection => connection.ExternalFileReferences)
+                .HasForeignKey(reference => reference.GoogleDriveConnectionId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
         modelBuilder.Entity<AudioAsset>(entity =>
         {
             entity.HasIndex(audioAsset => audioAsset.SongId);
             entity.HasIndex(audioAsset => new { audioAsset.SongId, audioAsset.Type });
+            entity.HasIndex(audioAsset => audioAsset.ExternalFileReferenceId);
 
             entity.HasOne(audioAsset => audioAsset.Song)
                 .WithMany(song => song.AudioAssets)
                 .HasForeignKey(audioAsset => audioAsset.SongId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(audioAsset => audioAsset.ExternalFileReference)
+                .WithMany()
+                .HasForeignKey(audioAsset => audioAsset.ExternalFileReferenceId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<VisualAsset>(entity =>
         {
             entity.HasIndex(visualAsset => visualAsset.SongId);
             entity.HasIndex(visualAsset => new { visualAsset.SongId, visualAsset.Type });
+            entity.HasIndex(visualAsset => visualAsset.ExternalFileReferenceId);
 
             entity.HasOne(visualAsset => visualAsset.Song)
                 .WithMany(song => song.VisualAssets)
                 .HasForeignKey(visualAsset => visualAsset.SongId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(visualAsset => visualAsset.ExternalFileReference)
+                .WithMany()
+                .HasForeignKey(visualAsset => visualAsset.ExternalFileReferenceId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Release>(entity =>

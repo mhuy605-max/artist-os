@@ -66,6 +66,41 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
+export interface DriveWorkspaceFolder {
+  name: string;
+  externalId: string;
+  resourceType: string;
+}
+
+export interface DriveWorkspaceFolders {
+  audio?: DriveWorkspaceFolder | null;
+  visuals?: DriveWorkspaceFolder | null;
+  release?: DriveWorkspaceFolder | null;
+  content?: DriveWorkspaceFolder | null;
+}
+
+export interface DriveWorkspace {
+  isProvisioned: boolean;
+  googleDriveStatus?: string | null;
+  rootFolder?: DriveWorkspaceFolder | null;
+  songsFolder?: DriveWorkspaceFolder | null;
+  songFolder?: DriveWorkspaceFolder | null;
+  folders: DriveWorkspaceFolders;
+}
+
+export interface ExternalFileReference {
+  id: string | number;
+  provider: string;
+  resourceType: string;
+  isFolder: boolean;
+  displayName: string;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  webViewLink?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface LoginPayload {
   email: string;
   password: string;
@@ -112,6 +147,7 @@ export interface AudioAsset {
   fileSizeBytes?: number | null;
   uploadedAt: string;
   isCurrent: boolean;
+  linkedFile?: ExternalFileReference | null;
 }
 
 export interface AudioAssetPayload {
@@ -175,6 +211,7 @@ export interface VisualAsset {
   fileSizeBytes?: number | null;
   uploadedAt: string;
   isCurrent: boolean;
+  linkedFile?: ExternalFileReference | null;
 }
 
 export interface VisualAssetPayload {

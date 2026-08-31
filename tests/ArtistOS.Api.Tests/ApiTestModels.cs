@@ -54,6 +54,8 @@ public sealed class AudioAssetResponse
     public DateTime UploadedAt { get; set; }
 
     public bool IsCurrent { get; set; }
+
+    public ExternalFileReferenceResponse? LinkedFile { get; set; }
 }
 
 public sealed class VisualAssetResponse
@@ -79,6 +81,31 @@ public sealed class VisualAssetResponse
     public DateTime UploadedAt { get; set; }
 
     public bool IsCurrent { get; set; }
+
+    public ExternalFileReferenceResponse? LinkedFile { get; set; }
+}
+
+public sealed class ExternalFileReferenceResponse
+{
+    public int Id { get; set; }
+
+    public string Provider { get; set; } = string.Empty;
+
+    public string ResourceType { get; set; } = string.Empty;
+
+    public bool IsFolder { get; set; }
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    public string? MimeType { get; set; }
+
+    public long? SizeBytes { get; set; }
+
+    public string? WebViewLink { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
 }
 
 public sealed class ReleaseResponse
@@ -344,4 +371,39 @@ public sealed class DashboardActivityItemResponse
     public DateTime OccurredAt { get; set; }
 
     public string NavigationTarget { get; set; } = string.Empty;
+}
+
+public sealed class DriveWorkspaceResponse
+{
+    public bool IsProvisioned { get; set; }
+
+    public string? GoogleDriveStatus { get; set; }
+
+    public DriveWorkspaceFolderResponse? RootFolder { get; set; }
+
+    public DriveWorkspaceFolderResponse? SongsFolder { get; set; }
+
+    public DriveWorkspaceFolderResponse? SongFolder { get; set; }
+
+    public DriveWorkspaceFoldersResponse Folders { get; set; } = new();
+}
+
+public sealed class DriveWorkspaceFoldersResponse
+{
+    public DriveWorkspaceFolderResponse? Audio { get; set; }
+
+    public DriveWorkspaceFolderResponse? Visuals { get; set; }
+
+    public DriveWorkspaceFolderResponse? Release { get; set; }
+
+    public DriveWorkspaceFolderResponse? Content { get; set; }
+}
+
+public sealed class DriveWorkspaceFolderResponse
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string ExternalId { get; set; } = string.Empty;
+
+    public string ResourceType { get; set; } = string.Empty;
 }

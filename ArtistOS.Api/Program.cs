@@ -1,9 +1,11 @@
 using ArtistOS.Api.Data;
+using ArtistOS.Api.Integrations.GoogleDrive;
 using ArtistOS.Api.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using ArtistOS.Api.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -14,6 +16,11 @@ const string LocalFrontendCorsPolicy = "LocalFrontend";
 
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = GoogleDriveUploadLimits.RequestBodyMaxBytes;
+});
+
 // Add PostgreSQL + EF Core
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
@@ -23,6 +30,18 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<PasswordHasher<User>>();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddDataProtection();
+builder.Services.Configure<GoogleDriveOptions>(builder.Configuration.GetSection("GoogleDrive"));
+builder.Services.AddScoped<GoogleDriveOAuthStateProtector>();
+builder.Services.AddScoped<GoogleDriveConnectionService>();
+builder.Services.AddScoped<IGoogleDriveOAuthClient, GoogleDriveOAuthClient>();
+builder.Services.AddScoped<IGoogleDriveApiClient, GoogleDriveApiClient>();
+builder.Services.AddScoped<GoogleDriveWorkspaceService>();
+builder.Services.AddScoped<GoogleDriveAssetUploadService>();
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = GoogleDriveUploadLimits.RequestBodyMaxBytes;
+});
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

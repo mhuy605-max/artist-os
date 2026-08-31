@@ -31,12 +31,19 @@ export class ApiUnreachableError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   const accessToken = getAccessToken();
+  const headers: Record<string, string> = {};
+  if (init?.body === undefined || !(init.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       headers: {
-        "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...headers,
         ...(init?.headers ?? {}),
       },
     });
@@ -64,5 +71,6 @@ export const http = {
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+  form: <T>(path: string, body: FormData) => request<T>(path, { method: "POST", body }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };

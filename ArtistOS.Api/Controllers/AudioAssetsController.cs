@@ -1,5 +1,6 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
+using ArtistOS.Api.Integrations.GoogleDrive;
 using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -14,10 +15,14 @@ namespace ArtistOS.Api.Controllers;
 public class AudioAssetsController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly GoogleDriveAssetUploadService _uploadService;
 
-    public AudioAssetsController(AppDbContext context)
+    public AudioAssetsController(
+        AppDbContext context,
+        GoogleDriveAssetUploadService uploadService)
     {
         _context = context;
+        _uploadService = uploadService;
     }
 
     [HttpGet]
@@ -29,27 +34,19 @@ public class AudioAssetsController : ControllerBase
             return NotFound();
         }
 
-        return await _context.AudioAssets
+        var audioAssets = await _context.AudioAssets
             .AsNoTracking()
+            .Include(audioAsset => audioAsset.ExternalFileReference)
             .Where(audioAsset => audioAsset.SongId == songId)
             .OrderBy(audioAsset => audioAsset.Type)
             .ThenByDescending(audioAsset => audioAsset.IsCurrent)
             .ThenByDescending(audioAsset => audioAsset.Version)
             .ThenByDescending(audioAsset => audioAsset.UploadedAt)
-            .Select(audioAsset => new AudioAssetResponse
-            {
-                Id = audioAsset.Id,
-                SongId = audioAsset.SongId,
-                Type = audioAsset.Type,
-                FileName = audioAsset.FileName,
-                Version = audioAsset.Version,
-                Status = audioAsset.Status,
-                DurationSeconds = audioAsset.DurationSeconds,
-                FileSizeBytes = audioAsset.FileSizeBytes,
-                UploadedAt = audioAsset.UploadedAt,
-                IsCurrent = audioAsset.IsCurrent
-            })
             .ToListAsync();
+
+        return audioAssets
+            .Select(AssetFileResponseMapper.ToAudioAssetResponse)
+            .ToList();
     }
 
     [HttpGet("{audioAssetId:int}")]
@@ -63,6 +60,7 @@ public class AudioAssetsController : ControllerBase
 
         var audioAsset = await _context.AudioAssets
             .AsNoTracking()
+            .Include(audioAsset => audioAsset.ExternalFileReference)
             .FirstOrDefaultAsync(audioAsset =>
                 audioAsset.SongId == songId &&
                 audioAsset.Id == audioAssetId &&
@@ -73,7 +71,7 @@ public class AudioAssetsController : ControllerBase
             return NotFound();
         }
 
-        return ToResponse(audioAsset);
+        return AssetFileResponseMapper.ToAudioAssetResponse(audioAsset);
     }
 
     [HttpPost]
@@ -106,7 +104,7 @@ public class AudioAssetsController : ControllerBase
         return CreatedAtAction(
             nameof(GetAudioAsset),
             new { songId, audioAssetId = audioAsset.Id },
-            ToResponse(audioAsset));
+            AssetFileResponseMapper.ToAudioAssetResponse(audioAsset));
     }
 
     [HttpPut("{audioAssetId:int}")]
@@ -171,26 +169,63 @@ public class AudioAssetsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{audioAssetId:int}/upload")]
+    [RequestSizeLimit(GoogleDriveUploadLimits.RequestBodyMaxBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = GoogleDriveUploadLimits.RequestBodyMaxBytes)]
+    public async Task<ActionResult<AudioAssetResponse>> UploadAudioAssetFile(
+        int songId,
+        int audioAssetId,
+        [FromForm] IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await _uploadService.UploadAudioAssetAsync(
+            currentUserId.Value,
+            songId,
+            audioAssetId,
+            file,
+            cancellationToken);
+
+        return ToAudioUploadActionResult(result);
+    }
+
     private async Task<bool> UserOwnsSong(int songId, int? userId)
     {
         return userId is not null &&
             await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
-    private static AudioAssetResponse ToResponse(AudioAsset audioAsset)
+    private ActionResult<AudioAssetResponse> ToAudioUploadActionResult(
+        GoogleDriveAssetUploadResult result)
     {
-        return new AudioAssetResponse
+        return result.Status switch
         {
-            Id = audioAsset.Id,
-            SongId = audioAsset.SongId,
-            Type = audioAsset.Type,
-            FileName = audioAsset.FileName,
-            Version = audioAsset.Version,
-            Status = audioAsset.Status,
-            DurationSeconds = audioAsset.DurationSeconds,
-            FileSizeBytes = audioAsset.FileSizeBytes,
-            UploadedAt = audioAsset.UploadedAt,
-            IsCurrent = audioAsset.IsCurrent
+            GoogleDriveAssetUploadStatus.Success => result.AudioAsset!,
+            GoogleDriveAssetUploadStatus.AssetNotFound => NotFound(),
+            GoogleDriveAssetUploadStatus.InvalidFile => BadRequest(new { error = result.Detail }),
+            GoogleDriveAssetUploadStatus.UnsupportedFileType => BadRequest(new { error = result.Detail }),
+            GoogleDriveAssetUploadStatus.FileTooLarge => BadRequest(new { error = result.Detail }),
+            GoogleDriveAssetUploadStatus.AlreadyLinked => Conflict(new { error = result.Detail }),
+            GoogleDriveAssetUploadStatus.GoogleDriveNotConnected => Problem(
+                title: "Google Drive is not connected.",
+                statusCode: StatusCodes.Status409Conflict),
+            GoogleDriveAssetUploadStatus.GoogleDriveReauthRequired => Problem(
+                title: "Google Drive authorization needs to be refreshed.",
+                statusCode: StatusCodes.Status409Conflict),
+            GoogleDriveAssetUploadStatus.WorkspaceUnavailable => Problem(
+                title: "Google Drive workspace is unavailable.",
+                statusCode: StatusCodes.Status502BadGateway),
+            GoogleDriveAssetUploadStatus.GoogleDriveUnavailable => Problem(
+                title: "Google Drive upload failed.",
+                statusCode: StatusCodes.Status502BadGateway),
+            _ => Problem(
+                title: "Uploaded file could not be saved in Artist OS.",
+                statusCode: StatusCodes.Status500InternalServerError)
         };
     }
 

@@ -29,4 +29,6 @@ public class Song
     public ICollection<Credit> Credits { get; set; } = [];
 
     public ICollection<AnalyticsSnapshot> AnalyticsSnapshots { get; set; } = [];
+
+    public ICollection<ExternalFileReference> ExternalFileReferences { get; set; } = [];
 }
