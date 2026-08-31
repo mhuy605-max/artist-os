@@ -1,8 +1,13 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using ArtistOS.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 
 namespace ArtistOS.Api.Tests;
 
@@ -22,18 +27,21 @@ public class AuthApiTests
         });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        Assert.True(response.Headers.TryGetValues("Set-Cookie", out var cookies));
-        Assert.Contains(cookies, cookie => cookie.Contains("artist_os_session"));
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
 
-        var user = await response.Content.ReadFromJsonAsync<AuthUserResponse>();
-        Assert.NotNull(user);
-        Assert.True(user.Id > 0);
-        Assert.Equal("Artist@Example.com", user.Email);
-        Assert.Equal("Artist One", user.DisplayName);
+        var auth = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.NotNull(auth);
+        Assert.NotEmpty(auth.AccessToken);
+        Assert.Equal("Bearer", auth.TokenType);
+        Assert.True(auth.ExpiresAt > DateTime.UtcNow);
+        Assert.True(auth.User.Id > 0);
+        Assert.Equal("Artist@Example.com", auth.User.Email);
+        Assert.Equal("Artist One", auth.User.DisplayName);
 
         var body = await response.Content.ReadAsStringAsync();
         Assert.DoesNotContain("password", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("passwordHash", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(ArtistOsApiFactory.TestJwtSigningKey, body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -98,12 +106,13 @@ public class AuthApiTests
         });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(response.Headers.TryGetValues("Set-Cookie", out var cookies));
-        Assert.Contains(cookies, cookie => cookie.Contains("artist_os_session"));
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
 
-        var user = await response.Content.ReadFromJsonAsync<AuthUserResponse>();
-        Assert.NotNull(user);
-        Assert.Equal("artist@example.com", user.Email);
+        var auth = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.NotNull(auth);
+        Assert.NotEmpty(auth.AccessToken);
+        Assert.Equal("Bearer", auth.TokenType);
+        Assert.Equal("artist@example.com", auth.User.Email);
     }
 
     [Fact]
@@ -164,7 +173,7 @@ public class AuthApiTests
     }
 
     [Fact]
-    public async Task Logout_WhenAuthenticated_ClearsSession()
+    public async Task Logout_WhenAuthenticated_ReturnsNoContentWithoutRevokingJwt()
     {
         await using var factory = new ArtistOsApiFactory();
         using var client = factory.CreateClient();
@@ -173,11 +182,36 @@ public class AuthApiTests
         var response = await client.PostAsync("/api/auth/logout", null);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.True(response.Headers.TryGetValues("Set-Cookie", out var cookies));
-        Assert.Contains(cookies, cookie => cookie.Contains("artist_os_session") && cookie.Contains("expires=", StringComparison.OrdinalIgnoreCase));
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
 
         var meResponse = await client.GetAsync("/api/auth/me");
-        Assert.Equal(HttpStatusCode.Unauthorized, meResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, meResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Me_WithMalformedToken_ReturnsUnauthorized()
+    {
+        await using var factory = new ArtistOsApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "not-a-valid-jwt");
+
+        var response = await client.GetAsync("/api/auth/me");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Me_WithExpiredToken_ReturnsUnauthorized()
+    {
+        await using var factory = new ArtistOsApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", CreateExpiredToken(123));
+
+        var response = await client.GetAsync("/api/auth/me");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
@@ -245,6 +279,28 @@ public class AuthApiTests
         });
 
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<AuthUserResponse>())!;
+        var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
+        TestAuth.UseBearerToken(client, auth.AccessToken);
+        return auth.User;
+    }
+
+    private static string CreateExpiredToken(int userId)
+    {
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ArtistOsApiFactory.TestJwtSigningKey));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var now = DateTime.UtcNow;
+        var token = new JwtSecurityToken(
+            issuer: "ArtistOS.Api.Tests",
+            audience: "ArtistOS.Tests",
+            claims:
+            [
+                new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+                new Claim(JwtRegisteredClaimNames.Email, "expired@example.com")
+            ],
+            notBefore: now.AddMinutes(-30),
+            expires: now.AddMinutes(-20),
+            signingCredentials: credentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }

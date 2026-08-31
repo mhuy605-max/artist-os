@@ -22,6 +22,17 @@ public sealed class AuthUserResponse
     public string? DisplayName { get; set; }
 }
 
+public sealed class AuthResponse
+{
+    public string AccessToken { get; set; } = string.Empty;
+
+    public string TokenType { get; set; } = string.Empty;
+
+    public DateTime ExpiresAt { get; set; }
+
+    public AuthUserResponse User { get; set; } = new();
+}
+
 public sealed class AudioAssetResponse
 {
     public int Id { get; set; }

@@ -1,9 +1,9 @@
 using System.Security.Claims;
+using ArtistOS.Api.Auth;
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using ArtistOS.Api.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,15 +17,20 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly PasswordHasher<User> _passwordHasher;
+    private readonly JwtTokenService _jwtTokenService;
 
-    public AuthController(AppDbContext context, PasswordHasher<User> passwordHasher)
+    public AuthController(
+        AppDbContext context,
+        PasswordHasher<User> passwordHasher,
+        JwtTokenService jwtTokenService)
     {
         _context = context;
         _passwordHasher = passwordHasher;
+        _jwtTokenService = jwtTokenService;
     }
 
     [HttpPost("register")]
-    public async Task<ActionResult<AuthUserResponse>> Register(RegisterRequest request)
+    public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request)
     {
         var email = request.Email.Trim();
         var normalizedEmail = NormalizeEmail(email);
@@ -50,13 +55,12 @@ public class AuthController : ControllerBase
 
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
-        await SignInUser(user);
 
-        return CreatedAtAction(nameof(Me), ToResponse(user));
+        return CreatedAtAction(nameof(Me), ToAuthResponse(user));
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<AuthUserResponse>> Login(LoginRequest request)
+    public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {
         var normalizedEmail = NormalizeEmail(request.Email);
         var user = await _context.Users.FirstOrDefaultAsync(user =>
@@ -73,16 +77,13 @@ public class AuthController : ControllerBase
             return Unauthorized("Invalid email or password.");
         }
 
-        await SignInUser(user);
-
-        return ToResponse(user);
+        return ToAuthResponse(user);
     }
 
     [Authorize]
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout()
+    public IActionResult Logout()
     {
-        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return NoContent();
     }
 
@@ -90,7 +91,7 @@ public class AuthController : ControllerBase
     [HttpGet("me")]
     public async Task<ActionResult<AuthUserResponse>> Me()
     {
-        var userId = CurrentUserId();
+        var userId = User.GetUserId();
         if (userId is null)
         {
             return Unauthorized();
@@ -101,33 +102,6 @@ public class AuthController : ControllerBase
             .FirstOrDefaultAsync(user => user.Id == userId.Value);
 
         return user is null ? Unauthorized() : ToResponse(user);
-    }
-
-    private async Task SignInUser(User user)
-    {
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Email, user.Email)
-        };
-
-        if (!string.IsNullOrWhiteSpace(user.DisplayName))
-        {
-            claims.Add(new Claim(ClaimTypes.Name, user.DisplayName));
-        }
-
-        var identity = new ClaimsIdentity(
-            claims,
-            CookieAuthenticationDefaults.AuthenticationScheme);
-        var principal = new ClaimsPrincipal(identity);
-
-        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
-    }
-
-    private int? CurrentUserId()
-    {
-        var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return int.TryParse(id, out var userId) ? userId : null;
     }
 
     private static string NormalizeEmail(string email)
@@ -142,6 +116,19 @@ public class AuthController : ControllerBase
             Id = user.Id,
             Email = user.Email,
             DisplayName = user.DisplayName
+        };
+    }
+
+    private AuthResponse ToAuthResponse(User user)
+    {
+        var token = _jwtTokenService.CreateAccessToken(user);
+
+        return new AuthResponse
+        {
+            AccessToken = token.AccessToken,
+            TokenType = "Bearer",
+            ExpiresAt = token.ExpiresAt,
+            User = ToResponse(user)
         };
     }
 }

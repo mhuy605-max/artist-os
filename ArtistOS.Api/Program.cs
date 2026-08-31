@@ -1,12 +1,18 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Models;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
+using ArtistOS.Api.Auth;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
 const string LocalFrontendCorsPolicy = "LocalFrontend";
+
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
 // Add PostgreSQL + EF Core
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -15,24 +21,34 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     ));
 
 builder.Services.AddScoped<PasswordHasher<User>>();
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+builder.Services.AddScoped<JwtTokenService>();
 
 builder.Services
-    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        options.Cookie.Name = "artist_os_session";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-        options.Events.OnRedirectToLogin = context =>
+        var jwtOptions = builder.Configuration
+            .GetSection("Jwt")
+            .Get<JwtOptions>() ?? new JwtOptions();
+
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return Task.CompletedTask;
-        };
-        options.Events.OnRedirectToAccessDenied = context =>
-        {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            return Task.CompletedTask;
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwtOptions.Audience,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            IssuerSigningKeyResolver = (_, _, _, _) =>
+            {
+                var signingKey = builder.Configuration["Jwt:SigningKey"];
+                return string.IsNullOrWhiteSpace(signingKey)
+                    ? []
+                    : [new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey))];
+            }
         };
     });
 
@@ -45,8 +61,7 @@ if (builder.Environment.IsDevelopment())
             policy
                 .WithOrigins("http://localhost:8080")
                 .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .AllowAnyHeader()
-                .AllowCredentials();
+                .AllowAnyHeader();
         });
     });
 }

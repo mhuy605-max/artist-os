@@ -4,6 +4,8 @@
  *
  * Base URL is configurable via VITE_API_BASE_URL.
  */
+import { clearAccessToken, getAccessToken } from "./authToken";
+
 export const API_BASE_URL =
   (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "http://localhost:5178";
 
@@ -28,12 +30,13 @@ export class ApiUnreachableError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
+  const accessToken = getAccessToken();
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
-      credentials: "include",
       headers: {
         "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...(init?.headers ?? {}),
       },
     });
@@ -43,6 +46,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     if (response.status === 401 && typeof window !== "undefined") {
+      clearAccessToken();
       window.dispatchEvent(new Event(unauthorizedEventName));
     }
 

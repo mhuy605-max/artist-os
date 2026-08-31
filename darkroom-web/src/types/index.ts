@@ -59,6 +59,13 @@ export interface AuthUser {
   displayName?: string | null;
 }
 
+export interface AuthResponse {
+  accessToken: string;
+  tokenType: "Bearer";
+  expiresAt: string;
+  user: AuthUser;
+}
+
 export interface LoginPayload {
   email: string;
   password: string;

@@ -18,6 +18,7 @@ import { LoadingState } from "@/components/darkroom/Primitives";
 import { cn } from "@/lib/utils";
 import { authApi, authQueryKey } from "@/services/api/auth";
 import { unauthorizedEventName } from "@/services/api/client";
+import { clearAccessToken } from "@/services/api/authToken";
 
 const primaryNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -115,6 +116,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const logout = useMutation({
     mutationFn: authApi.logout,
     onSettled: () => {
+      clearAccessToken();
       queryClient.removeQueries({ queryKey: authQueryKey });
       navigate({ to: "/login" });
     },
@@ -122,6 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function handleUnauthorized() {
+      clearAccessToken();
       queryClient.removeQueries({ queryKey: authQueryKey });
       navigate({ to: "/login" });
     }

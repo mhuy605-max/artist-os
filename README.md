@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Backend Resource Ownership Enforcement
+Cookie Auth -> JWT Bearer Auth Migration
 ```
 
 Implemented and verified:
@@ -44,7 +44,8 @@ Implemented and verified:
 - Development CORS for the local frontend
 - User authentication API with register, login, logout, and current-session endpoints
 - Secure password hashing through ASP.NET Core Identity's `PasswordHasher<TUser>`
-- Backend-issued HttpOnly cookie session for local frontend/backend development
+- JWT Bearer authentication for local frontend/backend development
+- Short-lived JWT access tokens returned from login and registration
 - `User` model and nullable Song ownership field
 - Backend resource ownership enforcement for Songs, nested Song workspace resources, Calendar, and Dashboard
 - Two-user ownership checks for cross-user `404` behavior and legacy unowned Song invisibility
@@ -129,7 +130,7 @@ The `/` route redirects to `/dashboard`.
 
 Authentication, Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, the Calendar aggregate, and the Dashboard aggregate are connected to the ASP.NET Core backend.
 
-The frontend uses a backend-issued HttpOnly cookie session. API requests include credentials so the ASP.NET Core backend can identify the current user.
+The frontend sends `Authorization: Bearer <access_token>` on authenticated API requests so the ASP.NET Core backend can identify the current user from validated JWT claims.
 
 Existing Song workspace, Calendar, and Dashboard backend endpoints require an authenticated session. Normal users only receive data owned by their own account. Missing resources, cross-user resources, and legacy unowned Songs return `404 Not Found`; unauthenticated requests return `401 Unauthorized`.
 
@@ -167,7 +168,7 @@ The read-only Dashboard aggregate works against:
 http://localhost:5178/api/dashboard
 ```
 
-The Song workspace loads real Song data by id for the current user. New Songs created while signed in receive the current user's `OwnerUserId` from the backend; the client does not send ownership. The Audio tab loads and writes real AudioAsset metadata for the selected owned Song. The Visuals tab loads and writes real VisualAsset metadata for the selected owned Song. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected owned Song. The Content tab loads and writes real ContentItem metadata for the selected owned Song. The Credits tab loads and writes real Credit metadata for the selected owned Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected owned Song. The Calendar route reads the current user's Release and ContentItem dates from the backend and links entries back to the Song workspace. The Dashboard route reads real user-scoped aggregate data from the backend. Local CORS is configured for frontend development from:
+The Song workspace loads real Song data by id for the current user. New Songs created while signed in receive the current user's `OwnerUserId` from the backend; the client does not send ownership. The Audio tab loads and writes real AudioAsset metadata for the selected owned Song. The Visuals tab loads and writes real VisualAsset metadata for the selected owned Song. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected owned Song. The Content tab loads and writes real ContentItem metadata for the selected owned Song. The Credits tab loads and writes real Credit metadata for the selected owned Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected owned Song. The Calendar route reads the current user's Release and ContentItem dates from the backend and links entries back to the Song workspace. The Dashboard route reads real user-scoped aggregate data from the backend. The frontend stores the current access token in `sessionStorage`, so refresh works within the browser session; invalid/expired tokens and logout clear that token. Local CORS is configured for frontend development from:
 
 ```text
 http://localhost:8080
@@ -197,9 +198,9 @@ The backend supports minimal first-party authentication for local Artist OS user
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `POST` | `/api/auth/register` | Create a user, hash the password, issue a session cookie, and return a safe user response. |
-| `POST` | `/api/auth/login` | Verify credentials, issue a session cookie, and return a safe user response. |
-| `POST` | `/api/auth/logout` | Clear the current session cookie. Requires an authenticated session. |
+| `POST` | `/api/auth/register` | Create a user, hash the password, and return a JWT auth response. |
+| `POST` | `/api/auth/login` | Verify credentials and return a JWT auth response. |
+| `POST` | `/api/auth/logout` | Return success so the frontend can clear its token. Does not revoke an already-issued JWT. |
 | `GET` | `/api/auth/me` | Return the current authenticated user without password/hash fields. |
 
 Current `User` shape:
@@ -219,6 +220,23 @@ public class User
 ```
 
 `PasswordHash` is stored only in the database model and is not returned by auth responses.
+
+Successful login/register responses use this shape:
+
+```json
+{
+  "accessToken": "<jwt>",
+  "tokenType": "Bearer",
+  "expiresAt": "2026-08-31T12:00:00Z",
+  "user": {
+    "id": 1,
+    "email": "artist@example.com",
+    "displayName": "Artist"
+  }
+}
+```
+
+Current access tokens use `sub` for the stable `User.Id`, expire after 20 minutes, and are stored by the frontend in `sessionStorage`. Refresh tokens and server-side JWT revocation are not implemented yet.
 
 ## Current Features
 
@@ -727,6 +745,7 @@ Current backend packages:
 | Package | Version |
 | --- | --- |
 | `Microsoft.AspNetCore.OpenApi` | `10.0.11` |
+| `Microsoft.AspNetCore.Authentication.JwtBearer` | `10.0.11` |
 | `Microsoft.EntityFrameworkCore.Design` | `10.0.11` |
 | `Npgsql.EntityFrameworkCore.PostgreSQL` | `10.0.3` |
 
@@ -776,7 +795,7 @@ These are local development URLs, not production deployment URLs.
 
 ## API
 
-All endpoints below, except `POST /api/auth/register` and `POST /api/auth/login`, require the backend session cookie. Song-scoped endpoints only return data owned by the current user.
+All endpoints below, except `POST /api/auth/register` and `POST /api/auth/login`, require a valid JWT Bearer token. Song-scoped endpoints only return data owned by the current user.
 
 Song endpoints:
 
@@ -990,6 +1009,14 @@ dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Po
 
 Replace `YOUR_PASSWORD` with your local PostgreSQL password.
 
+Configure the local JWT signing key with User Secrets too:
+
+```bash
+dotnet user-secrets set "Jwt:SigningKey" "YOUR_LONG_DEVELOPMENT_SIGNING_KEY"
+```
+
+Use a long random development value. Do not commit the signing key or expose it to the React frontend.
+
 ### 4. Apply EF Core Migrations
 
 ```bash
@@ -1117,7 +1144,7 @@ Large media files such as WAV, MP3, stems, artwork, and video files should not b
 - [x] Calendar aggregate API
 - [x] Dashboard aggregate API
 - [x] User authentication model and migration
-- [x] Cookie-based auth API
+- [x] JWT Bearer auth API
 - [x] Backend resource ownership enforcement
 - [x] Local frontend development CORS
 - [x] Automated backend tests

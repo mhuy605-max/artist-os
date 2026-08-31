@@ -4,9 +4,9 @@ Last updated: 2026-08-31
 
 ## Current Phase
 
-Backend Resource Ownership Enforcement.
+Cookie Auth -> JWT Bearer Auth Migration.
 
-Current focus: Artist OS now enforces authenticated, user-scoped access for Songs, nested Song workspace resources, Calendar, and Dashboard. The current user's backend session is the ownership boundary. Team permissions, password recovery, external OAuth, Google Drive, YouTube, publishing, file handling, and production deployment remain future work.
+Current focus: Artist OS now uses ASP.NET Core JWT Bearer authentication for frontend/backend API authentication. Existing user-scoped authorization remains unchanged: the current authenticated `User.Id` owns Songs, nested Song workspace resources, Calendar entries, and Dashboard aggregates. Team permissions, refresh-token rotation, password recovery, external OAuth, Google Drive, YouTube, publishing, file handling, and production deployment remain future work.
 
 ## Completed
 
@@ -130,11 +130,12 @@ Current focus: Artist OS now enforces authenticated, user-scoped access for Song
 - User authentication DTOs created.
 - Authentication API implemented at `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, and `GET /api/auth/me`.
 - Passwords are hashed with ASP.NET Core Identity's `PasswordHasher<TUser>`.
-- Backend-issued HttpOnly cookie sessions are configured for the local React frontend.
-- Local frontend CORS now allows credentials from `http://localhost:8080`.
+- ASP.NET Core JWT Bearer authentication configured for local frontend/backend development.
+- Login and registration return short-lived signed JWT access tokens plus safe user metadata.
+- Local frontend CORS allows `Authorization: Bearer` requests from `http://localhost:8080`.
 - `Song.OwnerUserId` and `Song.OwnerUser` added as nullable ownership fields for backward-compatible existing data.
 - New Songs created while authenticated receive owner assignment from the current backend session.
-- The frontend API client sends credentials with backend requests.
+- The frontend stores the JWT access token in `sessionStorage` and the shared API client sends it in the `Authorization` header.
 - Login/register UI now uses the real authentication API.
 - Dashboard, Songs, Song workspace, Calendar, Team, and Settings routes are protected by the authenticated frontend app shell.
 - Authenticated session restore, logout, invalid credentials handling, Song creation, Song workspace load, and Song owner assignment were verified in a real browser.
@@ -148,6 +149,8 @@ Current focus: Artist OS now enforces authenticated, user-scoped access for Song
 - Frontend API client dispatches a centralized unauthorized event on backend `401` responses, and the app shell redirects back to `/login`.
 - Backend ownership behavior is covered by automated two-user integration-style tests, including legacy unowned Song invisibility.
 - Browser-based two-user ownership verification confirmed that each user can only see their own Song data and receives `404` for the other user's Song and nested routes.
+- Cookie authentication transport was removed from backend runtime code.
+- JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 
 ## Current Implementation
 
@@ -211,7 +214,7 @@ DELETE
 OPTIONS
 ```
 
-Credentialed local requests are allowed so the frontend can send the auth cookie.
+The `Authorization` header is allowed for local JWT Bearer requests. Credentialed CORS cookies are no longer required by Artist OS authentication.
 
 Current frontend architecture:
 
@@ -263,9 +266,21 @@ POST   /api/auth/logout
 GET    /api/auth/me
 ```
 
-Auth uses a backend-issued HttpOnly cookie session. Frontend API requests include credentials, and auth responses return a safe user shape without password or password hash fields.
+Auth uses short-lived JWT Bearer access tokens. Login and registration responses return an access token, token type, expiration timestamp, and safe user shape without password or password hash fields.
 
 All existing Song workspace data endpoints now require an authenticated session. Normal authenticated users only see resources owned by their own `User.Id`. Legacy rows with `OwnerUserId = null` remain unowned and are invisible through normal authenticated APIs.
+
+Current JWT details:
+
+- Issuer: `ArtistOS.Api`
+- Audience: `ArtistOS.DarkroomWeb`
+- Access token lifetime: `20` minutes
+- Clock skew: `30` seconds
+- User id claim: `sub`
+- Optional non-secret claim: email
+- Signing key source: .NET User Secrets, environment variables, or test host configuration
+- Refresh tokens: not implemented
+- Logout semantics: frontend token cleanup only; no server-side JWT revocation
 
 The frontend uses the real backend for Song CRUD:
 
@@ -362,7 +377,9 @@ Current frontend API base URL behavior:
 - `VITE_API_BASE_URL` controls the backend URL.
 - Default frontend fallback value is `http://localhost:5178`.
 - `darkroom-web/.env.example` documents `VITE_API_BASE_URL=http://localhost:5178`.
-- Auth requests use `credentials: "include"` so browser sessions work across the local frontend and backend ports.
+- Authenticated requests use `Authorization: Bearer <access_token>`.
+- The frontend stores the access token in `sessionStorage` under `artist-os.access-token`.
+- The token survives browser refresh in the same tab/session, but is cleared by sign out, invalid/expired-token handling, and closing the browser session.
 - New Songs created while authenticated are assigned `OwnerUserId` by the backend from the current session.
 - The frontend does not send `OwnerUserId` when creating or updating Songs.
 - `401 Unauthorized` from the backend triggers a centralized frontend auth event and returns the user to `/login`.
@@ -1406,6 +1423,7 @@ Frontend expected API behavior:
 - Protected backend endpoints return `401 Unauthorized` when no authenticated session exists.
 - Missing, unowned, cross-user, and legacy-unowned Song-scoped resources return `404 Not Found`.
 - Dashboard and Calendar aggregates are filtered to the current authenticated user.
+- Expired, missing, malformed, or invalid JWT access tokens return `401 Unauthorized`.
 
 No custom global backend exception handling has been added yet.
 
@@ -1422,8 +1440,8 @@ Automated tests:
 - Frontend tests use Vitest with jsdom and a shared setup file.
 - Frontend component tests use a fresh TanStack Query `QueryClient` per render with retries disabled.
 - Frontend tests mock API services such as `authApi`, `dashboardApi`, and `songsApi` instead of depending on ASP.NET, PostgreSQL, localhost, or network availability.
-- Frontend automated test foundation currently has 19 focused tests.
-- Auth API behavior has automated integration-style coverage for registration, duplicate email, login, invalid credentials, current session, logout, password hash safety, and unauthenticated access.
+- Frontend automated test foundation currently has 26 focused tests.
+- Auth API behavior has automated integration-style coverage for registration, duplicate email, login, invalid credentials, current JWT, logout semantics, password hash safety, malformed tokens, expired tokens, and unauthenticated access.
 - Song owner assignment has automated integration-style coverage for authenticated creates and spoofed owner rejection.
 - Resource ownership has automated integration-style coverage for unauthenticated `401`, cross-user `404`, nested Song resource scoping, Calendar/Dashboard scoping, and legacy unowned Song invisibility.
 - Song API behavior has both automated test coverage and earlier pragmatic manual HTTP verification.
@@ -1438,7 +1456,7 @@ Automated tests:
 - Dashboard aggregate API behavior has both automated test coverage and pragmatic browser verification.
 - Authentication/session behavior has both automated test coverage and pragmatic browser verification.
 
-Verification run during the latest Backend Resource Ownership Enforcement milestone:
+Verification run during the latest Cookie Auth -> JWT Bearer Auth Migration milestone:
 
 ```text
 npm ci
@@ -1456,12 +1474,12 @@ Results:
 ```text
 npm ci: succeeded, 0 vulnerabilities.
 npm run lint: completed with 0 errors and 8 warnings.
-npm run test: succeeded, 19 passed, 0 failed, 0 skipped.
+npm run test: succeeded, 26 passed, 0 failed, 0 skipped.
 npm run build: succeeded.
 dotnet build: succeeded, 0 warnings, 0 errors.
-dotnet test: succeeded, 200 passed, 0 failed, 0 skipped.
-dotnet ef migrations list: succeeded; AddUserAuthenticationFoundation is listed as applied and no new ownership migration was created.
-Browser two-user ownership check: completed with a named Playwright CLI session. Verified User A and User B can each see their own Song data, cannot access the other user's Song or nested audio route, and receive `404 Not Found` for cross-user access. Console entries were the expected `401`/`404` probe responses, with no CORS failure observed.
+dotnet test: succeeded, 202 passed, 0 failed, 0 skipped.
+dotnet ef migrations list: succeeded; AddUserAuthenticationFoundation is listed as applied and no new JWT migration was created.
+Browser two-user ownership check: completed with a named Playwright CLI session. Verified User A and User B receive different JWTs, `/auth/me` succeeds with valid Bearer tokens, each user can see only their own Song data, Dashboard and Calendar are scoped per user, cross-user Song and nested audio access return `404 Not Found`, missing/invalid tokens return `401 Unauthorized`, logout clears the frontend token, and refresh restores the app from the valid `sessionStorage` token.
 ```
 
 Automated frontend coverage now includes:
@@ -1484,6 +1502,11 @@ Automated frontend coverage now includes:
 - Protected route redirect when `/api/auth/me` returns `401`.
 - Global unauthorized API event redirects the app shell back to `/login`.
 - Logout action.
+- JWT login response storage in `sessionStorage`.
+- Shared API client Bearer header attachment.
+- Stored-token session restore through backend `/api/auth/me`.
+- Invalid-token clearing on `401`.
+- Frontend token clearing during logout.
 
 Automated backend coverage now includes:
 
@@ -1745,7 +1768,11 @@ Latest browser Dashboard checks confirmed:
 - `darkroom-web/.env.example` contains no secrets.
 - User passwords are hashed with ASP.NET Core Identity's `PasswordHasher<TUser>`.
 - Auth responses expose `Id`, `Email`, and `DisplayName`; they do not expose plaintext passwords or password hashes.
-- Browser sessions use a backend-issued HttpOnly cookie named `artist_os_session`.
+- Auth responses include short-lived JWT access tokens for login/register only.
+- Browser authentication state uses `sessionStorage`, not an HttpOnly cookie.
+- JWT access tokens use `sub` for stable `User.Id`, plus email and a token id.
+- JWT validation checks issuer, audience, lifetime, signature, and signing key.
+- The JWT signing key is not stored in tracked appsettings files and should be configured through .NET User Secrets or environment variables.
 - Frontend route protection is implemented for the app shell.
 - Backend resource authorization is enforced across existing Song workspace APIs, Calendar, and Dashboard.
 - `OwnerUserId` is the current backend security boundary for normal user data access.
@@ -1754,7 +1781,7 @@ Latest browser Dashboard checks confirmed:
 
 ## Git Status Notes
 
-Current AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, AnalyticsSnapshot, Calendar aggregate, Dashboard aggregate, Frontend Test Foundation, Authentication / User Ownership Foundation, and Backend Resource Ownership Enforcement work is uncommitted.
+Current AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, AnalyticsSnapshot, Calendar aggregate, Dashboard aggregate, Frontend Test Foundation, Authentication / User Ownership Foundation, Backend Resource Ownership Enforcement, and Cookie Auth -> JWT Bearer Auth Migration work is uncommitted.
 
 The frontend build generated route/output artifacts as expected. Build output remains ignored.
 
@@ -1773,8 +1800,9 @@ Remote GitHub Actions status:
 - Credit `Role` and `Status` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - AnalyticsSnapshot `Platform` values are enforced in DTO validation but still stored as strings; this is acceptable for the current stage.
 - Existing pre-auth Songs have nullable `OwnerUserId`, remain unowned, and are invisible to normal authenticated users until a future ownership/backfill decision is made.
-- Current cookie settings are appropriate for local development but need production review for HTTPS, domain, SameSite, expiration, and deployment topology.
-- Password reset, email verification, account management, refresh-token/session rotation, and rate limiting are not implemented yet.
+- JWT access tokens are stored in `sessionStorage`, which is JavaScript-accessible; future production hardening must account for XSS risk.
+- Logout does not server-revoke already-issued stateless JWT access tokens.
+- Password reset, email verification, account management, refresh-token/session rotation, revocation, and rate limiting are not implemented yet.
 - The API does not yet enforce only one current AudioAsset per Song + Type.
 - The API does not yet enforce only one current VisualAsset per Song + Type.
 - Release platforms are stored as a comma-separated string; a normalized platform table may become useful when real integrations exist.
@@ -1806,6 +1834,22 @@ Remote GitHub Actions status:
 - Dashboard notifications, saved filters, user-specific/team-specific views, and audit history.
 - Contributor directory, contracts, royalties, payment workflow, and authenticated team permissions.
 - Production deployment.
+
+## Google Drive Compatibility
+
+JWT authentication remains separate from future Google OAuth.
+
+Expected future shape:
+
+```text
+JWT authenticated DARKROOM user
+  -> User.Id
+  -> owned Songs
+  -> future IntegrationConnection
+  -> backend-managed Google Drive OAuth tokens
+```
+
+Google OAuth tokens should remain backend-managed later and must not be exposed to the React frontend or embedded into Artist OS JWT access tokens.
 
 ## Recommended Next Milestone
 
