@@ -170,14 +170,20 @@ describe("DashboardPage", () => {
 
     renderWithQueryClient(<DashboardPage />);
 
-    expect(await screen.findByText("12")).toBeInTheDocument();
-    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(await screen.findByText("Catalog state")).toBeInTheDocument();
+    expect(screen.getByText("Command Center")).toBeInTheDocument();
+    expect(
+      screen.getByText("Current portfolio overview, ordered for the next operational decision."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("12").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Active songs")).toBeInTheDocument();
     expect(screen.getByText("Upcoming releases")).toBeInTheDocument();
     expect(screen.getByText("Scheduled content")).toBeInTheDocument();
     expect(screen.getAllByText("Release Preparation").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Neon Control release")).toBeInTheDocument();
     expect(screen.getAllByText("Neon Control")[0]).toBeInTheDocument();
     expect(screen.getByText("4 / 7 complete")).toBeInTheDocument();
+    expect(screen.getByText("Stored manually. No platform sync active.")).toBeInTheDocument();
     expect(screen.getByText("24K views")).toBeInTheDocument();
     expect(screen.getByText("Release plan updated")).toBeInTheDocument();
   });
@@ -187,7 +193,8 @@ describe("DashboardPage", () => {
 
     renderWithQueryClient(<DashboardPage />);
 
-    expect(await screen.findByText("No songs yet")).toBeInTheDocument();
+    expect(await screen.findByText("No projects yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "New song" })).toHaveAttribute("href", "/songs");
     expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(4);
     expect(screen.getByText("No upcoming dates")).toBeInTheDocument();
     expect(screen.getByText("No release plans")).toBeInTheDocument();
@@ -200,7 +207,7 @@ describe("DashboardPage", () => {
 
     renderWithQueryClient(<DashboardPage />);
 
-    expect(await screen.findByText("Loading dashboard")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Loading dashboard")).toBeInTheDocument();
   });
 
   it("renders an error state and can retry the dashboard request", async () => {
@@ -214,7 +221,7 @@ describe("DashboardPage", () => {
     getDashboardMock.mockResolvedValueOnce(emptyDashboardFixture());
     await userEvent.click(retry);
 
-    expect(await screen.findByText("No songs yet")).toBeInTheDocument();
+    expect(await screen.findByText("No projects yet")).toBeInTheDocument();
     expect(getDashboardMock).toHaveBeenCalledTimes(2);
   });
 
@@ -223,7 +230,7 @@ describe("DashboardPage", () => {
 
     renderWithQueryClient(<DashboardPage />);
 
-    const upcomingPanel = await screen.findByText("Upcoming work");
+    const upcomingPanel = await screen.findByText("Next in motion");
     const panel = upcomingPanel.closest("section");
 
     expect(panel).not.toBeNull();

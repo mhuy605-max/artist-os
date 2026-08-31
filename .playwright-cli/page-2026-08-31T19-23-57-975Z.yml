@@ -1,0 +1,19 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - img "DARKROOM SYSTEM" [ref=e6]
+    - generic [ref=e7]:
+      - paragraph [ref=e8]: DARKROOM SYSTEM
+      - heading "Music workflow control room" [level=1] [ref=e9]
+      - paragraph [ref=e10]: First-party DARKROOM SYSTEM authentication backed by the ASP.NET API.
+  - generic [ref=e12]:
+    - paragraph [ref=e13]: Sign in
+    - heading "DARKROOM SYSTEM" [level=2] [ref=e14]
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - text: Email
+        - textbox "Email" [ref=e17]
+      - generic [ref=e18]:
+        - text: Password
+        - textbox "Password" [ref=e19]
+      - button "Sign in" [ref=e20] [cursor=pointer]
+      - button "Create account" [ref=e21] [cursor=pointer]

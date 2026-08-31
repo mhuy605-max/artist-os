@@ -120,6 +120,9 @@ Current focus: Google Drive upload is implemented for existing AudioAsset and Vi
 - Mock Dashboard upcoming, recent activity, and performance data were retired.
 - Browser-based Dashboard summary, pipeline, upcoming work, release readiness, analytics overview, recent activity, source update/delete behavior, and Song navigation verified.
 - Dashboard API empty, summary, pipeline, upcoming, readiness, analytics, activity, live update, and delete behavior covered by automated integration-style tests.
+- Dashboard Product Polish Sprint #1 completed as a frontend-only refinement with no backend API contract, endpoint, schema, or migration changes.
+- Dashboard information hierarchy now presents catalog state, next attention, release readiness, stored analytics snapshots, and recent timestamp-derived changes in order.
+- Dashboard loading, error, and empty states were refined, including a layout-preserving loading skeleton and a supported New Song action for the empty state.
 - Frontend test stack added with Vitest, React Testing Library, jest-dom, user-event, and jsdom.
 - Frontend `npm run test` and `npm run test:watch` scripts added.
 - Shared frontend test setup and QueryClient render helper added under `darkroom-web/src/test/`.
@@ -189,6 +192,7 @@ Current focus: Google Drive upload is implemented for existing AudioAsset and Vi
 - Audio and Visuals tabs now show no-file-linked, upload-pending, linked-file, and Open in Drive states.
 - Google Drive media upload behavior is covered by automated backend tests using fake OAuth and fake Drive clients.
 - Focused frontend upload tests cover metadata-only upload action, successful linked-file display, backend failure display, and absence of token text.
+- Focused Dashboard frontend tests were updated for the polished command-center labels and still cover success, empty, loading, error/retry, metrics, upcoming, readiness, analytics, recent activity, and navigation behavior.
 
 ## Current Implementation
 
@@ -1717,6 +1721,14 @@ Sensitive-string scan found expected docs/code field names and fake test tokens 
 Real Google Drive upload browser verification was not performed in this automated run; it requires an authenticated local browser session, connected Google account, and a small user-selected test file.
 ```
 
+Latest Dashboard Product Polish frontend verification:
+
+```text
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run test -- --run: succeeded, 35 passed, 0 failed, 0 skipped.
+npm run build: succeeded.
+```
+
 Automated frontend coverage now includes:
 
 - StatusBadge canonical Song label rendering and fallback status rendering.
@@ -2008,10 +2020,13 @@ Latest browser Dashboard checks confirmed:
 - Analytics overview showed the latest stored AnalyticsSnapshot for the Song/platform instead of summing older snapshots.
 - Recent activity showed conservative timestamp-derived activity without fake users or external sync claims.
 - Clicking a Dashboard readiness row opened the source Song workspace.
+- Dashboard Product Polish Sprint #1 verified the refined command-center hierarchy on desktop and mobile browser viewports using local real API data.
+- Browser screenshots were captured at `output/playwright/dashboard-polish/dashboard-desktop.png` and `output/playwright/dashboard-polish/dashboard-mobile.png`.
 - Updating a Release to `Released` removed it from upcoming release/readiness aggregates.
 - Deleting a ContentItem removed its Dashboard upcoming entries.
 - Refreshing Dashboard preserved the persisted aggregate state.
-- Browser console showed no CORS/API errors during verification.
+- Browser console showed no CORS/API errors on the Dashboard route during verification.
+- Clicking from Dashboard into the Song workspace succeeded, but the Song workspace emitted an existing `409 Conflict` for `GET /api/songs/{songId}/drive-workspace` when Google Drive was not connected.
 - Dashboard UI did not imply live analytics, platform sync, Google Drive, publishing, notifications, or audit history.
 
 ## Security / Secrets Status
@@ -2081,6 +2096,7 @@ Remote GitHub Actions status:
 - Calendar does not yet support standalone sessions, reminders, external sync, or drag/drop rescheduling.
 - Dashboard is read-only and derives recent activity only from current source timestamps, not from an audit log.
 - Dashboard does not yet support notifications, saved filters, or user-specific/team-specific views.
+- Song workspace Drive provisioning currently logs a browser console error for `409 Conflict` when Google Drive is not connected; the UX should treat this expected disconnected state without surfacing a console error in a future cleanup.
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - Frontend automated tests are intentionally focused and do not yet cover the entire app, all routes, all workspace tabs, or visual regression.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.

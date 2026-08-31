@@ -456,58 +456,40 @@ export function DashboardPage() {
     queryFn: dashboardApi.getDashboard,
   });
   const data = dashboard.data;
-  const maxPipelineCount = Math.max(...(data?.pipeline.map((item) => item.count) ?? [0]), 1);
 
   return (
     <AppShell>
-      <PageHeader eyebrow="Dashboard" title="Command center" />
       {dashboard.isLoading ? (
-        <LoadingState label="Loading dashboard" />
+        <DashboardLoadingState />
       ) : dashboard.isError ? (
         <ErrorState
-          detail="The Dashboard API returned an error. Start the backend or check the API response."
+          detail="Command Center could not refresh. Retry when the local workspace is reachable."
           onRetry={() => dashboard.refetch()}
         />
       ) : data ? (
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricBlock label="Total songs" value={String(data.summary.totalSongs)} />
-            <MetricBlock
-              label="Active"
-              value={String(data.summary.activeSongs)}
-              detail="Statuses before Released"
-            />
-            <MetricBlock
-              label="Upcoming releases"
-              value={String(data.summary.upcomingReleases)}
-              detail="Future non-released plans"
-            />
-            <MetricBlock
-              label="Scheduled content"
-              value={String(data.summary.scheduledContent)}
-              detail="Future non-published posts"
-            />
-          </div>
+        <div className="space-y-5">
+          <DashboardCommandHeader />
 
-          {data.summary.totalSongs === 0 ? (
-            <EmptyState
-              title="No songs yet"
-              detail="Create your first Song from the Songs page to populate the command center."
-            />
-          ) : null}
+          <section
+            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            aria-label="Catalog summary"
+          >
+            <DashboardMetric label="Total songs" value={data.summary.totalSongs} />
+            <DashboardMetric label="Active songs" value={data.summary.activeSongs} />
+            <DashboardMetric label="Upcoming releases" value={data.summary.upcomingReleases} />
+            <DashboardMetric label="Scheduled content" value={data.summary.scheduledContent} />
+          </section>
 
-          <Panel title="Song lifecycle pipeline" label="Real Song statuses">
-            <div className="space-y-3">
-              {data.pipeline.map((item) => (
-                <DashboardPipelineRow key={item.status} item={item} maxCount={maxPipelineCount} />
-              ))}
-            </div>
+          <Panel title="Catalog state" label="Song lifecycle">
+            <DashboardPipelineRail pipeline={data.pipeline} />
           </Panel>
 
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-            <Panel title="Upcoming work" label="Real Release + Content dates">
+          {data.summary.totalSongs === 0 ? <DashboardEmptyCommandCenter /> : null}
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+            <Panel title="Next in motion" label="Upcoming">
               {data.upcoming.length ? (
-                <div className="space-y-3">
+                <div className="divide-y divide-border">
                   {data.upcoming.map((item) => (
                     <DashboardUpcomingRow key={dashboardUpcomingKey(item)} item={item} />
                   ))}
@@ -520,7 +502,7 @@ export function DashboardPage() {
               )}
             </Panel>
 
-            <Panel title="Release readiness" label="Derived checklist progress">
+            <Panel title="Release readiness" label="Closest checks">
               {data.releaseReadiness.length ? (
                 <div className="space-y-3">
                   {data.releaseReadiness.map((item) => (
@@ -537,9 +519,9 @@ export function DashboardPage() {
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-            <Panel title="Analytics overview" label="Latest stored snapshots">
+            <Panel title="Stored snapshots" label="Analytics">
               {data.analyticsOverview.length ? (
-                <div className="space-y-3">
+                <div className="divide-y divide-border">
                   {data.analyticsOverview.map((item) => (
                     <DashboardAnalyticsRow
                       key={`${normalizeId(item.songId)}-${item.platform}`}
@@ -553,14 +535,14 @@ export function DashboardPage() {
                   detail="Manually recorded analytics snapshots will appear here once added."
                 />
               )}
-              <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
-                Analytics are based on stored snapshots only. No external platform sync is active.
+              <p className="mt-4 border-t border-border pt-3 text-xs uppercase tracking-normal text-muted-foreground">
+                Stored manually. No platform sync active.
               </p>
             </Panel>
 
-            <Panel title="Recent activity" label="Derived from source timestamps">
+            <Panel title="Recent changes" label="Source timestamps">
               {data.recentActivity.length ? (
-                <div className="space-y-3">
+                <div className="divide-y divide-border">
                   {data.recentActivity.map((item) => (
                     <DashboardActivityRow
                       key={`${item.type}-${normalizeId(item.songId)}-${item.occurredAt}`}
@@ -571,7 +553,7 @@ export function DashboardPage() {
               ) : (
                 <EmptyState
                   title="No recent activity"
-                  detail="Created or updated source records will appear here without fake users or audit history."
+                  detail="Created or updated source records will appear here."
                 />
               )}
             </Panel>
@@ -587,26 +569,57 @@ export function DashboardPage() {
   );
 }
 
-function DashboardPipelineRow({
-  item,
-  maxCount,
-}: {
-  item: DashboardPipelineItem;
-  maxCount: number;
-}) {
+function DashboardCommandHeader() {
   return (
-    <div className="grid gap-2 sm:grid-cols-[170px_1fr_48px] sm:items-center">
-      <div className="flex items-center gap-2">
-        <StatusBadge status={item.status} />
-        <span className="text-sm font-medium uppercase">{item.label}</span>
+    <header className="border-b border-border pb-5">
+      <p className="label-tech">Dashboard / Creative operations</p>
+      <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="display-xl uppercase">Command Center</h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            Current portfolio overview, ordered for the next operational decision.
+          </p>
+        </div>
+        <p className="font-mono text-xs uppercase text-muted-foreground">
+          Latest stored workspace data
+        </p>
       </div>
-      <div className="h-2 bg-background">
-        <div
-          className="h-full bg-foreground"
-          style={{ width: `${item.count === 0 ? 0 : Math.max(8, (item.count / maxCount) * 100)}%` }}
-        />
-      </div>
-      <p className="font-mono text-sm text-muted-foreground sm:text-right">{item.count}</p>
+    </header>
+  );
+}
+
+function DashboardMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="border border-border bg-background p-4">
+      <p className="font-mono text-4xl font-semibold leading-none">{value}</p>
+      <p className="mt-3 label-tech">{label}</p>
+    </div>
+  );
+}
+
+function DashboardPipelineRail({ pipeline }: { pipeline: DashboardPipelineItem[] }) {
+  const maxCount = Math.max(...pipeline.map((item) => item.count), 1);
+
+  return (
+    <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-9">
+      {pipeline.map((item, index) => {
+        const opacity = item.count === 0 ? 0 : 0.3 + (item.count / maxCount) * 0.7;
+
+        return (
+          <div key={item.status} className="border border-border bg-background p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-mono text-xs text-muted-foreground">
+                {String(index + 1).padStart(2, "0")}
+              </p>
+              <p className="font-mono text-2xl font-semibold leading-none">{item.count}</p>
+            </div>
+            <p className="mt-5 min-h-8 text-xs font-medium uppercase leading-tight">{item.label}</p>
+            <div className="mt-3 h-1.5 bg-panel" aria-hidden="true">
+              <div className="h-full bg-foreground" style={{ width: "100%", opacity }} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -616,16 +629,24 @@ function DashboardUpcomingRow({ item }: { item: DashboardUpcomingItem }) {
     <Link
       to="/songs/$songId"
       params={{ songId: normalizeId(item.songId) }}
-      className="grid grid-cols-[88px_1fr] gap-3 border-b border-border pb-3 last:border-0 hover:bg-panel"
+      className="grid gap-3 py-3 transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:grid-cols-[86px_1fr]"
     >
-      <p className="meta-tech">{formatDate(item.date)}</p>
+      <div>
+        <p className="font-mono text-xs uppercase text-muted-foreground">
+          {formatMonthDay(item.date)}
+        </p>
+        <p className="mt-1 font-mono text-2xl font-semibold leading-none">
+          {formatDayNumber(item.date)}
+        </p>
+      </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-medium uppercase">{item.title}</p>
+          <p className="label-tech">{dashboardUpcomingLabel(item)}</p>
           <StatusBadge status={item.status} />
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {dashboardUpcomingLabel(item)} / {item.songTitle}
+        <p className="mt-2 truncate text-sm font-medium uppercase">{item.title}</p>
+        <p className="mt-1 truncate text-xs text-muted-foreground">
+          {item.songTitle}
           {item.platform ? ` / ${item.platform}` : ""}
         </p>
       </div>
@@ -638,7 +659,7 @@ function DashboardReadinessRow({ item }: { item: DashboardReleaseReadiness }) {
     <Link
       to="/songs/$songId"
       params={{ songId: normalizeId(item.songId) }}
-      className="block border border-border bg-background p-3 hover:border-border-strong"
+      className="block border border-border bg-background p-3 transition-colors hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -667,7 +688,7 @@ function DashboardAnalyticsRow({ item }: { item: DashboardAnalyticsItem }) {
     <Link
       to="/songs/$songId"
       params={{ songId: normalizeId(item.songId) }}
-      className="block border-b border-border pb-3 last:border-0 hover:bg-panel"
+      className="block py-3 transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -693,12 +714,12 @@ function DashboardActivityRow({ item }: { item: DashboardActivityItem }) {
     <Link
       to="/songs/$songId"
       params={{ songId: normalizeId(item.songId) }}
-      className="grid grid-cols-[18px_1fr] gap-3 hover:bg-panel"
+      className="grid grid-cols-[18px_1fr] gap-3 py-3 transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       <div className="pt-1.5">
         <span className="block h-2 w-2 bg-foreground" />
       </div>
-      <div className="border-b border-border pb-3 last:border-0">
+      <div>
         <p className="text-sm font-medium">{item.description}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {item.songTitle} / {formatDate(item.occurredAt)}
@@ -716,6 +737,56 @@ function dashboardUpcomingLabel(item: DashboardUpcomingItem) {
   if (item.eventType === "ReleaseDate") return "Release";
   if (item.eventType === "ContentDue") return "Content due";
   return "Scheduled content";
+}
+
+function DashboardEmptyCommandCenter() {
+  return (
+    <div className="border border-dashed border-border bg-panel p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium uppercase">No projects yet</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Create your first Song to start building the workspace.
+          </p>
+        </div>
+        <Button asChild>
+          <Link to="/songs">
+            <Plus className="h-4 w-4" />
+            New song
+          </Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DashboardLoadingState() {
+  return (
+    <div className="space-y-5" aria-label="Loading dashboard">
+      <DashboardCommandHeader />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className="h-28 animate-pulse border border-border bg-panel" />
+        ))}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <div className="h-80 animate-pulse border border-border bg-panel" />
+        <div className="h-80 animate-pulse border border-border bg-panel" />
+      </div>
+    </div>
+  );
+}
+
+function formatMonthDay(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "DATE";
+  return new Intl.DateTimeFormat("en", { month: "short" }).format(date).toUpperCase();
+}
+
+function formatDayNumber(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return new Intl.DateTimeFormat("en", { day: "2-digit" }).format(date);
 }
 
 export function SongsPage() {
