@@ -123,6 +123,9 @@ Current focus: Google Drive upload is implemented for existing AudioAsset and Vi
 - Dashboard Product Polish Sprint #1 completed as a frontend-only refinement with no backend API contract, endpoint, schema, or migration changes.
 - Dashboard information hierarchy now presents catalog state, next attention, release readiness, stored analytics snapshots, and recent timestamp-derived changes in order.
 - Dashboard loading, error, and empty states were refined, including a layout-preserving loading skeleton and a supported New Song action for the empty state.
+- Songs Portfolio Product Polish Sprint #2 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, or Google Drive behavior changes.
+- Songs page now presents the Song catalog as a project portfolio using only real Song API fields: `id`, `title`, `status`, and `createdAt`.
+- Songs page create flow, lifecycle presentation, search/filter/sort controls, loading/error/empty states, long-title wrapping, and row navigation were refined.
 - Frontend test stack added with Vitest, React Testing Library, jest-dom, user-event, and jsdom.
 - Frontend `npm run test` and `npm run test:watch` scripts added.
 - Shared frontend test setup and QueryClient render helper added under `darkroom-web/src/test/`.
@@ -193,6 +196,7 @@ Current focus: Google Drive upload is implemented for existing AudioAsset and Vi
 - Google Drive media upload behavior is covered by automated backend tests using fake OAuth and fake Drive clients.
 - Focused frontend upload tests cover metadata-only upload action, successful linked-file display, backend failure display, and absence of token text.
 - Focused Dashboard frontend tests were updated for the polished command-center labels and still cover success, empty, loading, error/retry, metrics, upcoming, readiness, analytics, recent activity, and navigation behavior.
+- Focused Songs frontend tests were updated for polished portfolio labels, empty/loading/error/retry states, search/lifecycle filtering, workspace row links, create validation, create failure display, and long-title rendering.
 
 ## Current Implementation
 
@@ -1729,6 +1733,15 @@ npm run test -- --run: succeeded, 35 passed, 0 failed, 0 skipped.
 npm run build: succeeded.
 ```
 
+Latest Songs Portfolio Product Polish frontend verification:
+
+```text
+npm run test -- --run src/components/darkroom/SongsPage.test.tsx: succeeded, 9 passed, 0 failed, 0 skipped.
+npm run test -- --run: succeeded, 40 passed, 0 failed, 0 skipped.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run build: succeeded.
+```
+
 Automated frontend coverage now includes:
 
 - StatusBadge canonical Song label rendering and fallback status rendering.
@@ -1740,8 +1753,14 @@ Automated frontend coverage now includes:
 - Dashboard navigation links back to the Song workspace.
 - Songs list rendering for returned Songs, titles, and statuses.
 - Songs empty state.
+- Songs loading state.
 - Songs error state and retry action.
+- Songs search and lifecycle filtering.
+- Songs project row navigation links.
+- Songs long-title rendering without mock artist, BPM, collaborator, release date, artwork, or progress metadata.
 - Create Song dialog interaction and request payload construction.
+- Create Song required-title validation before sending a request.
+- Create Song backend failure display.
 - Login success flow.
 - Login invalid-credentials error state.
 - Registration request flow.
@@ -2029,6 +2048,22 @@ Latest browser Dashboard checks confirmed:
 - Clicking from Dashboard into the Song workspace succeeded, but the Song workspace emitted an existing `409 Conflict` for `GET /api/songs/{songId}/drive-workspace` when Google Drive was not connected.
 - Dashboard UI did not imply live analytics, platform sync, Google Drive, publishing, notifications, or audit history.
 
+Latest browser Songs Portfolio Product Polish checks confirmed:
+
+- `/songs` loaded real backend Song data through the existing `GET /api/songs` integration.
+- Empty state rendered for an authenticated user with no Songs.
+- Create dialog required a title before sending a create request.
+- A temporary long-title Song was created through the browser using the existing `POST /api/songs` integration.
+- The created Song appeared with real title, lifecycle status, created date, and workspace navigation only.
+- Songs portfolio did not render mock artist, artwork, BPM, release date, progress, collaborator count, file count, readiness, stream, or task metadata.
+- Search found the long-title project from loaded client data.
+- Lifecycle filtering showed the no-match state for a non-matching status and restored the project for the matching status.
+- Clicking the project row opened the existing Song workspace route.
+- Desktop and mobile screenshots were captured at `output/playwright/songs-polish/songs-desktop.png` and `output/playwright/songs-polish/songs-mobile.png`.
+- Browser console and network checks showed no CORS/API errors on the `/songs` route.
+- The Song workspace navigation check still emitted the existing Google Drive disconnected `409 Conflict`; this remains tracked as Song workspace technical debt.
+- The temporary verification Song was deleted after verification.
+
 ## Security / Secrets Status
 
 - `appsettings.json` does not currently contain the local database password.
@@ -2135,11 +2170,10 @@ Google OAuth tokens are backend-managed and must not be exposed to the React fro
 
 ## Recommended Next Milestone
 
-Start the asset replace/version workflow planning milestone only after approval.
+Start Song Workspace Overview Product Polish Sprint #3 only after approval.
 
 Suggested scope:
 
-- Decide whether replacing a linked file creates a new `ExternalFileReference` version or a separate asset record.
-- Add explicit user action for replacing/deleting external Drive files.
-- Keep browser Drive Picker, arbitrary browsing, playback, waveform, thumbnails, YouTube, and publishing out of the milestone.
-- Do not change Song behavior.
+- Polish the Song workspace Overview using existing real Song and related metadata only.
+- Keep backend API contracts, database schema, migrations, auth, ownership, and Google Drive behavior unchanged unless a separately approved bug fix requires it.
+- Do not implement new domain modules, Drive file browsing, replace/version workflow, YouTube, publishing, collaboration, or analytics ingestion.
