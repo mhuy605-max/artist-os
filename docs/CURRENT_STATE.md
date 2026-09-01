@@ -197,6 +197,12 @@ Current focus: Google Drive upload is implemented for existing AudioAsset and Vi
 - Focused frontend upload tests cover metadata-only upload action, successful linked-file display, backend failure display, and absence of token text.
 - Focused Dashboard frontend tests were updated for the polished command-center labels and still cover success, empty, loading, error/retry, metrics, upcoming, readiness, analytics, recent activity, and navigation behavior.
 - Focused Songs frontend tests were updated for polished portfolio labels, empty/loading/error/retry states, search/lifecycle filtering, workspace row links, create validation, create failure display, and long-title rendering.
+- Song Workspace Overview Product Polish Sprint #3 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, or Google Drive architecture changes.
+- Song workspace shell now emphasizes project identity, lifecycle state, created date, a quiet Projects back link, and controlled responsive tabs.
+- Song workspace Overview now summarizes real existing workspace data for project state, next attention, workspace areas, release readiness, and project storage.
+- Song workspace Overview no longer shows fake artwork, fake artist metadata, mock task lists, mock collaborators, fake BPM/key/genre/release metrics, or lifecycle percentage math.
+- Google Drive disconnected storage is now treated as a normal Overview state; the Overview checks connection status first and does not call the Drive workspace endpoint while disconnected.
+- Focused Song Workspace Overview frontend tests cover empty, populated, partial-error, loading, not-found, unexpected-error, tab navigation, and Google Drive storage states.
 
 ## Current Implementation
 
@@ -1570,7 +1576,7 @@ Automated tests:
 - Frontend tests use Vitest with jsdom and a shared setup file.
 - Frontend component tests use a fresh TanStack Query `QueryClient` per render with retries disabled.
 - Frontend tests mock API services such as `authApi`, `dashboardApi`, and `songsApi` instead of depending on ASP.NET, PostgreSQL, localhost, or network availability.
-- Frontend automated test foundation currently has 32 focused tests.
+- Frontend automated test foundation currently has 50 focused tests.
 - Auth API behavior has automated integration-style coverage for registration, duplicate email, login, invalid credentials, current JWT, logout semantics, password hash safety, malformed tokens, expired tokens, and unauthenticated access.
 - Song owner assignment has automated integration-style coverage for authenticated creates and spoofed owner rejection.
 - Resource ownership has automated integration-style coverage for unauthenticated `401`, cross-user `404`, nested Song resource scoping, Calendar/Dashboard scoping, and legacy unowned Song invisibility.
@@ -1742,6 +1748,15 @@ npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
 npm run build: succeeded.
 ```
 
+Latest Song Workspace Overview Product Polish frontend verification:
+
+```text
+npm run test -- --run src/components/darkroom/SongWorkspaceOverview.test.tsx: succeeded, 10 passed, 0 failed, 0 skipped.
+npm run test -- --run: succeeded, 50 passed, 0 failed, 0 skipped.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run build: succeeded.
+```
+
 Automated frontend coverage now includes:
 
 - StatusBadge canonical Song label rendering and fallback status rendering.
@@ -1779,6 +1794,12 @@ Automated frontend coverage now includes:
 - Linked Drive file display with provider, size, and Open in Drive link.
 - Upload backend failure display.
 - Linked-file UI does not render Google token material.
+- Song workspace Overview empty-state summary using real Song and related workspace API data.
+- Song workspace Overview populated-state summary for audio assets, visual assets, release, checklist readiness, content, credits, and analytics snapshots.
+- Song workspace Overview partial secondary-query failure behavior.
+- Song workspace Overview structured loading, not-found, and unexpected-error states.
+- Song workspace Overview tab navigation through the next-attention and workspace-area actions.
+- Song workspace Google Drive disconnected, connected/unprovisioned, provision action, and provisioned storage states without rendering folder ids or token material.
 
 Automated backend coverage now includes:
 
@@ -2045,7 +2066,7 @@ Latest browser Dashboard checks confirmed:
 - Deleting a ContentItem removed its Dashboard upcoming entries.
 - Refreshing Dashboard preserved the persisted aggregate state.
 - Browser console showed no CORS/API errors on the Dashboard route during verification.
-- Clicking from Dashboard into the Song workspace succeeded, but the Song workspace emitted an existing `409 Conflict` for `GET /api/songs/{songId}/drive-workspace` when Google Drive was not connected.
+- Clicking from Dashboard into the Song workspace succeeded; at that time the workspace emitted a Google Drive disconnected `409 Conflict`, which was later addressed in the Song Workspace Overview Product Polish Sprint #3.
 - Dashboard UI did not imply live analytics, platform sync, Google Drive, publishing, notifications, or audit history.
 
 Latest browser Songs Portfolio Product Polish checks confirmed:
@@ -2061,7 +2082,22 @@ Latest browser Songs Portfolio Product Polish checks confirmed:
 - Clicking the project row opened the existing Song workspace route.
 - Desktop and mobile screenshots were captured at `output/playwright/songs-polish/songs-desktop.png` and `output/playwright/songs-polish/songs-mobile.png`.
 - Browser console and network checks showed no CORS/API errors on the `/songs` route.
-- The Song workspace navigation check still emitted the existing Google Drive disconnected `409 Conflict`; this remains tracked as Song workspace technical debt.
+- The Song workspace navigation check exposed the earlier Google Drive disconnected `409 Conflict`, which was later addressed in the Song Workspace Overview Product Polish Sprint #3.
+- The temporary verification Song was deleted after verification.
+
+Latest browser Song Workspace Overview Product Polish checks confirmed:
+
+- `/songs/{songId}` loaded real Song workspace data through the existing authenticated backend APIs.
+- The polished workspace shell showed the real long Song title, lifecycle state, created date, quiet Projects back link, and responsive tab rail.
+- Overview rendered Project state, Next attention, Workspace areas, and Project storage in the intended hierarchy.
+- Overview empty workspace state used real API responses and did not render fake artwork, mock task/team/activity labels, artist, BPM, key, genre, collaborator count, file count, stream count, or fake lifecycle completion math.
+- Next attention selected the Audio tab through the existing tab system.
+- Desktop, tablet, and mobile viewport checks confirmed the long title wrapped without overlap and Overview sections remained readable.
+- Google Drive disconnected state rendered as normal product storage UI with an Open Settings action.
+- With Google Drive disconnected, Overview checked `/api/integrations/google-drive/status` but did not request `/api/songs/{songId}/drive-workspace`, avoiding the previous expected `409 Conflict` console error.
+- Browser console and network checks showed no CORS/API errors on normal Song workspace Overview load.
+- Missing Song route settled into the friendly `Project not found` state.
+- Browser screenshots were captured at `output/playwright/song-overview-polish/song-overview-desktop.png` and `output/playwright/song-overview-polish/song-overview-mobile.png`.
 - The temporary verification Song was deleted after verification.
 
 ## Security / Secrets Status
@@ -2131,7 +2167,7 @@ Remote GitHub Actions status:
 - Calendar does not yet support standalone sessions, reminders, external sync, or drag/drop rescheduling.
 - Dashboard is read-only and derives recent activity only from current source timestamps, not from an audit log.
 - Dashboard does not yet support notifications, saved filters, or user-specific/team-specific views.
-- Song workspace Drive provisioning currently logs a browser console error for `409 Conflict` when Google Drive is not connected; the UX should treat this expected disconnected state without surfacing a console error in a future cleanup.
+- Some non-Overview workspace tab copy still needs product polish; for example Audio empty-state copy can imply Google Drive file association is future-only even though the upload MVP now exists.
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - Frontend automated tests are intentionally focused and do not yet cover the entire app, all routes, all workspace tabs, or visual regression.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
@@ -2170,10 +2206,10 @@ Google OAuth tokens are backend-managed and must not be exposed to the React fro
 
 ## Recommended Next Milestone
 
-Start Song Workspace Overview Product Polish Sprint #3 only after approval.
+Start Audio Workspace Product Polish Sprint #4 only after approval.
 
 Suggested scope:
 
-- Polish the Song workspace Overview using existing real Song and related metadata only.
+- Polish the Audio workspace using existing real AudioAsset metadata and Google Drive upload behavior only.
 - Keep backend API contracts, database schema, migrations, auth, ownership, and Google Drive behavior unchanged unless a separately approved bug fix requires it.
 - Do not implement new domain modules, Drive file browsing, replace/version workflow, YouTube, publishing, collaboration, or analytics ingestion.

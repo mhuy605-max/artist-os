@@ -95,6 +95,7 @@ vi.mock("@/services/api/visualAssets", () => ({
 
 vi.mock("@/services/api/driveWorkspace", () => ({
   driveWorkspaceQueryKey: (songId: string) => ["songs", songId, "drive-workspace"],
+  isDriveWorkspaceDisconnectedError: () => false,
   driveWorkspaceApi: {
     getWorkspace: getWorkspaceMock,
     provisionWorkspace: provisionWorkspaceMock,

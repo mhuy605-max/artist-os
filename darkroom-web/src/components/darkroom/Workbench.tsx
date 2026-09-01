@@ -66,20 +66,23 @@ import { calendarApi } from "@/services/api/calendar";
 import { contentItemsApi } from "@/services/api/contentItems";
 import { creditsApi } from "@/services/api/credits";
 import { dashboardApi } from "@/services/api/dashboard";
-import { driveWorkspaceApi, driveWorkspaceQueryKey } from "@/services/api/driveWorkspace";
+import {
+  driveWorkspaceApi,
+  driveWorkspaceQueryKey,
+  isDriveWorkspaceDisconnectedError,
+} from "@/services/api/driveWorkspace";
 import {
   googleDriveApi,
   googleDriveConnectionQueryKey,
   openGoogleAuthorizationUrl,
   type GoogleDriveConnectionStatus,
 } from "@/services/api/googleDrive";
+import { ApiError } from "@/services/api/client";
 import { releaseChecklistApi } from "@/services/api/releaseChecklist";
 import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
 import { visualAssetsApi } from "@/services/api/visualAssets";
-import { getSongActivity, getSongTasks } from "@/services/mock/activity";
-import { getSongMeta } from "@/services/mock/songs";
-import { teamMembers, getSongTeam } from "@/services/mock/team";
+import { teamMembers } from "@/services/mock/team";
 import {
   ANALYTICS_PLATFORM_LABELS,
   ANALYTICS_PLATFORMS,
@@ -101,7 +104,6 @@ import {
   RELEASE_STATUS_LABELS,
   RELEASE_TYPES,
   RELEASE_TYPE_LABELS,
-  SONG_LIFECYCLE,
   SONG_STATUS_LABELS,
   SONG_STATUSES,
   VISUAL_ASSET_STATUSES,
@@ -417,32 +419,6 @@ function SongCard({ song }: { song: Song }) {
         </div>
       </Link>
     </article>
-  );
-}
-
-function LifecycleProgress({ status }: { status: string }) {
-  const currentIndex = Math.max(
-    0,
-    SONG_LIFECYCLE.findIndex((item) => item === status),
-  );
-
-  return (
-    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      {SONG_LIFECYCLE.map((item, index) => (
-        <div
-          key={item}
-          className={cn(
-            "border p-3",
-            index < currentIndex && "border-border bg-panel text-muted-foreground",
-            index === currentIndex && "border-foreground bg-foreground text-background",
-            index > currentIndex && "border-border bg-background text-subtle",
-          )}
-        >
-          <p className="font-mono text-xs">{String(index + 1).padStart(2, "0")}</p>
-          <p className="mt-2 text-sm font-medium uppercase">{SONG_STATUS_LABELS[item]}</p>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -994,28 +970,75 @@ export function SongsPage() {
   );
 }
 
+function WorkspaceLoadingState() {
+  return (
+    <div className="space-y-5" aria-label="Loading project workspace">
+      <div className="border-b border-border pb-5">
+        <div className="h-4 w-28 animate-pulse bg-panel" />
+        <div className="mt-5 h-3 w-36 animate-pulse bg-panel" />
+        <div className="mt-3 h-12 max-w-3xl animate-pulse bg-panel" />
+        <div className="mt-4 h-6 w-40 animate-pulse bg-panel" />
+      </div>
+      <div className="h-11 animate-pulse border border-border bg-panel" />
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="h-36 animate-pulse border border-border bg-panel" />
+        <div className="h-36 animate-pulse border border-border bg-panel" />
+      </div>
+      <div className="h-40 animate-pulse border border-border bg-panel" />
+    </div>
+  );
+}
+
+function WorkspaceCriticalError({
+  title,
+  detail,
+  onRetry,
+}: {
+  title: string;
+  detail: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="border border-border-strong bg-panel p-5">
+      <p className="label-tech">Songs / Project</p>
+      <h1 className="mt-3 display-xl uppercase">{title}</h1>
+      <p className="mt-2 max-w-xl text-sm text-muted-foreground">{detail}</p>
+      <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+        {onRetry ? (
+          <Button variant="outline" onClick={onRetry}>
+            Retry
+          </Button>
+        ) : null}
+        <Button asChild>
+          <Link to="/songs">Back to Projects</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function SongWorkspacePage({ songId }: { songId: string }) {
   const songQuery = useQuery({
     queryKey: ["songs", songId],
     queryFn: () => songsApi.getSong(songId),
+    retry: false,
   });
+  const notFound = songQuery.error instanceof ApiError && songQuery.error.status === 404;
 
   return (
     <AppShell>
       {songQuery.isLoading ? (
-        <LoadingState label="Loading workspace" />
+        <WorkspaceLoadingState />
       ) : songQuery.isError ? (
-        <ErrorState
-          detail="This song could not be loaded from the Song API or the explicit development fallback."
-          onRetry={() => songQuery.refetch()}
+        <WorkspaceCriticalError
+          title={notFound ? "Project not found" : "Project unavailable"}
+          detail={notFound ? "This project isn't available." : "We couldn't load this project."}
+          onRetry={notFound ? undefined : () => songQuery.refetch()}
         />
       ) : songQuery.data ? (
         <Workspace song={songQuery.data} />
       ) : (
-        <EmptyState
-          title="Song not found"
-          detail="Return to the song index and choose an active project."
-        />
+        <WorkspaceCriticalError title="Project not found" detail="This project isn't available." />
       )}
     </AppShell>
   );
@@ -1023,50 +1046,50 @@ export function SongWorkspacePage({ songId }: { songId: string }) {
 
 function Workspace({ song }: { song: Song }) {
   const id = normalizeId(song.id);
-  const meta = getSongMeta(id);
+  const tabs = ["overview", "audio", "visuals", "release", "content", "credits", "analytics"];
+  const [activeTab, setActiveTab] = useState("overview");
 
   return (
     <>
       <FallbackNotice />
-      <div className="mb-5 grid gap-4 lg:grid-cols-[220px_1fr]">
-        <div className="aspect-square border border-border bg-panel p-4">
-          <div className="flex h-full items-end bg-background p-4">
-            <p className="text-3xl font-semibold uppercase leading-none">{song.title}</p>
-          </div>
-        </div>
-        <div className="flex flex-col justify-between border-b border-border pb-5">
-          <div>
-            <p className="label-tech">Song workspace</p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <h1 className="display-xl uppercase">{song.title}</h1>
+      <header className="mb-5 border-b border-border pb-5">
+        <Link
+          to="/songs"
+          className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Projects
+        </Link>
+        <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0">
+            <p className="label-tech">Songs / Project</p>
+            <h1 className="mt-3 max-w-5xl break-words text-4xl font-semibold uppercase leading-[0.95] tracking-normal md:text-6xl">
+              {song.title}
+            </h1>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <StatusBadge status={song.status} size="md" />
+              <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                Created {formatDate(song.createdAt)}
+              </span>
             </div>
-            <p className="mt-3 max-w-3xl text-sm text-muted-foreground">{meta.notes}</p>
-          </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricBlock label="Artist" value={meta.artist} />
-            <MetricBlock
-              label="Release"
-              value={meta.releaseDate ? formatDate(meta.releaseDate) : "Unscheduled"}
-            />
-            <MetricBlock label="Created" value={formatDate(song.createdAt) ?? "-"} />
-            <MetricBlock label="Updated" value={formatDate(meta.lastUpdated) ?? "-"} />
           </div>
         </div>
-      </div>
+      </header>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="mb-4 h-auto w-full justify-start overflow-x-auto rounded-none border border-border bg-panel p-1">
-          {["overview", "audio", "visuals", "release", "content", "credits", "analytics"].map(
-            (tab) => (
-              <TabsTrigger key={tab} value={tab} className="rounded-none uppercase">
-                {tab}
-              </TabsTrigger>
-            ),
-          )}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="mb-4 flex h-auto w-full justify-start overflow-x-auto rounded-none border border-border bg-panel p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {tabs.map((tab) => (
+            <TabsTrigger
+              key={tab}
+              value={tab}
+              className="rounded-none px-4 py-2 text-xs uppercase tracking-[0.12em] data-[state=active]:border data-[state=active]:border-border-strong data-[state=active]:bg-background"
+            >
+              {tab}
+            </TabsTrigger>
+          ))}
         </TabsList>
         <TabsContent value="overview">
-          <OverviewTab song={song} />
+          <OverviewTab song={song} onNavigateTab={setActiveTab} />
         </TabsContent>
         <TabsContent value="audio">
           <AudioTab songId={id} />
@@ -1091,73 +1114,371 @@ function Workspace({ song }: { song: Song }) {
   );
 }
 
-function OverviewTab({ song }: { song: Song }) {
+type WorkspaceTabValue = "audio" | "visuals" | "release" | "content" | "credits" | "analytics";
+
+type AttentionItem = {
+  title: string;
+  detail: string;
+  tab?: WorkspaceTabValue;
+};
+
+function OverviewTab({
+  song,
+  onNavigateTab,
+}: {
+  song: Song;
+  onNavigateTab: (tab: string) => void;
+}) {
   const id = normalizeId(song.id);
-  const meta = getSongMeta(id);
-  const tasks = getSongTasks(id);
+  const releaseRelevant = isReleaseRelevant(song.status);
+  const audio = useQuery({
+    queryKey: audioAssetsQueryKey(id),
+    queryFn: () => audioAssetsApi.getAudioAssets(id),
+  });
+  const visuals = useQuery({
+    queryKey: visualAssetsQueryKey(id),
+    queryFn: () => visualAssetsApi.getVisualAssets(id),
+  });
+  const release = useQuery({
+    queryKey: releaseQueryKey(id),
+    queryFn: () => releasesApi.getRelease(id),
+    enabled: releaseRelevant,
+  });
+  const checklist = useQuery({
+    queryKey: releaseChecklistQueryKey(id),
+    queryFn: () => releaseChecklistApi.getChecklist(id),
+    enabled: releaseRelevant && release.data !== undefined && release.data !== null,
+  });
+  const content = useQuery({
+    queryKey: contentItemsQueryKey(id),
+    queryFn: () => contentItemsApi.getContentItems(id),
+  });
+  const credits = useQuery({
+    queryKey: creditsQueryKey(id),
+    queryFn: () => creditsApi.getCredits(id),
+  });
+  const analytics = useQuery({
+    queryKey: analyticsSnapshotsQueryKey(id),
+    queryFn: () => analyticsApi.getAnalyticsSnapshots(id),
+  });
+  const attention = getNextAttention({
+    song,
+    audioAssets: audio.data,
+    visualAssets: visuals.data,
+    release: releaseRelevant ? release.data : null,
+    checklist: checklist.data,
+    contentItems: content.data,
+  });
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-      <Panel title="Lifecycle progress" label="Real status">
-        <LifecycleProgress status={song.status} />
+    <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <Panel title="Project state" label="Now">
+          <ProjectStateSummary
+            song={song}
+            release={releaseRelevant ? release.data : null}
+            releaseError={release.isError}
+          />
+        </Panel>
+        <Panel title="Next attention" label="Focus">
+          <NextAttentionItem item={attention} onNavigateTab={onNavigateTab} />
+        </Panel>
+      </div>
+
+      <Panel title="Workspace areas" label="Map">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <WorkspaceAreaLink
+            tab="audio"
+            title="Audio"
+            value={summaryCount(audio.data?.length, "asset", "assets", audio.isError)}
+            onNavigateTab={onNavigateTab}
+          />
+          <WorkspaceAreaLink
+            tab="visuals"
+            title="Visuals"
+            value={summaryCount(visuals.data?.length, "asset", "assets", visuals.isError)}
+            onNavigateTab={onNavigateTab}
+          />
+          <WorkspaceAreaLink
+            tab="release"
+            title="Release"
+            value={releaseSummary(releaseRelevant ? release.data : null, release.isError)}
+            onNavigateTab={onNavigateTab}
+          />
+          <WorkspaceAreaLink
+            tab="content"
+            title="Content"
+            value={summaryCount(content.data?.length, "item", "items", content.isError)}
+            onNavigateTab={onNavigateTab}
+          />
+          <WorkspaceAreaLink
+            tab="credits"
+            title="Credits"
+            value={creditSummary(credits.data, credits.isError)}
+            onNavigateTab={onNavigateTab}
+          />
+          <WorkspaceAreaLink
+            tab="analytics"
+            title="Analytics"
+            value={summaryCount(analytics.data?.length, "snapshot", "snapshots", analytics.isError)}
+            onNavigateTab={onNavigateTab}
+          />
+        </div>
       </Panel>
+
+      {release.data && checklist.data?.length ? (
+        <Panel title="Release readiness" label="Checklist">
+          <ReleaseReadinessSummary items={checklist.data} />
+        </Panel>
+      ) : null}
+
       <DriveWorkspacePanel songId={id} />
-      <Panel title="Project info" label="Real + mock">
-        <dl className="grid grid-cols-2 gap-3 text-sm">
-          <Info label="Title" value={song.title} />
-          <Info label="Status" value={statusLabel(song.status)} />
-          <Info label="Artist" value={meta.artist} />
-          <Info label="BPM" value={String(meta.bpm)} />
-          <Info label="Key" value={meta.songKey} />
-          <Info label="Genre" value={meta.genre} />
-        </dl>
-        <p className="mt-4 border-t border-border pt-4 text-sm text-muted-foreground">
-          {meta.notes}
-        </p>
-      </Panel>
-      <Panel title="Upcoming tasks" label="Mock task list">
-        <div className="space-y-3">
-          {tasks.map((task) => (
-            <div
-              key={task.id}
-              className="flex items-center gap-3 border-b border-border pb-3 last:border-0"
-            >
-              <span
-                className={cn(
-                  "flex h-5 w-5 items-center justify-center border",
-                  task.done ? "bg-foreground text-background" : "border-border",
-                )}
-              >
-                {task.done ? <Check className="h-3 w-3" /> : null}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm">{task.label}</p>
-                <p className="text-xs text-muted-foreground">
-                  {task.owner} / {formatDate(task.due)}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Panel>
-      <Panel title="Team / activity" label="Mock collaboration">
-        <div className="mb-4 flex flex-wrap gap-2">
-          {getSongTeam(id).map((member) => (
-            <span key={member.id} className="border border-border px-2 py-1 text-xs">
-              {member.name} / {member.role}
-            </span>
-          ))}
-        </div>
-        <Timeline
-          items={getSongActivity(id).map((item) => ({
-            id: item.id,
-            title: item.action,
-            meta: `${item.actor} / ${formatDate(item.at)}`,
-          }))}
-        />
-      </Panel>
     </div>
   );
+}
+
+function ProjectStateSummary({
+  song,
+  release,
+  releaseError,
+}: {
+  song: Song;
+  release?: Release | null;
+  releaseError: boolean;
+}) {
+  return (
+    <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+      <Info label="Lifecycle" value={statusLabel(song.status)} />
+      <Info label="Created" value={formatDate(song.createdAt) ?? "-"} />
+      <Info
+        label="Release date"
+        value={
+          releaseError
+            ? "Unavailable"
+            : release?.releaseDate
+              ? (formatDate(release.releaseDate) ?? "Scheduled")
+              : "Not set up"
+        }
+      />
+      <Info
+        label="Release status"
+        value={
+          releaseError
+            ? "Unavailable"
+            : release
+              ? (RELEASE_STATUS_LABELS[release.status] ?? release.status)
+              : "Not set up"
+        }
+      />
+    </dl>
+  );
+}
+
+function NextAttentionItem({
+  item,
+  onNavigateTab,
+}: {
+  item: AttentionItem;
+  onNavigateTab?: (tab: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-lg font-semibold uppercase leading-tight">{item.title}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{item.detail}</p>
+      </div>
+      {item.tab && onNavigateTab ? (
+        <Button variant="outline" size="sm" onClick={() => onNavigateTab(item.tab)}>
+          Open {tabLabel(item.tab)}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function WorkspaceAreaLink({
+  tab,
+  title,
+  value,
+  onNavigateTab,
+}: {
+  tab: WorkspaceTabValue;
+  title: string;
+  value: string;
+  onNavigateTab: (tab: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigateTab(tab)}
+      className="flex min-h-24 items-end justify-between gap-4 border border-border bg-background p-3 text-left transition-colors hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      aria-label={`Open ${title} tab`}
+    >
+      <span>
+        <span className="label-tech">{title}</span>
+        <span className="mt-2 block text-sm text-muted-foreground">{value}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+    </button>
+  );
+}
+
+function ReleaseReadinessSummary({ items }: { items: ReleaseChecklistItem[] }) {
+  const completed = items.filter((item) => item.isCompleted).length;
+  const total = items.length;
+  const percentage = total ? Math.round((completed / total) * 100) : 0;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p
+            className="font-mono text-3xl font-semibold leading-none"
+            role="status"
+            aria-label={`${completed} of ${total} release checklist items complete`}
+          >
+            {completed} / {total}
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">Checklist items complete</p>
+        </div>
+        <p className="font-mono text-sm text-muted-foreground">{percentage}%</p>
+      </div>
+      <div className="h-1 bg-background" aria-hidden>
+        <div className="h-full bg-foreground" style={{ width: `${percentage}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function summaryCount(
+  count: number | undefined,
+  singular: string,
+  plural: string,
+  isError: boolean,
+) {
+  if (isError) return "Unavailable";
+  if (count === undefined) return "Checking";
+  if (count === 0) return `No ${plural}`;
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function releaseSummary(release?: Release | null, isError?: boolean) {
+  if (isError) return "Unavailable";
+  if (release === undefined) return "Checking";
+  if (!release) return "Not set up";
+  return RELEASE_STATUS_LABELS[release.status] ?? release.status;
+}
+
+function creditSummary(credits?: Credit[], isError?: boolean) {
+  if (isError) return "Unavailable";
+  if (credits === undefined) return "Checking";
+  const contributors = new Set(
+    credits.map((credit) => credit.contributorName.trim()).filter(Boolean),
+  );
+  if (contributors.size === 0) return "No credits";
+  return `${contributors.size} ${contributors.size === 1 ? "contributor" : "contributors"}`;
+}
+
+function isReleaseRelevant(status: string) {
+  return ["Mastering", "ReleasePreparation", "ContentCampaign", "Released", "Analytics"].includes(
+    status,
+  );
+}
+
+function getNextAttention({
+  song,
+  audioAssets,
+  visualAssets,
+  release,
+  checklist,
+  contentItems,
+}: {
+  song: Song;
+  audioAssets?: AudioAsset[];
+  visualAssets?: VisualAsset[];
+  release?: Release | null;
+  checklist?: ReleaseChecklistItem[];
+  contentItems?: ContentItem[];
+}): AttentionItem {
+  if (!audioAssets || !visualAssets || release === undefined || !contentItems) {
+    return {
+      title: "Checking project state",
+      detail: "Overview is loading the current workspace areas.",
+    };
+  }
+
+  if (audioAssets.length === 0) {
+    return {
+      title: "Add the first audio asset",
+      detail: "Start the project workspace with a demo, recording, mix, or master.",
+      tab: "audio",
+    };
+  }
+
+  if (visualAssets.length === 0) {
+    return {
+      title: "Add visual assets",
+      detail: "Attach cover, video, canvas, or campaign visual metadata for this project.",
+      tab: "visuals",
+    };
+  }
+
+  if (
+    !release &&
+    ["ReleasePreparation", "ContentCampaign", "Released", "Analytics"].includes(song.status)
+  ) {
+    return {
+      title: "Set up release details",
+      detail: "This lifecycle stage is ready for release metadata.",
+      tab: "release",
+    };
+  }
+
+  const nextChecklistItem = checklist
+    ?.filter((item) => !item.isCompleted)
+    .sort((a, b) => a.sortOrder - b.sortOrder)[0];
+  if (release && nextChecklistItem) {
+    return {
+      title: nextChecklistItem.label,
+      detail: "Next incomplete release checklist item.",
+      tab: "release",
+    };
+  }
+
+  const nextContent = nearestFutureContentItem(contentItems);
+  if (nextContent) {
+    return {
+      title: nextContent.title,
+      detail: `Upcoming content date: ${formatDate(nextContent.date)}`,
+      tab: "content",
+    };
+  }
+
+  return {
+    title: "Review workspace areas",
+    detail: "The main project records are in place. Open a workspace area to continue.",
+  };
+}
+
+function nearestFutureContentItem(items: ContentItem[]) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return items
+    .flatMap((item) =>
+      [item.dueDate, item.scheduledAt]
+        .filter((date): date is string => Boolean(date))
+        .map((date) => ({ title: item.title, date })),
+    )
+    .filter((item) => {
+      const date = new Date(item.date);
+      return !Number.isNaN(date.getTime()) && date >= today;
+    })
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+}
+
+function tabLabel(tab: string) {
+  return tab.charAt(0).toUpperCase() + tab.slice(1);
 }
 
 function DriveWorkspacePanel({ songId }: { songId: string }) {
@@ -1166,10 +1487,13 @@ function DriveWorkspacePanel({ songId }: { songId: string }) {
     queryKey: googleDriveConnectionQueryKey,
     queryFn: googleDriveApi.getStatus,
   });
+  const connected = connection.data?.connected === true;
+  const needsReconnect = connection.data?.status === "ReauthRequired";
   const workspace = useQuery({
     queryKey: driveWorkspaceQueryKey(songId),
     queryFn: () => driveWorkspaceApi.getWorkspace(songId),
     retry: false,
+    enabled: connected,
   });
   const provision = useMutation({
     mutationFn: () => driveWorkspaceApi.provisionWorkspace(songId),
@@ -1178,63 +1502,86 @@ function DriveWorkspacePanel({ songId }: { songId: string }) {
       queryClient.invalidateQueries({ queryKey: googleDriveConnectionQueryKey });
     },
   });
-  const connected = connection.data?.connected === true;
-  const needsReconnect = connection.data?.status === "ReauthRequired";
+  const disconnected =
+    !connected || isDriveWorkspaceDisconnectedError(workspace.error) || needsReconnect;
+  const provisioned = connected && workspace.data?.isProvisioned === true;
 
   return (
-    <Panel title="Google Drive" label="Backend folder provisioning">
+    <Panel title="Project storage" label="Storage">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium uppercase">
-            {connected ? "Connected" : needsReconnect ? "Reconnect required" : "Not connected"}
+            {provisioned
+              ? "Ready"
+              : needsReconnect
+                ? "Reconnect required"
+                : connected
+                  ? "Storage connected"
+                  : "Not connected"}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Drive workspace {workspace.data?.isProvisioned ? "provisioned" : "not provisioned"}
+            {provisioned
+              ? "Project folders are ready for media organization."
+              : connected
+                ? "This project does not have its folders yet."
+                : "Connect storage from Settings when you want project files organized in Drive."}
           </p>
         </div>
         <FolderTree className="h-5 w-5 text-muted-foreground" />
       </div>
 
       {workspace.isLoading || connection.isLoading ? (
-        <p className="mt-4 text-xs uppercase text-muted-foreground">Checking Drive workspace</p>
-      ) : connected && workspace.data?.isProvisioned ? (
+        <div
+          className="mt-4 h-16 animate-pulse border border-border bg-background"
+          aria-label="Checking project storage"
+        />
+      ) : provisioned && workspace.data ? (
         <DriveWorkspaceTree workspace={workspace.data} />
+      ) : disconnected ? (
+        <div className="mt-4 flex flex-col gap-3 border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            {needsReconnect
+              ? "Reconnect Google Drive in Settings before setting up project storage."
+              : "Google Drive is not connected."}
+          </p>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/settings">Open Settings</Link>
+          </Button>
+        </div>
+      ) : workspace.isError ? (
+        <div className="mt-4 flex flex-col gap-3 border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">Project storage could not be checked.</p>
+          <Button variant="outline" size="sm" onClick={() => workspace.refetch()}>
+            Retry
+          </Button>
+        </div>
       ) : (
         <div className="mt-4 border border-border bg-background p-3">
-          <p className="text-sm font-medium uppercase">DARKROOM SYSTEM</p>
+          <p className="text-sm font-medium uppercase">Storage is connected</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Create the Song folder structure before attaching media in a later milestone.
+            This project does not have its Drive folders yet.
           </p>
         </div>
       )}
 
-      {workspace.isError && connected ? (
-        <p className="mt-3 text-xs uppercase text-muted-foreground">
-          Drive workspace metadata is not available yet.
-        </p>
+      {connected && !workspace.isLoading && !workspace.isError ? (
+        <div className="mt-4">
+          <Button
+            onClick={() => provision.mutate()}
+            disabled={provision.isPending || workspace.data?.isProvisioned === true}
+          >
+            {provision.isPending
+              ? "Setting up"
+              : workspace.data?.isProvisioned
+                ? "Storage ready"
+                : "Set up project storage"}
+          </Button>
+        </div>
       ) : null}
-      {needsReconnect ? (
-        <p className="mt-3 text-xs uppercase text-muted-foreground">
-          Reconnect Google Drive in Settings before provisioning folders.
-        </p>
-      ) : null}
-
-      <div className="mt-4">
-        <Button
-          onClick={() => provision.mutate()}
-          disabled={!connected || provision.isPending || workspace.data?.isProvisioned === true}
-        >
-          {provision.isPending
-            ? "Creating"
-            : workspace.data?.isProvisioned
-              ? "Workspace ready"
-              : "Create Drive Workspace"}
-        </Button>
-      </div>
 
       {provision.isError ? (
         <p className="mt-3 text-xs uppercase text-destructive">
-          Drive workspace could not be created.
+          Project storage could not be set up.
         </p>
       ) : null}
     </Panel>
