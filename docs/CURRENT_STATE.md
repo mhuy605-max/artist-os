@@ -1,12 +1,12 @@
 # Artist OS Current State
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02
 
 ## Current Phase
 
-Google Drive Media Upload MVP + Audio / Visual Asset File Association.
+Google Drive Media Upload MVP + Audio / Visual Asset File Association + Audio Workspace Product Polish.
 
-Current focus: Google Drive upload is implemented for existing AudioAsset and VisualAsset records. Authenticated DARKROOM SYSTEM users can connect Google Drive, refresh access backend-side, provision/reuse the DARKROOM SYSTEM root folder, provision/reuse an owned Song workspace folder tree, upload one Audio or Visual file per metadata asset, and persist the file association through provider-neutral `ExternalFileReference` rows. Google OAuth remains separate from Artist OS JWT authentication. Google token material stays backend-only and protected before database storage. Replace/version workflow, external Drive deletion, download, Drive browsing, Picker, synchronization, YouTube, publishing, and production deployment remain future work.
+Current focus: Google Drive upload is implemented for existing AudioAsset and VisualAsset records. Authenticated DARKROOM SYSTEM users can connect Google Drive, refresh access backend-side, provision/reuse the DARKROOM SYSTEM root folder, provision/reuse an owned Song workspace folder tree, upload one Audio or Visual file per metadata asset, and persist the file association through provider-neutral `ExternalFileReference` rows. The Song Workspace Audio tab has now been polished around the existing real AudioAsset metadata and upload states. Google OAuth remains separate from Artist OS JWT authentication. Google token material stays backend-only and protected before database storage. Replace/version workflow, external Drive deletion, download, Drive browsing, Picker, synchronization, YouTube, publishing, and production deployment remain future work.
 
 ## Completed
 
@@ -203,6 +203,15 @@ Current focus: Google Drive upload is implemented for existing AudioAsset and Vi
 - Song workspace Overview no longer shows fake artwork, fake artist metadata, mock task lists, mock collaborators, fake BPM/key/genre/release metrics, or lifecycle percentage math.
 - Google Drive disconnected storage is now treated as a normal Overview state; the Overview checks connection status first and does not call the Drive workspace endpoint while disconnected.
 - Focused Song Workspace Overview frontend tests cover empty, populated, partial-error, loading, not-found, unexpected-error, tab navigation, and Google Drive storage states.
+- Audio Workspace Product Polish Sprint #4 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, Google Drive OAuth, or Drive upload behavior changes.
+- Audio tab information hierarchy now presents the real Audio workspace header, total/linked/final summary, and populated asset type sections only.
+- Audio tab empty state now uses one product-focused empty state instead of four large empty type panels.
+- Audio asset rows now emphasize real file identity, asset type/version, status/current state, duration, size, added date, and Drive file association status.
+- Audio upload UX now distinguishes connected, disconnected, reauthorization, checking, linked-file, and backend upload failure states using product copy instead of raw API ProblemDetails JSON.
+- Audio linked-file UX now shows safe `ExternalFileReference` metadata and only renders Open in Drive when a safe `webViewLink` is available.
+- Audio delete confirmation now clearly states that deleting an Artist OS AudioAsset with a linked Drive file leaves the external Google Drive binary in place.
+- Misleading Audio copy and fake waveform-like mini bars were removed from the Audio tab.
+- Focused Audio upload/frontend tests cover metadata upload action, linked file display, productized backend upload failure, empty state, populated sections, create/edit metadata, delete copy, disconnected Drive, reauth Drive, safe Open in Drive behavior, and absence of token text.
 
 ## Current Implementation
 
@@ -2100,6 +2109,19 @@ Latest browser Song Workspace Overview Product Polish checks confirmed:
 - Browser screenshots were captured at `output/playwright/song-overview-polish/song-overview-desktop.png` and `output/playwright/song-overview-polish/song-overview-mobile.png`.
 - The temporary verification Song was deleted after verification.
 
+Latest browser Audio Workspace Product Polish checks confirmed:
+
+- `/songs/{songId}` loaded real Song workspace data and real AudioAsset metadata through the existing authenticated backend APIs.
+- Audio tab rendered the polished `AUDIO / ASSETS` hierarchy, summary counts, and populated Demo, Mix, and Master sections.
+- The empty Audio tab rendered a single `NO AUDIO ASSETS` state.
+- Google Drive disconnected state rendered as normal upload guidance with an Open Settings action instead of raw upload failure JSON.
+- Audio tab no longer rendered the stale `Real backend data`, `Real metadata`, future-only Google Drive association copy, or fake waveform wording.
+- Desktop and mobile viewport checks confirmed long filenames wrapped without breaking the layout.
+- Corrected-localhost browser network checks showed `200 OK` responses for authenticated Song, AudioAsset, Google Drive status, and related workspace requests.
+- Desktop and mobile screenshots were captured at `output/playwright/audio-polish/audio-workspace-desktop.png` and `output/playwright/audio-polish/audio-workspace-mobile.png`.
+- Real Google Drive file upload was not attempted in-browser because the disposable verification account did not have Google Drive connected.
+- The temporary verification Songs were deleted after verification.
+
 ## Security / Secrets Status
 
 - `appsettings.json` does not currently contain the local database password.
@@ -2167,7 +2189,7 @@ Remote GitHub Actions status:
 - Calendar does not yet support standalone sessions, reminders, external sync, or drag/drop rescheduling.
 - Dashboard is read-only and derives recent activity only from current source timestamps, not from an audit log.
 - Dashboard does not yet support notifications, saved filters, or user-specific/team-specific views.
-- Some non-Overview workspace tab copy still needs product polish; for example Audio empty-state copy can imply Google Drive file association is future-only even though the upload MVP now exists.
+- Some non-Audio workspace tab copy still needs product polish now that the Google Drive upload MVP exists.
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - Frontend automated tests are intentionally focused and do not yet cover the entire app, all routes, all workspace tabs, or visual regression.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
@@ -2206,10 +2228,10 @@ Google OAuth tokens are backend-managed and must not be exposed to the React fro
 
 ## Recommended Next Milestone
 
-Start Audio Workspace Product Polish Sprint #4 only after approval.
+Start Visuals Workspace Product Polish Sprint #5 only after approval.
 
 Suggested scope:
 
-- Polish the Audio workspace using existing real AudioAsset metadata and Google Drive upload behavior only.
+- Polish the Visuals workspace using existing real VisualAsset metadata and Google Drive upload behavior only.
 - Keep backend API contracts, database schema, migrations, auth, ownership, and Google Drive behavior unchanged unless a separately approved bug fix requires it.
 - Do not implement new domain modules, Drive file browsing, replace/version workflow, YouTube, publishing, collaboration, or analytics ingestion.
