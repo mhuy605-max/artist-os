@@ -1,21 +1,30 @@
 # .NET build output
 **/bin/
 **/obj/
+.codex-build/
 
 # User-specific IDE files
 .vs/
 .vscode/*
 !.vscode/extensions.json
+*.user
+*.suo
 
 # OS files
 .DS_Store
 Thumbs.db
 
 # Node dependencies and build output
-node_modules/
-dist/
-dist-ssr/
+**/node_modules/
+**/dist/
+**/dist-ssr/
+coverage/
 *.local
+
+# Local environment
+.env
+.env.*
+!.env.example
 
 # Logs
 logs/
@@ -26,4 +35,6 @@ pnpm-debug.log*
 
 # Local browser verification artifacts
 .playwright-cli/
-output/playwright/
+playwright-report/
+test-results/
+output/
