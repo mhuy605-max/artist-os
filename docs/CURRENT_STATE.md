@@ -4,9 +4,9 @@ Last updated: 2026-09-02
 
 ## Current Phase
 
-Google Drive Media Upload MVP + Audio / Visual Asset File Association + Audio, Visuals, and Release Workspace Product Polish.
+Google Drive Media Upload MVP + Audio / Visual Asset File Association + Audio, Visuals, Release, and Content Workspace Product Polish.
 
-Current focus: Google Drive upload is implemented for existing AudioAsset and VisualAsset records. Authenticated DARKROOM SYSTEM users can connect Google Drive, refresh access backend-side, provision/reuse the DARKROOM SYSTEM root folder, provision/reuse an owned Song workspace folder tree, upload one Audio or Visual file per metadata asset, and persist the file association through provider-neutral `ExternalFileReference` rows. The Song Workspace Audio, Visuals, and Release tabs have now been polished around existing real metadata and workflow states. Google OAuth remains separate from Artist OS JWT authentication. Google token material stays backend-only and protected before database storage. Replace/version workflow, external Drive deletion, download, Drive browsing, Picker, synchronization, YouTube, publishing, and production deployment remain future work.
+Current focus: Google Drive upload is implemented for existing AudioAsset and VisualAsset records. Authenticated DARKROOM SYSTEM users can connect Google Drive, refresh access backend-side, provision/reuse the DARKROOM SYSTEM root folder, provision/reuse an owned Song workspace folder tree, upload one Audio or Visual file per metadata asset, and persist the file association through provider-neutral `ExternalFileReference` rows. The Song Workspace Audio, Visuals, Release, and Content tabs have now been polished around existing real metadata and workflow states. Google OAuth remains separate from Artist OS JWT authentication. Google token material stays backend-only and protected before database storage. Replace/version workflow, external Drive deletion, download, Drive browsing, Picker, synchronization, YouTube, publishing, and production deployment remain future work.
 
 ## Completed
 
@@ -230,6 +230,15 @@ Current focus: Google Drive upload is implemented for existing AudioAsset and Vi
 - Delete confirmation clarifies that removing Release setup removes Release metadata and the preparation checklist from DARKROOM SYSTEM while the parent Song remains.
 - Misleading publishing/distributor/sync copy was removed from the Release tab; no publishing actions, platform sync, ISRC/UPC generation, distributor validation, or automatic checklist completion were introduced.
 - Focused Release frontend tests cover loading, error, no-release, create/edit/delete, state/details/platforms/identifiers, readiness, checklist completion, notes, checklist failure, and truth-in-UX behavior.
+- Content Workspace Product Polish Sprint #7 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, Google Drive OAuth, Drive architecture, upload, Calendar, or Dashboard behavior changes.
+- Content tab information hierarchy now presents `CONTENT / PRODUCTION`, Summary, Content Pipeline, and Content Items.
+- Content summary derives total, in-production, scheduled, and published counts from real ContentItem status and date fields.
+- Content pipeline presents canonical ContentItem statuses as compact counts instead of unsupported publishing columns.
+- Content item rows now emphasize title, type, status, platform, owner, due date, scheduled date, published date, notes preview, and updated date using existing real fields.
+- Create/edit/delete UX was refined around existing metadata fields only; no social publishing, media upload, external sync, Drive, Calendar, Dashboard, or authentication behavior was added.
+- Content date presentation distinguishes due, scheduled, and published dates; published items with old due dates are not treated as overdue active production work.
+- Misleading Content copy was removed, including `Real backend data`, repeated no-publish row text, upload/media delete implications, and internal future-work placeholders.
+- Focused Content frontend tests cover hierarchy, summary/pipeline, item presentation, create/edit/delete, date behavior, loading/error/empty states, and truth-in-UX copy.
 
 ## Current Implementation
 
@@ -1784,6 +1793,18 @@ npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
 npm run build: succeeded.
 ```
 
+Latest Content Workspace Product Polish Sprint #7 verification:
+
+```text
+npm run test -- ContentWorkspace.test.tsx: succeeded, 10 passed, 0 failed, 0 skipped.
+npm run test: succeeded, 96 passed, 0 failed, 0 skipped.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run build: succeeded. Vite emitted an existing `vite-tsconfig-paths` advisory and Nitro emitted an existing `inlineDynamicImports` advisory; neither failed the build.
+dotnet build: succeeded, 0 warnings, 0 errors.
+dotnet test: succeeded, 247 passed, 0 failed, 0 skipped.
+Real browser verification: completed against local backend/frontend using a disposable authenticated user and Song.
+```
+
 Automated frontend coverage now includes:
 
 - StatusBadge canonical Song label rendering and fallback status rendering.
@@ -1827,6 +1848,7 @@ Automated frontend coverage now includes:
 - Song workspace Overview structured loading, not-found, and unexpected-error states.
 - Song workspace Overview tab navigation through the next-attention and workspace-area actions.
 - Song workspace Google Drive disconnected, connected/unprovisioned, provision action, and provisioned storage states without rendering folder ids or token material.
+- Content workspace hierarchy, real summary counts, canonical pipeline counts, item presentation, create/edit/delete metadata flows, date status labels, empty/loading/error states, and unsupported publishing/upload/sync copy removal.
 
 Automated backend coverage now includes:
 
@@ -2029,6 +2051,20 @@ Latest browser ContentItem checks confirmed:
 - The parent Song still existed after deleting ContentItem metadata.
 - Content UI remained clear that Published status is metadata only and does not post to a platform.
 - Calendar route now reads real backend aggregate data.
+
+Latest browser Content Workspace Product Polish checks confirmed:
+
+- `/songs/{songId}` loaded real Song workspace data and real ContentItem metadata through the existing authenticated backend APIs.
+- Content tab rendered the polished `CONTENT / PRODUCTION` hierarchy with Summary, Content Pipeline, and Content Items.
+- Summary counts and pipeline counts reflected persisted ContentItem source data.
+- Browser-based ContentItem metadata create, edit, and delete worked through the existing API integration.
+- Calendar displayed Content Due and Scheduled Content entries after the browser-edited ContentItem dates were moved into the current month.
+- Delete confirmation stated that only the ContentItem planning metadata is removed from DARKROOM SYSTEM and did not imply uploaded media deletion.
+- Content UI no longer rendered stale `Real backend data`, repeated no-publish row copy, upload/media delete implications, or internal future-work placeholders.
+- Desktop and mobile viewport checks confirmed long content titles wrapped without breaking the layout.
+- Desktop and mobile screenshots were captured at `output/playwright/content-polish/content-workspace-desktop.png` and `output/playwright/content-polish/content-workspace-mobile.png`.
+- A disposable browser-created ContentItem was deleted through the UI, and the temporary verification Song was deleted through the API after verification.
+- Browser console still showed an existing `GET /api/songs/{id}/release` `404 Not Found` when a Song has no Release. It did not block Content verification, but it remains console noise to address in a later polish/cleanup pass.
 
 Latest browser Credit checks confirmed:
 
@@ -2234,7 +2270,8 @@ Remote GitHub Actions status:
 - Calendar does not yet support standalone sessions, reminders, external sync, or drag/drop rescheduling.
 - Dashboard is read-only and derives recent activity only from current source timestamps, not from an audit log.
 - Dashboard does not yet support notifications, saved filters, or user-specific/team-specific views.
-- Content, Credits, and Analytics workspace tab copy still need product polish now that the Google Drive upload MVP exists.
+- Credits and Analytics workspace tab copy still need product polish now that the Google Drive upload MVP exists.
+- Song workspace load still emits a browser console `404 Not Found` for `GET /api/songs/{id}/release` when a Song has no Release. The UI handles the no-release state, but the console noise should be cleaned up later.
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - Frontend automated tests are intentionally focused and do not yet cover the entire app, all routes, all workspace tabs, or visual regression.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
@@ -2273,10 +2310,10 @@ Google OAuth tokens are backend-managed and must not be exposed to the React fro
 
 ## Recommended Next Milestone
 
-Start Content Workspace Product Polish Sprint #7 only after approval.
+Start Credits Workspace Product Polish Sprint #8 only after approval.
 
 Suggested scope:
 
-- Polish the Content workspace using existing real ContentItem metadata only.
+- Polish the Credits workspace using existing real Credit metadata only.
 - Keep backend API contracts, database schema, migrations, auth, ownership, and Google Drive behavior unchanged unless a separately approved bug fix requires it.
 - Do not implement new domain modules, Drive file browsing, replace/version workflow, YouTube, publishing, collaboration, or analytics ingestion.
