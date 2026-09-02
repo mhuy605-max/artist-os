@@ -1751,86 +1751,6 @@ function AudioSummary({ assets }: { assets: AudioAsset[] }) {
   );
 }
 
-function AssetFileUploadPanel({
-  linkedFile,
-  accept,
-  uploadLabel,
-  isPending,
-  error,
-  onUpload,
-}: {
-  linkedFile?: ExternalFileReference | null;
-  accept: string;
-  uploadLabel: string;
-  isPending: boolean;
-  error: unknown;
-  onUpload: (file: File) => void;
-}) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  if (linkedFile) {
-    return (
-      <div className="mt-3 border border-border bg-panel p-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="label-tech">File linked</p>
-            <p className="mt-1 truncate text-sm font-medium">{linkedFile.displayName}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {formatFileSize(linkedFile.sizeBytes)} / {linkedFile.provider}
-            </p>
-          </div>
-          {linkedFile.webViewLink ? (
-            <Button variant="outline" size="sm" asChild>
-              <a href={linkedFile.webViewLink} target="_blank" rel="noreferrer">
-                <ExternalLink className="h-4 w-4" />
-                Open in Drive
-              </a>
-            </Button>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-3 border border-dashed border-border bg-panel p-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="label-tech">No file linked</p>
-          {selectedFile ? (
-            <p className="mt-1 truncate text-xs text-muted-foreground">
-              {selectedFile.name} / {formatFileSize(selectedFile.size)}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            className="max-w-56 text-xs"
-            type="file"
-            accept={accept}
-            disabled={isPending}
-            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!selectedFile || isPending}
-            onClick={() => {
-              if (selectedFile) onUpload(selectedFile);
-            }}
-          >
-            <Upload className="h-4 w-4" />
-            {isPending ? "Uploading" : uploadLabel}
-          </Button>
-        </div>
-      </div>
-      {error instanceof Error ? (
-        <p className="mt-2 text-xs text-muted-foreground">{error.message}</p>
-      ) : null}
-    </div>
-  );
-}
-
 function numberOrNull(value: string) {
   if (value.trim() === "") return null;
   const parsed = Number(value);
@@ -2432,7 +2352,86 @@ function validateVisualAssetPayload(payload: VisualAssetPayload) {
 
 function formatDimensions(width?: number | null, height?: number | null) {
   if (width == null || height == null) return "No dimensions";
-  return `${width} x ${height}`;
+  return `${width} × ${height}`;
+}
+
+function visualMediaLabel(asset: VisualAsset) {
+  const mimeType = asset.linkedFile?.mimeType?.toLowerCase();
+  const extension = (asset.linkedFile?.displayName ?? asset.fileName)
+    .split(".")
+    .pop()
+    ?.toUpperCase();
+
+  if (mimeType?.includes("png")) return "PNG";
+  if (mimeType?.includes("jpeg") || mimeType?.includes("jpg")) return "JPEG";
+  if (mimeType?.includes("webp")) return "WEBP";
+  if (mimeType?.includes("mp4")) return "MP4";
+  if (mimeType?.includes("quicktime")) return "MOV";
+  if (mimeType?.includes("webm")) return "WEBM";
+
+  if (extension && ["PNG", "JPG", "JPEG", "WEBP", "MP4", "MOV", "WEBM"].includes(extension)) {
+    return extension === "JPG" ? "JPEG" : extension;
+  }
+
+  if (asset.type === "MusicVideo" || asset.type === "Visualizer") return "VIDEO";
+  return "VISUAL";
+}
+
+function visualUploadErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return "";
+
+  if (error instanceof ApiError) {
+    const detail = parseApiProblemTitle(error);
+
+    if (error.status === 409 && detail.includes("Google Drive is not connected")) {
+      return "Connect storage from Settings before attaching visual files.";
+    }
+
+    if (error.status === 409 && detail.includes("authorization needs to be refreshed")) {
+      return "Reconnect Google Drive from Settings before uploading.";
+    }
+
+    if (error.status === 409 && detail.toLowerCase().includes("already")) {
+      return "File already linked. Replacing files is not available yet.";
+    }
+
+    if (error.status === 400) {
+      return detail;
+    }
+
+    if (error.status === 502) {
+      return "Storage is temporarily unavailable. Try again when Google Drive is reachable.";
+    }
+  }
+
+  return error.message || "The visual file could not be uploaded.";
+}
+
+function groupedVisualAssets(assets: VisualAsset[]) {
+  return VISUAL_ASSET_TYPES.map((type) => ({
+    type,
+    assets: assets.filter((asset) => asset.type === type),
+  })).filter((group) => group.assets.length > 0);
+}
+
+function VisualSummary({ assets }: { assets: VisualAsset[] }) {
+  const linkedCount = assets.filter((asset) => asset.linkedFile).length;
+  const finalCount = assets.filter((asset) => asset.status === "Final").length;
+  const videoCount = assets.filter(
+    (asset) =>
+      asset.type === "MusicVideo" ||
+      asset.type === "Visualizer" ||
+      asset.linkedFile?.mimeType?.toLowerCase().startsWith("video/"),
+  ).length;
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-4">
+      <MetricBlock label="TOTAL" value={assets.length} />
+      <MetricBlock label="LINKED" value={linkedCount} />
+      <MetricBlock label="FINAL" value={finalCount} />
+      <MetricBlock label="VIDEO" value={videoCount} />
+    </div>
+  );
 }
 
 function VisualAssetFormDialog({
@@ -2513,8 +2512,11 @@ function VisualAssetFormDialog({
             {mode === "create" ? "Add visual asset" : "Edit visual asset"}
           </DialogTitle>
           <DialogDescription>
-            This saves metadata only. Actual image/video upload, previews, and external storage are
-            planned for a later milestone.
+            {mode === "create"
+              ? "Create a visual asset slot for cover art, video, canvas, or campaign files. Attach the file after saving."
+              : asset?.linkedFile
+                ? "Update how this visual version is organized in DARKROOM SYSTEM. This does not rename the linked Drive file."
+                : "Update this visual version before a file is attached."}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -2523,7 +2525,7 @@ function VisualAssetFormDialog({
               className="label-tech"
               htmlFor={`${mode}-visual-file-name-${asset?.id ?? "new"}`}
             >
-              File name
+              Asset file name
             </label>
             <Input
               id={`${mode}-visual-file-name-${asset?.id ?? "new"}`}
@@ -2610,7 +2612,7 @@ function VisualAssetFormDialog({
           </div>
           <div>
             <label className="label-tech" htmlFor={`${mode}-visual-size-${asset?.id ?? "new"}`}>
-              File size MB
+              File size
             </label>
             <Input
               id={`${mode}-visual-size-${asset?.id ?? "new"}`}
@@ -2622,6 +2624,7 @@ function VisualAssetFormDialog({
               className="mt-2"
               placeholder="8.4"
             />
+            <p className="mt-1 text-xs text-muted-foreground">MB, when known.</p>
           </div>
           <label className="flex items-center gap-2 text-sm sm:col-span-2">
             <Checkbox
@@ -2645,83 +2648,241 @@ function VisualAssetFormDialog({
   );
 }
 
-function VisualAssetRow({ songId, asset }: { songId: string; asset: VisualAsset }) {
-  const mutations = useVisualAssetMutations(songId);
+function VisualFileAssociationPanel({
+  asset,
+  driveStatus,
+  driveStatusError,
+  upload,
+}: {
+  asset: VisualAsset;
+  driveStatus?: GoogleDriveConnectionStatus;
+  driveStatusError: boolean;
+  upload: {
+    isPending: boolean;
+    error: unknown;
+    mutate: (input: { visualAssetId: string; file: File }) => void;
+  };
+}) {
+  const fileInputId = useId();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const linkedFile = asset.linkedFile;
+
+  if (linkedFile) {
+    return (
+      <div className="border border-border bg-panel p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="label-tech">FILE LINKED</p>
+              <span className="border border-border px-2 py-1 text-xs">
+                {visualMediaLabel(asset)}
+              </span>
+            </div>
+            <p className="mt-2 break-words text-sm font-medium">{linkedFile.displayName}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatFileSize(linkedFile.sizeBytes)} / {externalProviderLabel(linkedFile.provider)}
+            </p>
+          </div>
+          {linkedFile.webViewLink ? (
+            <Button variant="outline" size="sm" asChild>
+              <a
+                href={linkedFile.webViewLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Open ${linkedFile.displayName} in Drive`}
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open in Drive
+              </a>
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (driveStatus?.connected === false) {
+    return (
+      <div className="border border-dashed border-border bg-panel p-3">
+        <p className="label-tech">CONNECT STORAGE TO UPLOAD</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Google Drive must be connected before attaching visual files.
+        </p>
+        <Button variant="outline" size="sm" className="mt-3" asChild>
+          <Link to="/settings">Open Settings</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (driveStatus?.status === "ReauthRequired") {
+    return (
+      <div className="border border-dashed border-border bg-panel p-3">
+        <p className="label-tech">STORAGE CONNECTION NEEDS ATTENTION</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Reconnect Google Drive from Settings before uploading.
+        </p>
+        <Button variant="outline" size="sm" className="mt-3" asChild>
+          <Link to="/settings">Open Settings</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (!driveStatus && !driveStatusError) {
+    return (
+      <div className="border border-dashed border-border bg-panel p-3">
+        <p className="label-tech">CHECKING STORAGE</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Checking Google Drive before file attachment is available.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="border border-border bg-background p-3">
-      <div className="aspect-video border border-border bg-panel p-3">
-        <div className="flex h-full items-end justify-between border border-dashed border-border p-3">
-          <span className="label-tech">{visualTypeLabel(asset.type)}</span>
-          <span className="text-xs text-muted-foreground">Placeholder</span>
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+    <div className="border border-dashed border-border bg-panel p-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{asset.fileName}</p>
+          <label className="label-tech" htmlFor={fileInputId}>
+            UPLOAD FILE
+          </label>
           <p className="mt-1 text-xs text-muted-foreground">
-            v{asset.version} / {formatDimensions(asset.width, asset.height)} /{" "}
-            {formatFileSize(asset.fileSizeBytes)}
+            Images: PNG, JPG, WEBP / up to 100 MB
           </p>
+          <p className="mt-1 text-xs text-muted-foreground">Video: MP4, MOV, WEBM / up to 2 GB</p>
+          {driveStatusError ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Storage status could not be checked. You can still manage metadata.
+            </p>
+          ) : null}
+          {selectedFile ? (
+            <p className="mt-2 break-words text-xs text-muted-foreground">
+              Selected: {selectedFile.name} / {formatFileSize(selectedFile.size)}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {asset.isCurrent ? (
-            <span className="border border-border px-2 py-1 text-xs">Current</span>
-          ) : null}
-          <StatusBadge status={visualStatusLabel(asset.status)} />
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">Added {formatDate(asset.uploadedAt)}</p>
-        <div className="flex gap-2">
-          <VisualAssetFormDialog
-            songId={songId}
-            asset={asset}
-            trigger={
-              <Button variant="outline" size="sm">
-                Edit
-              </Button>
-            }
+          <Input
+            id={fileInputId}
+            className="max-w-56 text-xs"
+            type="file"
+            accept=".png,.jpg,.jpeg,.webp,.mp4,.mov,.webm,image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
+            disabled={upload.isPending}
+            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
           />
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete visual asset metadata</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This removes only the saved metadata record. No external image or video file will
-                  be deleted because file storage is not implemented yet.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => mutations.remove.mutate(String(asset.id))}>
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!selectedFile || upload.isPending}
+            onClick={() => {
+              if (selectedFile) {
+                upload.mutate({
+                  visualAssetId: String(asset.id),
+                  file: selectedFile,
+                });
+              }
+            }}
+          >
+            <Upload className="h-4 w-4" />
+            {upload.isPending ? "Uploading" : "Upload file"}
+          </Button>
         </div>
       </div>
-      <AssetFileUploadPanel
-        linkedFile={asset.linkedFile}
-        accept=".png,.jpg,.jpeg,.webp,.mp4,.mov,.webm,image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
-        uploadLabel="Upload file"
-        isPending={mutations.upload.isPending}
-        error={mutations.upload.error}
-        onUpload={(file) =>
-          mutations.upload.mutate({
-            visualAssetId: String(asset.id),
-            file,
-          })
-        }
-      />
+      {upload.error ? (
+        <p className="mt-2 text-xs text-destructive">{visualUploadErrorMessage(upload.error)}</p>
+      ) : null}
     </div>
+  );
+}
+
+function VisualAssetRow({
+  songId,
+  asset,
+  driveStatus,
+  driveStatusError,
+}: {
+  songId: string;
+  asset: VisualAsset;
+  driveStatus?: GoogleDriveConnectionStatus;
+  driveStatusError: boolean;
+}) {
+  const mutations = useVisualAssetMutations(songId);
+  const removeCopy = asset.linkedFile
+    ? "This removes the asset from DARKROOM SYSTEM. The linked Google Drive file will remain."
+    : "This removes the asset from DARKROOM SYSTEM.";
+
+  return (
+    <article className="border border-border bg-background p-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.82fr)]">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="border border-border px-2 py-1 text-xs">
+              {visualMediaLabel(asset)}
+            </span>
+            <p className="label-tech">
+              {visualTypeLabel(asset.type)} / V{asset.version}
+            </p>
+            {asset.isCurrent ? (
+              <span className="border border-border px-2 py-1 text-xs uppercase">Current</span>
+            ) : null}
+            <StatusBadge status={visualStatusLabel(asset.status)} />
+          </div>
+          <p className="mt-3 break-words text-base font-semibold">{asset.fileName}</p>
+          <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+            <p>
+              <span className="label-tech block">DIMENSIONS</span>
+              {formatDimensions(asset.width, asset.height)}
+            </p>
+            <p>
+              <span className="label-tech block">SIZE</span>
+              {formatFileSize(asset.fileSizeBytes)}
+            </p>
+            <p>
+              <span className="label-tech block">ADDED</span>
+              {formatDate(asset.uploadedAt)}
+            </p>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <VisualAssetFormDialog
+              songId={songId}
+              asset={asset}
+              trigger={
+                <Button variant="outline" size="sm">
+                  Edit
+                </Button>
+              }
+            />
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove visual asset?</AlertDialogTitle>
+                  <AlertDialogDescription>{removeCopy}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => mutations.remove.mutate(String(asset.id))}>
+                    Remove asset
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+        <VisualFileAssociationPanel
+          asset={asset}
+          driveStatus={driveStatus}
+          driveStatusError={driveStatusError}
+          upload={mutations.upload}
+        />
+      </div>
+    </article>
   );
 }
 
@@ -2730,63 +2891,100 @@ function VisualsTab({ songId }: { songId: string }) {
     queryKey: visualAssetsQueryKey(songId),
     queryFn: () => visualAssetsApi.getVisualAssets(songId),
   });
+  const driveConnection = useQuery({
+    queryKey: googleDriveConnectionQueryKey,
+    queryFn: googleDriveApi.getStatus,
+  });
 
   if (visualAssets.isLoading) {
-    return <LoadingState label="Loading visual metadata" />;
+    return (
+      <div className="space-y-4">
+        <Panel title="VISUALS" label="VISUALS / ASSETS">
+          <LoadingState label="Loading visuals workspace" />
+        </Panel>
+      </div>
+    );
   }
 
   if (visualAssets.isError) {
     return (
-      <ErrorState
-        detail="Visual asset metadata could not be loaded from the backend."
-        onRetry={() => visualAssets.refetch()}
-      />
+      <Panel title="Visuals unavailable" label="VISUALS / ASSETS">
+        <ErrorState
+          detail="We couldn't load visual assets."
+          onRetry={() => visualAssets.refetch()}
+        />
+      </Panel>
     );
   }
 
   const assets = visualAssets.data ?? [];
+  const assetGroups = groupedVisualAssets(assets);
 
   return (
     <div className="space-y-4">
-      <Panel title="Visual metadata" label="Real backend data">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            Metadata is persisted through the ASP.NET API. Visual files can now be uploaded to the
-            linked Google Drive workspace; thumbnails, previews, and playback are planned for later.
-          </p>
+      <Panel title="VISUALS" label="VISUALS / ASSETS">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <p className="text-sm text-muted-foreground">
+              Artwork, video, campaign, and social assets for this song.
+            </p>
+          </div>
           <VisualAssetFormDialog
             songId={songId}
             trigger={
               <Button>
                 <Plus className="h-4 w-4" />
-                Add asset
+                Add Visual Asset
               </Button>
             }
           />
         </div>
+        {assets.length ? (
+          <div className="mt-4">
+            <VisualSummary assets={assets} />
+          </div>
+        ) : null}
       </Panel>
 
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {VISUAL_ASSET_TYPES.map((type) => {
-          const scoped = assets.filter((asset) => asset.type === type);
-          return (
-            <Panel key={type} title={visualTypeLabel(type)} label="Real metadata">
-              {scoped.length ? (
-                <div className="space-y-3">
-                  {scoped.map((asset) => (
-                    <VisualAssetRow key={asset.id} songId={songId} asset={asset} />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  title={`No ${visualTypeLabel(type).toLowerCase()} metadata`}
-                  detail="Add a visual metadata record now, then upload a linked Drive file from the saved asset row."
-                />
-              )}
+      {assets.length === 0 ? (
+        <EmptyState
+          title="NO VISUAL ASSETS"
+          detail="Start with cover art, video, canvas, or campaign assets."
+          action={
+            <VisualAssetFormDialog
+              songId={songId}
+              trigger={
+                <Button>
+                  <Plus className="h-4 w-4" />
+                  Add Visual Asset
+                </Button>
+              }
+            />
+          }
+        />
+      ) : (
+        <div className="space-y-4">
+          {assetGroups.map((group) => (
+            <Panel
+              key={group.type}
+              title={visualTypeLabel(group.type)}
+              label={`${group.assets.length} ${group.assets.length === 1 ? "ASSET" : "ASSETS"}`}
+            >
+              <div className="space-y-3">
+                {group.assets.map((asset) => (
+                  <VisualAssetRow
+                    key={asset.id}
+                    songId={songId}
+                    asset={asset}
+                    driveStatus={driveConnection.data}
+                    driveStatusError={driveConnection.isError}
+                  />
+                ))}
+              </div>
             </Panel>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2855,6 +3053,26 @@ function releaseStatusLabel(status: ReleaseStatus) {
 
 function platformLabel(platform: ReleasePlatform) {
   return RELEASE_PLATFORM_LABELS[platform];
+}
+
+function releaseDateLabel(releaseDate?: string | null) {
+  return releaseDate ? formatDate(releaseDate) : "DATE NOT SET";
+}
+
+function optionalReleaseValue(value?: string | null) {
+  return value?.trim() ? value : "Not set";
+}
+
+function releaseReadiness(items: ReleaseChecklistItem[]) {
+  const completedCount = items.filter((item) => item.isCompleted).length;
+  const progressPercent = items.length ? Math.round((completedCount / items.length) * 100) : 0;
+  const nextItem = items.find((item) => !item.isCompleted);
+
+  return {
+    completedCount,
+    progressPercent,
+    nextItem,
+  };
 }
 
 function validateReleasePayload(payload: ReleasePayload) {
@@ -2930,11 +3148,11 @@ function ReleaseFormDialog({
       <DialogContent className="border-border bg-background">
         <DialogHeader>
           <DialogTitle className="uppercase">
-            {mode === "create" ? "Create release plan" : "Edit release plan"}
+            {mode === "create" ? "Set up release" : "Edit release"}
           </DialogTitle>
           <DialogDescription>
-            This saves release planning metadata only. Distributor delivery and publishing are
-            planned for later milestones.
+            Save release planning metadata and intended platforms. This does not submit anything to
+            a distributor.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -2952,21 +3170,10 @@ function ReleaseFormDialog({
           </div>
           <div>
             <label className="label-tech">Release type</label>
-            <Select
-              value={releaseType}
-              onValueChange={(value) => setReleaseType(value as ReleaseType)}
-            >
-              <SelectTrigger className="mt-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RELEASE_TYPES.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {releaseTypeLabel(value)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="mt-2 border border-border bg-panel px-3 py-2 text-sm">
+              {releaseTypeLabel(releaseType)}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">Only Single is supported now.</p>
           </div>
           <div>
             <label className="label-tech" htmlFor={`${mode}-release-distributor-${songId}`}>
@@ -3023,10 +3230,22 @@ function ReleaseFormDialog({
             />
           </div>
           <div className="sm:col-span-2">
-            <p className="label-tech">Platforms</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <p className="label-tech" id={`${mode}-release-platforms-${songId}`}>
+              Platforms
+            </p>
+            <div
+              className="mt-2 grid gap-2 sm:grid-cols-2"
+              role="group"
+              aria-labelledby={`${mode}-release-platforms-${songId}`}
+            >
               {RELEASE_PLATFORMS.map((platform) => (
-                <label key={platform} className="flex items-center gap-2 text-sm">
+                <label
+                  key={platform}
+                  className={cn(
+                    "flex items-center gap-2 border border-border bg-panel px-3 py-2 text-sm",
+                    platforms.includes(platform) && "border-border-strong bg-panel-strong",
+                  )}
+                >
                   <Checkbox
                     checked={platforms.includes(platform)}
                     onCheckedChange={(checked) => togglePlatform(platform, checked === true)}
@@ -3056,40 +3275,129 @@ function ReleaseTab({ songId }: { songId: string }) {
     queryKey: releaseQueryKey(songId),
     queryFn: () => releasesApi.getRelease(songId),
   });
+  const checklist = useQuery({
+    queryKey: releaseChecklistQueryKey(songId),
+    queryFn: () => releaseChecklistApi.getChecklist(songId),
+    enabled: Boolean(release.data),
+  });
   const mutations = useReleaseMutations(songId);
 
   if (release.isLoading) {
-    return <LoadingState label="Loading release metadata" />;
+    return (
+      <Panel title="RELEASE" label="RELEASE / CONTROL">
+        <LoadingState label="Loading release control room" />
+      </Panel>
+    );
   }
 
   if (release.isError) {
     return (
-      <ErrorState
-        detail="Release metadata could not be loaded from the backend."
-        onRetry={() => release.refetch()}
-      />
+      <Panel title="Release unavailable" label="RELEASE / CONTROL">
+        <ErrorState
+          detail="We couldn't load release information."
+          onRetry={() => release.refetch()}
+        />
+      </Panel>
     );
   }
 
   const releasePlan = release.data;
 
+  if (!releasePlan) {
+    return (
+      <Panel title="RELEASE" label="RELEASE / CONTROL">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-sm text-muted-foreground">
+              Release planning, metadata, and preparation readiness.
+            </p>
+          </div>
+          <ReleaseFormDialog
+            songId={songId}
+            trigger={
+              <Button>
+                <Plus className="h-4 w-4" />
+                Set Up Release
+              </Button>
+            }
+          />
+        </div>
+        <div className="mt-5 border border-dashed border-border bg-background p-6">
+          <p className="label-tech">NO RELEASE SET UP</p>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            Set the release date, distributor, platforms, and preparation checklist.
+          </p>
+        </div>
+      </Panel>
+    );
+  }
+
+  const checklistItems = checklist.data ?? [];
+  const readiness = releaseReadiness(checklistItems);
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
-      <Panel title="Release metadata" label="Real backend data">
-        {releasePlan ? (
-          <>
-            <dl className="grid grid-cols-2 gap-3 text-sm">
+    <div className="space-y-4">
+      <Panel title="RELEASE" label="RELEASE / CONTROL">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-sm text-muted-foreground">
+              Release planning, metadata, and preparation readiness.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ReleaseFormDialog
+              songId={songId}
+              release={releasePlan}
+              trigger={<Button variant="outline">Edit Release</Button>}
+            />
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline">
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove release setup?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes the release metadata and preparation checklist from DARKROOM
+                    SYSTEM. The Song remains.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => mutations.remove.mutate()}>
+                    Remove Release
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+        <div className="space-y-4">
+          <Panel title="Release state" label="RELEASE STATE">
+            <ReleaseStateRows release={releasePlan} />
+          </Panel>
+
+          <Panel title="Release details" label="RELEASE DETAILS">
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <Info label="Distributor" value={optionalReleaseValue(releasePlan.distributor)} />
               <Info
-                label="Date"
+                label="Platforms"
                 value={
-                  releasePlan.releaseDate ? formatDate(releasePlan.releaseDate) : "Not scheduled"
+                  releasePlan.platforms.length
+                    ? `${releasePlan.platforms.length} selected`
+                    : "Not set"
                 }
               />
-              <Info label="Distributor" value={releasePlan.distributor ?? "Not selected"} />
-              <Info label="ISRC" value={releasePlan.isrc ?? "Not assigned"} />
-              <Info label="UPC" value={releasePlan.upc ?? "Not assigned"} />
-              <Info label="Type" value={releaseTypeLabel(releasePlan.releaseType)} />
-              <Info label="Status" value={releaseStatusLabel(releasePlan.status)} />
+              <Info label="ISRC" value={optionalReleaseValue(releasePlan.isrc)} />
+              <Info label="UPC" value={optionalReleaseValue(releasePlan.upc)} />
+              <Info label="Created" value={formatDate(releasePlan.createdAt)} />
+              <Info label="Updated" value={formatDate(releasePlan.updatedAt)} />
             </dl>
             <div className="mt-4 flex flex-wrap gap-2">
               {releasePlan.platforms.length ? (
@@ -3102,140 +3410,146 @@ function ReleaseTab({ songId }: { songId: string }) {
                 <span className="text-sm text-muted-foreground">No platforms selected.</span>
               )}
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <ReleaseFormDialog
-                songId={songId}
-                release={releasePlan}
-                trigger={<Button variant="outline">Edit</Button>}
+          </Panel>
+        </div>
+
+        <div className="space-y-4">
+          <Panel title="Readiness" label="READINESS">
+            {checklist.isLoading ? (
+              <LoadingState label="Loading preparation readiness" />
+            ) : checklist.isError ? (
+              <ErrorState
+                detail="Release checklist could not be loaded."
+                onRetry={() => checklist.refetch()}
               />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline">
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete release metadata</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This removes only the saved release plan. The Song, audio assets, visual
-                      assets, and any future external files are not deleted.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => mutations.remove.mutate()}>
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              Created {formatDate(releasePlan.createdAt)} / Updated{" "}
-              {formatDate(releasePlan.updatedAt)}
-            </p>
-          </>
-        ) : (
-          <div className="flex min-h-36 flex-col items-center justify-center border border-dashed border-border p-6 text-center">
-            <p className="text-sm font-medium uppercase">No release plan yet</p>
-            <p className="mt-2 max-w-md text-sm text-muted-foreground">
-              Create Release Plan to persist release metadata for this Song.
-            </p>
-            <ReleaseFormDialog
-              songId={songId}
-              trigger={
-                <Button className="mt-4">
-                  <Plus className="h-4 w-4" />
-                  Create Release Plan
-                </Button>
-              }
-            />
-          </div>
-        )}
-      </Panel>
-      <ReleaseChecklistPanel songId={songId} hasRelease={Boolean(releasePlan)} />
+            ) : (
+              <ReleaseReadinessPanel items={checklistItems} readiness={readiness} />
+            )}
+          </Panel>
+
+          <ReleaseChecklistPanel
+            songId={songId}
+            items={checklistItems}
+            isLoading={checklist.isLoading}
+            isError={checklist.isError}
+            onRetry={() => checklist.refetch()}
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
-function ReleaseChecklistPanel({ songId, hasRelease }: { songId: string; hasRelease: boolean }) {
-  const checklist = useQuery({
-    queryKey: releaseChecklistQueryKey(songId),
-    queryFn: () => releaseChecklistApi.getChecklist(songId),
-    enabled: hasRelease,
-  });
-  const mutations = useReleaseChecklistMutations(songId);
-
-  if (!hasRelease) {
-    return (
-      <Panel title="Preparation checklist" label="Real backend data">
-        <EmptyState
-          title="No checklist yet"
-          detail="Create a release plan to initialize the standard preparation checklist."
-        />
-      </Panel>
-    );
-  }
-
-  if (checklist.isLoading) {
-    return (
-      <Panel title="Preparation checklist" label="Real backend data">
-        <LoadingState label="Loading release checklist" />
-      </Panel>
-    );
-  }
-
-  if (checklist.isError) {
-    return (
-      <Panel title="Preparation checklist" label="Real backend data">
-        <ErrorState
-          detail="Release checklist could not be loaded from the backend."
-          onRetry={() => checklist.refetch()}
-        />
-      </Panel>
-    );
-  }
-
-  const items = checklist.data ?? [];
-  const completedCount = items.filter((item) => item.isCompleted).length;
-  const progressPercent = items.length ? Math.round((completedCount / items.length) * 100) : 0;
+function ReleaseReadinessPanel({
+  items,
+  readiness,
+}: {
+  items: ReleaseChecklistItem[];
+  readiness: ReturnType<typeof releaseReadiness>;
+}) {
+  const total = items.length;
 
   return (
-    <Panel title="Preparation checklist" label="Real backend data">
-      <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="font-mono text-2xl">
-            {completedCount} / {items.length} COMPLETE
+          <p className="font-mono text-3xl">
+            {readiness.completedCount} / {total} COMPLETE
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {progressPercent}% checklist readiness. No external distributor delivery happens here.
+            {readiness.progressPercent}% preparation readiness
           </p>
         </div>
-        <div className="h-2 w-full bg-muted sm:w-40">
+        <div
+          className="h-2 w-full bg-muted sm:w-48"
+          role="progressbar"
+          aria-label={`${readiness.completedCount} of ${total} release checklist items complete`}
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={readiness.completedCount}
+        >
           <div
             className="h-full bg-foreground"
-            style={{ width: `${progressPercent}%` }}
+            style={{ width: `${readiness.progressPercent}%` }}
             aria-hidden="true"
           />
         </div>
       </div>
-      <div className="grid gap-3">
-        {items.map((item) => (
-          <ReleaseChecklistItemRow
-            key={item.id}
-            item={item}
-            isPending={mutations.update.isPending}
-            onUpdate={(payload) =>
-              mutations.update.mutateAsync({
-                checklistItemId: String(item.id),
-                payload,
-              })
-            }
-          />
-        ))}
+      <div className="mt-4 border-t border-border pt-4">
+        <p className="label-tech">NEXT ATTENTION</p>
+        <p className="mt-2 text-sm font-medium">
+          {readiness.nextItem
+            ? `Complete ${readiness.nextItem.label}`
+            : "ALL CHECKLIST ITEMS COMPLETE"}
+        </p>
       </div>
+    </div>
+  );
+}
+
+function ReleaseStateRows({ release }: { release: Release }) {
+  return (
+    <dl className="grid gap-2">
+      <div className="border border-border bg-background px-3 py-2">
+        <dt className="label-tech">STATUS</dt>
+        <dd className="mt-1 text-base font-semibold uppercase">
+          {releaseStatusLabel(release.status)}
+        </dd>
+      </div>
+      <div className="border border-border bg-background px-3 py-2">
+        <dt className="label-tech">RELEASE DATE</dt>
+        <dd className="mt-1 text-base font-semibold uppercase">
+          {releaseDateLabel(release.releaseDate)}
+        </dd>
+      </div>
+      <div className="border border-border bg-background px-3 py-2">
+        <dt className="label-tech">TYPE</dt>
+        <dd className="mt-1 text-base font-semibold uppercase">
+          {releaseTypeLabel(release.releaseType)}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+function ReleaseChecklistPanel({
+  songId,
+  items,
+  isLoading,
+  isError,
+  onRetry,
+}: {
+  songId: string;
+  items: ReleaseChecklistItem[];
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+}) {
+  const mutations = useReleaseChecklistMutations(songId);
+
+  return (
+    <Panel title="Preparation checklist" label="PREPARATION CHECKLIST">
+      {isLoading ? <LoadingState label="Loading release checklist" /> : null}
+      {isError ? (
+        <ErrorState detail="Release checklist could not be loaded." onRetry={onRetry} />
+      ) : null}
+      {!isLoading && !isError ? (
+        <div className="grid gap-2">
+          {items.map((item) => (
+            <ReleaseChecklistItemRow
+              key={item.id}
+              item={item}
+              isPending={mutations.update.isPending}
+              onUpdate={(payload) =>
+                mutations.update.mutateAsync({
+                  checklistItemId: String(item.id),
+                  payload,
+                })
+              }
+            />
+          ))}
+        </div>
+      ) : null}
     </Panel>
   );
 }
@@ -3286,44 +3600,68 @@ function ReleaseChecklistItemRow({
 
   return (
     <div className="border border-border bg-background p-3">
-      <div className="flex items-start gap-3">
-        <Checkbox
-          aria-label={`${item.label} checklist item`}
-          checked={item.isCompleted}
-          disabled={isPending}
-          onCheckedChange={(checked) => updateCompletion(checked === true)}
-          className="mt-1"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <Checkbox
+            aria-label={`${item.label} checklist item`}
+            checked={item.isCompleted}
+            disabled={isPending}
+            onCheckedChange={(checked) => updateCompletion(checked === true)}
+            className="mt-1"
+          />
+          <div className="min-w-0">
             <p className="text-sm font-medium">{item.label}</p>
-            <p className="text-xs uppercase text-muted-foreground">
+            <p className="mt-1 text-xs uppercase text-muted-foreground">
               {item.isCompleted && item.completedAt
                 ? `Completed ${formatDate(item.completedAt)}`
                 : "Open"}
             </p>
+            {savedNotes ? (
+              <p className="mt-2 max-w-xl break-words text-xs text-muted-foreground">
+                {savedNotes}
+              </p>
+            ) : null}
           </div>
-          <Textarea
-            value={notes}
-            maxLength={1000}
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder="Optional checklist notes"
-            className="mt-3 min-h-16"
-          />
-          <div className="mt-2 flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">{notes.length} / 1000</p>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!noteChanged || isPending}
-              onClick={saveNotes}
-            >
-              Save note
-            </Button>
-          </div>
-          {error ? <p className="mt-2 text-xs text-muted-foreground">{error}</p> : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {isPending ? <span className="text-xs text-muted-foreground">Saving</span> : null}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                {savedNotes ? "Edit note" : "Add note"}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="border-border bg-background">
+              <DialogHeader>
+                <DialogTitle className="uppercase">{item.label} note</DialogTitle>
+                <DialogDescription>
+                  Save manual preparation notes for this checklist item.
+                </DialogDescription>
+              </DialogHeader>
+              <Textarea
+                aria-label={`${item.label} note`}
+                value={notes}
+                maxLength={1000}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Optional checklist notes"
+                className="min-h-28"
+              />
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">{notes.length} / 1000</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!noteChanged || isPending}
+                  onClick={saveNotes}
+                >
+                  Save note
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
+      {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }
