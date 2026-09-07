@@ -4,9 +4,9 @@ Last updated: 2026-09-07
 
 ## Current Phase
 
-Post-Polish Sprint #10 — Song Workspace Architecture & Stabilization Complete.
+Media Experience V2.0 — Secure Media Delivery Foundation Complete.
 
-Current focus: Google Drive upload is implemented for existing AudioAsset and VisualAsset records. Authenticated DARKROOM SYSTEM users can connect Google Drive, refresh access backend-side, provision/reuse the DARKROOM SYSTEM root folder, provision/reuse an owned Song workspace folder tree, upload one Audio or Visual file per metadata asset, and persist the file association through provider-neutral `ExternalFileReference` rows. The Song Workspace Overview, Audio, Visuals, Release, Content, Credits, and Analytics tabs have been polished around existing real metadata and workflow states, and their frontend implementations have now been extracted from the former monolithic `Workbench.tsx` into explicit Song Workspace modules. Google OAuth remains separate from Artist OS JWT authentication. Google token material stays backend-only and protected before database storage. Media Experience V2, replace/version workflow, external Drive deletion, download, Drive browsing, Picker, synchronization, YouTube, publishing, and production deployment remain future work.
+Current focus: Google Drive upload and secure backend media delivery are implemented for existing linked AudioAsset and VisualAsset records. Authenticated DARKROOM SYSTEM users can request short-lived Artist OS media access URLs for owned linked media. Native media requests can then call domain-scoped Artist OS media endpoints with the short-lived signed token, while the backend revalidates the Song/asset/ExternalFileReference/GoogleDriveConnection chain, refreshes Google access internally, and streams Google Drive media without exposing Google token material or the main Artist OS JWT in the media URL. Single byte-range GET requests and HEAD metadata probes are supported for the future AudioPlayer/ImagePreview/VideoPreview work. Replace/version workflow, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform/thumbnail/transcoding, YouTube, publishing, and production deployment remain future work.
 
 ## Completed
 
@@ -209,6 +209,18 @@ Current focus: Google Drive upload is implemented for existing AudioAsset and Vi
 - Audio and Visuals tabs now show no-file-linked, upload-pending, linked-file, and Open in Drive states.
 - Google Drive media upload behavior is covered by automated backend tests using fake OAuth and fake Drive clients.
 - Focused frontend upload tests cover metadata-only upload action, successful linked-file display, backend failure display, and absence of token text.
+- Media Experience V2 architecture/design milestone completed and selected short-lived Artist OS signed media URLs backed by domain-scoped backend streaming endpoints.
+- `POST /api/songs/{songId}/audio-assets/{audioAssetId}/media-access` implemented for JWT-authenticated media access issuance.
+- `POST /api/songs/{songId}/visual-assets/{visualAssetId}/media-access` implemented for JWT-authenticated media access issuance.
+- `GET` and `HEAD /api/songs/{songId}/audio-assets/{audioAssetId}/media?token=...` implemented for short-lived signed-token audio media delivery.
+- `GET` and `HEAD /api/songs/{songId}/visual-assets/{visualAssetId}/media?token=...` implemented for short-lived signed-token visual media delivery.
+- Media access tokens use ASP.NET Core Data Protection time-limited protection with a 5-minute lifetime and are bound to user, Song, asset kind, asset id, linked ExternalFileReference id, and stream purpose.
+- Media GET/HEAD requests re-resolve persisted ownership and link state; token contents alone are not treated as sufficient authorization.
+- Media delivery supports full GET, HEAD, and single byte-range GET with `200 OK`, `206 Partial Content`, and `416 Range Not Satisfiable` behavior.
+- Byte-range media requests are forwarded to the Google Drive provider abstraction instead of fetching the full file for a partial browser seek.
+- Media responses set private/no-store cache behavior, `Accept-Ranges: bytes`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`.
+- Media V2.0 backend behavior is covered by 24 focused automated integration-style tests using fake OAuth and fake Drive clients.
+- Media V2.0 verification on 2026-09-07: `dotnet build` passed, full `dotnet test` passed with 271 backend tests, `npm run lint` passed with 0 errors and the existing 8 Fast Refresh warnings, `npm run test` passed with 117 frontend tests, and `npm run build` passed with existing Vite/Nitro advisories.
 - Focused Dashboard frontend tests were updated for the polished command-center labels and still cover success, empty, loading, error/retry, metrics, upcoming, readiness, analytics, recent activity, and navigation behavior.
 - Focused Songs frontend tests were updated for polished portfolio labels, empty/loading/error/retry states, search/lifecycle filtering, workspace row links, create validation, create failure display, and long-title rendering.
 - Song Workspace Overview Product Polish Sprint #3 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, or Google Drive architecture changes.
@@ -2305,6 +2317,10 @@ Latest browser Release Workspace Product Polish checks confirmed:
 - Google Drive API access tokens are refreshed on demand backend-side from the protected refresh token and are not persisted or returned to the frontend.
 - Drive workspace API responses return safe folder metadata only.
 - Drive upload API responses return safe asset and external reference metadata only; Google token material is not returned.
+- Media access API responses return a short-lived Artist OS signed media URL plus safe metadata only; they do not return Google access tokens, refresh tokens, protected refresh tokens, or the main Artist OS JWT.
+- Media signed tokens are protected with ASP.NET Core time-limited Data Protection and expire after 5 minutes.
+- Media stream endpoints validate the signed media token and then re-check the current database ownership/link chain before contacting Google Drive.
+- Media stream endpoints authenticate with the short-lived media token only; the main Artist OS JWT is intentionally not placed in the media URL.
 - Resumable upload session URIs are not logged or returned.
 - Google OAuth state is protected and expiring, and callback handling does not depend on the browser supplying an Artist OS Bearer header.
 - Production deployment must configure persistent/shared Data Protection keys appropriate to the hosting topology.
@@ -2344,6 +2360,8 @@ Remote GitHub Actions status:
 - Drive upload and PostgreSQL persistence are not one atomic transaction; the backend attempts best-effort Drive cleanup if persistence fails after upload succeeds.
 - Deleting AudioAsset or VisualAsset metadata does not automatically delete linked external Drive binaries.
 - Replacing an already-linked asset file is intentionally blocked until a version/replace workflow exists.
+- Media access URLs contain short-lived signed query tokens; avoid logging full media URLs/query strings in hosting, reverse-proxy, analytics, or browser telemetry.
+- Media V2.0 uses current stored MIME/size metadata for HEAD responses; it does not yet synchronize provider ETag, checksum, duration, dimensions, or generated preview metadata.
 - Release platforms are stored as a comma-separated string; a normalized platform table may become useful when real integrations exist.
 - ContentItem platform is stored as a string; richer channel/account modeling can wait until platform integrations exist.
 - Credit contributors are plain Song-scoped metadata strings; a normalized contributor directory can wait until team/auth requirements exist.
@@ -2366,10 +2384,11 @@ Remote GitHub Actions status:
 
 - Team collaboration or permissions.
 - Password reset, email verification, social login, MFA, account management, and production session hardening.
-- Google Drive download, Drive browsing, Picker, synchronization, external file deletion, and replace/version workflow.
+- Google Drive download-original, Drive browsing, Picker, synchronization, external file deletion, and replace/version workflow.
 - YouTube integration and automated analytics ingestion.
-- Audio playback and waveform processing.
-- Visual preview/thumbnail generation and playback.
+- AudioPlayer UI and waveform processing.
+- ImagePreview/VideoPreview UI, thumbnail generation, and visual playback.
+- Transcoding or browser codec normalization.
 - Automatic Release checklist completion based on asset/content/credit metadata.
 - Distributor delivery or publishing workflow.
 - Content publishing and platform delivery.
@@ -2394,12 +2413,24 @@ JWT authenticated DARKROOM user
 
 Google OAuth tokens are backend-managed and must not be exposed to the React frontend or embedded into Artist OS JWT access tokens.
 
+Media delivery now follows the same separation:
+
+```text
+JWT authenticated DARKROOM user
+  -> short-lived Artist OS media access URL
+  -> signed media token validation
+  -> owned Song/asset/file reference re-check
+  -> backend-managed Google Drive stream/range request
+```
+
+Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
+
 ## Recommended Next Milestone
 
-Start Media Experience V2 — Architecture & Product Design only after approval.
+Start Media V2.1 — Audio Playback only after approval.
 
 Suggested scope:
 
-- Design the next real media capabilities before implementation: playback, previews, replacement/version workflow, and stronger Google Drive file association.
-- Decide the user-facing product behavior and backend/API contracts before adding code.
-- Do not implement playback, previews, replace/version workflow, Drive browsing, YouTube, external analytics ingestion, publishing, or collaboration until that milestone is explicitly approved.
+- Add a compact AudioPlayer UI to the existing Audio workspace using the V2.0 media-access endpoint.
+- Support play/pause, seek, elapsed/duration display, loading/buffering/error states, and one active player at a time.
+- Do not implement image preview, video preview, waveform generation, replace/version workflow, Drive browsing, YouTube, publishing, or collaboration until those milestones are explicitly approved.

@@ -25,4 +25,10 @@ public interface IGoogleDriveApiClient
         string accessToken,
         string fileId,
         CancellationToken cancellationToken);
+
+    Task<GoogleDriveMediaContent> OpenFileReadAsync(
+        string accessToken,
+        string fileId,
+        MediaByteRange? range,
+        CancellationToken cancellationToken);
 }

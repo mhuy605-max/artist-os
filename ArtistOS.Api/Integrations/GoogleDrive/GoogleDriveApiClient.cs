@@ -2,12 +2,21 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
 using Google.Apis.Upload;
+using System.Net;
+using System.Net.Http.Headers;
 using DriveFile = Google.Apis.Drive.v3.Data.File;
 
 namespace ArtistOS.Api.Integrations.GoogleDrive;
 
 public class GoogleDriveApiClient : IGoogleDriveApiClient
 {
+    private readonly IHttpClientFactory _httpClientFactory;
+
+    public GoogleDriveApiClient(IHttpClientFactory httpClientFactory)
+    {
+        _httpClientFactory = httpClientFactory;
+    }
+
     public async Task<GoogleDriveFolder?> GetFolderAsync(
         string accessToken,
         string folderId,
@@ -100,6 +109,70 @@ public class GoogleDriveApiClient : IGoogleDriveApiClient
 
         using var driveService = CreateDriveService(accessToken);
         await driveService.Files.Delete(fileId).ExecuteAsync(cancellationToken);
+    }
+
+    public async Task<GoogleDriveMediaContent> OpenFileReadAsync(
+        string accessToken,
+        string fileId,
+        MediaByteRange? range,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(fileId))
+        {
+            return new GoogleDriveMediaContent { Status = GoogleDriveMediaStatus.NotFound };
+        }
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"https://www.googleapis.com/drive/v3/files/{Uri.EscapeDataString(fileId)}?alt=media");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        if (range is not null)
+        {
+            request.Headers.Range = new RangeHeaderValue(range.Start, range.End);
+        }
+
+        var httpClient = _httpClientFactory.CreateClient(nameof(GoogleDriveApiClient));
+        var response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+
+        var status = response.StatusCode switch
+        {
+            HttpStatusCode.OK => GoogleDriveMediaStatus.Success,
+            HttpStatusCode.PartialContent => GoogleDriveMediaStatus.PartialContent,
+            HttpStatusCode.NotFound => GoogleDriveMediaStatus.NotFound,
+            HttpStatusCode.Forbidden => GoogleDriveMediaStatus.Forbidden,
+            HttpStatusCode.RequestedRangeNotSatisfiable => GoogleDriveMediaStatus.RangeNotSatisfiable,
+            _ => GoogleDriveMediaStatus.Unavailable
+        };
+
+        var contentRange = response.Content.Headers.ContentRange;
+
+        if (status is not GoogleDriveMediaStatus.Success and not GoogleDriveMediaStatus.PartialContent)
+        {
+            response.Dispose();
+            return new GoogleDriveMediaContent
+            {
+                Status = status,
+                TotalSize = contentRange?.Length
+            };
+        }
+
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var contentLength = response.Content.Headers.ContentLength;
+        var totalSize = contentRange?.Length ?? contentLength;
+
+        return new GoogleDriveMediaContent(
+            status,
+            stream,
+            response.Content.Headers.ContentType?.MediaType,
+            contentLength,
+            totalSize,
+            contentRange?.From,
+            contentRange?.To,
+            disposable: response);
     }
 
     private static DriveService CreateDriveService(string accessToken)

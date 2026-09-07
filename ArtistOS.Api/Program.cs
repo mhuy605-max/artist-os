@@ -38,6 +38,10 @@ builder.Services.AddScoped<IGoogleDriveOAuthClient, GoogleDriveOAuthClient>();
 builder.Services.AddScoped<IGoogleDriveApiClient, GoogleDriveApiClient>();
 builder.Services.AddScoped<GoogleDriveWorkspaceService>();
 builder.Services.AddScoped<GoogleDriveAssetUploadService>();
+builder.Services.AddScoped<MediaTokenService>();
+builder.Services.AddScoped<MediaAccessService>();
+builder.Services.AddScoped<GoogleDriveMediaService>();
+builder.Services.AddHttpClient();
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = GoogleDriveUploadLimits.RequestBodyMaxBytes;
