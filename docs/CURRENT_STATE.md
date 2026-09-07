@@ -1,12 +1,12 @@
 # Artist OS Current State
 
-Last updated: 2026-09-02
+Last updated: 2026-09-07
 
 ## Current Phase
 
-Google Drive Media Upload MVP + Audio / Visual Asset File Association + Audio, Visuals, Release, and Content Workspace Product Polish.
+Post-Polish Sprint #10 — Song Workspace Architecture & Stabilization Complete.
 
-Current focus: Google Drive upload is implemented for existing AudioAsset and VisualAsset records. Authenticated DARKROOM SYSTEM users can connect Google Drive, refresh access backend-side, provision/reuse the DARKROOM SYSTEM root folder, provision/reuse an owned Song workspace folder tree, upload one Audio or Visual file per metadata asset, and persist the file association through provider-neutral `ExternalFileReference` rows. The Song Workspace Audio, Visuals, Release, and Content tabs have now been polished around existing real metadata and workflow states. Google OAuth remains separate from Artist OS JWT authentication. Google token material stays backend-only and protected before database storage. Replace/version workflow, external Drive deletion, download, Drive browsing, Picker, synchronization, YouTube, publishing, and production deployment remain future work.
+Current focus: Google Drive upload is implemented for existing AudioAsset and VisualAsset records. Authenticated DARKROOM SYSTEM users can connect Google Drive, refresh access backend-side, provision/reuse the DARKROOM SYSTEM root folder, provision/reuse an owned Song workspace folder tree, upload one Audio or Visual file per metadata asset, and persist the file association through provider-neutral `ExternalFileReference` rows. The Song Workspace Overview, Audio, Visuals, Release, Content, Credits, and Analytics tabs have been polished around existing real metadata and workflow states, and their frontend implementations have now been extracted from the former monolithic `Workbench.tsx` into explicit Song Workspace modules. Google OAuth remains separate from Artist OS JWT authentication. Google token material stays backend-only and protected before database storage. Media Experience V2, replace/version workflow, external Drive deletion, download, Drive browsing, Picker, synchronization, YouTube, publishing, and production deployment remain future work.
 
 ## Completed
 
@@ -93,10 +93,24 @@ Current focus: Google Drive upload is implemented for existing AudioAsset and Vi
 - Nested AnalyticsSnapshot metadata API implemented.
 - AnalyticsSnapshot EF Core migration created and applied.
 - Analytics tab now reads/writes real AnalyticsSnapshot metadata through the ASP.NET Core API.
-- Analytics trend display now uses persisted manual snapshot data.
+- Analytics Workspace Product Polish Sprint #9 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, Google Drive, Dashboard, or external analytics integration changes.
+- Analytics tab information hierarchy now presents `ANALYTICS / PERFORMANCE`, Latest Performance, and Performance History.
+- Latest Performance displays the latest stored AnalyticsSnapshot per recorded platform instead of summing historical cumulative snapshots across dates or platforms.
+- Performance History is chronological, filterable by recorded platform, and uses same-platform `change since previous snapshot` copy for presentation-only deltas.
+- Watch time remains labeled in minutes to match the persisted `watchTimeMinutes` unit.
+- Analytics create/edit/delete UX now uses existing persisted fields only and productized duplicate platform/date conflict copy.
+- Misleading Analytics copy and UI were removed, including stale `Real backend data`, `Real metadata`, mixed-platform fake charting, external sync/import/API status language, and unsupported live analytics claims.
 - External analytics ingestion remains planned and is clearly labeled in the frontend.
 - Browser-based AnalyticsSnapshot metadata create/edit/delete/refresh verified.
 - AnalyticsSnapshot API create/read/update/delete, validation, timestamp, duplicate prevention, ordering, and Song relationship behavior covered by automated integration-style tests.
+- Song Workspace Architecture & Stabilization Sprint #10 completed without backend API, database, auth, Google Drive, or product-feature changes.
+- The former monolithic `darkroom-web/src/components/darkroom/Workbench.tsx` was reduced from roughly 5,585 lines to roughly 1,398 lines.
+- Song Workspace shell and routing composition now live in `darkroom-web/src/components/darkroom/workbench/Workbench.tsx`.
+- Overview, Audio, Visuals, Release, Content, Credits, and Analytics workspace implementations now each have their own module boundary under `darkroom-web/src/components/darkroom/workbench/`.
+- Shared Song Workspace query keys and small cross-workspace helpers now live in `darkroom-web/src/components/darkroom/workbench/shared.ts`.
+- The shared metadata tile component used by Overview and Release now lives in `darkroom-web/src/components/darkroom/workbench/shared-ui.tsx`.
+- The public `@/components/darkroom/Workbench` import path remains available for existing routes and tests.
+- Existing polished Song Workspace UI, copy, route behavior, API calls, and tests were preserved during extraction.
 - Browser-based Release checklist create-on-release, refresh persistence, check/uncheck, progress, and server timestamp behavior verified.
 - ReleaseChecklist API default initialization, read/order, update, validation, timestamps, and Release/Song relationship behavior covered by automated integration-style tests.
 - `CalendarEntryResponse` read DTO created.
@@ -239,6 +253,15 @@ Current focus: Google Drive upload is implemented for existing AudioAsset and Vi
 - Content date presentation distinguishes due, scheduled, and published dates; published items with old due dates are not treated as overdue active production work.
 - Misleading Content copy was removed, including `Real backend data`, repeated no-publish row text, upload/media delete implications, and internal future-work placeholders.
 - Focused Content frontend tests cover hierarchy, summary/pipeline, item presentation, create/edit/delete, date behavior, loading/error/empty states, and truth-in-UX copy.
+- Credits Workspace Product Polish Sprint #8 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, Google Drive OAuth, Drive architecture, upload, Calendar, Dashboard, or other workspace tab behavior changes.
+- Credits tab information hierarchy now presents `CREDITS / CONTRIBUTORS`, Summary, Credit Coverage / Planned Splits, and Contributors.
+- Credits summary derives total credits, distinct contributor names, confirmed credits, and pending credits from real Credit metadata.
+- Planned split coverage displays the recorded split total as informational metadata only; missing splits are allowed and no Song-level `100%` validation, royalty, payout, contract, or publishing workflow was introduced.
+- Credit rows now emphasize contributor name, role, status, contact, planned split, updated date, notes preview, and created date using existing real fields.
+- Create/edit/delete UX was refined around existing Credit metadata fields only; no contributor accounts, invitations, team membership, signatures, contracts, royalties, payouts, legal ownership, publishing registration, or external platform behavior was added.
+- Missing contact, missing planned split, and pending confirmation indicators are presentation-only attention cues.
+- Misleading Credits copy was removed, including `Real backend data`, collaborator/account/invite wording, repeated legal/payment disclaimers, and internal future-work placeholders.
+- Focused Credits frontend tests cover hierarchy, summary, contributor presentation, create/edit/delete, validation, loading/error/empty states, planned split metadata behavior, and truth-in-UX copy.
 
 ## Current Implementation
 
@@ -1805,6 +1828,47 @@ dotnet test: succeeded, 247 passed, 0 failed, 0 skipped.
 Real browser verification: completed against local backend/frontend using a disposable authenticated user and Song.
 ```
 
+Latest Credits Workspace Product Polish Sprint #8 verification:
+
+```text
+npm run test -- CreditsWorkspace.test.tsx: succeeded, 10 passed, 0 failed, 0 skipped.
+npm run test: succeeded, 106 passed, 0 failed, 0 skipped.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run build: succeeded. Vite emitted an existing `vite-tsconfig-paths` advisory and Nitro emitted an existing `inlineDynamicImports` advisory; neither failed the build.
+dotnet build: succeeded, 0 warnings, 0 errors.
+dotnet test: succeeded, 247 passed, 0 failed, 0 skipped.
+Real browser verification: completed against local backend/frontend using a disposable authenticated user and Song.
+```
+
+Latest Analytics Workspace Product Polish Sprint #9 verification:
+
+```text
+npm run test -- AnalyticsWorkspace.test.tsx: succeeded, 11 passed, 0 failed, 0 skipped.
+npm run test: succeeded, 117 passed, 0 failed, 0 skipped.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run build: succeeded. Vite emitted an existing `vite-tsconfig-paths` advisory and Nitro emitted an existing `inlineDynamicImports` advisory; neither failed the build.
+dotnet build: succeeded, 0 warnings, 0 errors.
+dotnet test: succeeded, 247 passed, 0 failed, 0 skipped.
+Real browser verification: completed against local backend/frontend using a disposable authenticated user and Song.
+```
+
+Latest Song Workspace Architecture & Stabilization Sprint #10 verification:
+
+```text
+npm run test -- AnalyticsWorkspace.test.tsx: succeeded, 11 passed, 0 failed, 0 skipped.
+npm run test -- CreditsWorkspace.test.tsx: succeeded, 10 passed, 0 failed, 0 skipped.
+npm run test -- ContentWorkspace.test.tsx: succeeded, 10 passed, 0 failed, 0 skipped.
+npm run test -- ReleaseWorkspace.test.tsx: succeeded, 14 passed, 0 failed, 0 skipped.
+npm run test -- SongWorkspaceOverview.test.tsx: succeeded, 10 passed, 0 failed, 0 skipped.
+npm run test -- AssetUpload.test.tsx: succeeded, 25 passed, 0 failed, 0 skipped.
+npm run test: succeeded, 117 passed, 0 failed, 0 skipped.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run build: succeeded. Vite emitted the existing `vite-tsconfig-paths` advisory and Nitro emitted the existing `inlineDynamicImports` advisory; neither failed the build.
+dotnet build: succeeded, 0 warnings, 0 errors.
+dotnet test: succeeded, 247 passed, 0 failed, 0 skipped.
+Real browser regression verification: completed against local backend/frontend using a disposable authenticated user and Song with Overview, Audio, Visuals, Release, Content, Credits, and Analytics populated.
+```
+
 Automated frontend coverage now includes:
 
 - StatusBadge canonical Song label rendering and fallback status rendering.
@@ -1849,6 +1913,8 @@ Automated frontend coverage now includes:
 - Song workspace Overview tab navigation through the next-attention and workspace-area actions.
 - Song workspace Google Drive disconnected, connected/unprovisioned, provision action, and provisioned storage states without rendering folder ids or token material.
 - Content workspace hierarchy, real summary counts, canonical pipeline counts, item presentation, create/edit/delete metadata flows, date status labels, empty/loading/error states, and unsupported publishing/upload/sync copy removal.
+- Credits workspace hierarchy, real summary counts, contributor presentation, create/edit/delete metadata flows, planned split metadata display, validation, empty/loading/error states, and unsupported invite/account/contract/payment/royalty/legal copy removal.
+- Analytics workspace hierarchy, latest-per-platform display, chronological history, recorded-platform filtering, same-platform deltas, create/edit/delete metadata flows, validation, duplicate-date conflict copy, loading/error/empty states, and unsupported live sync/import/API status/chart copy removal.
 
 Automated backend coverage now includes:
 
@@ -2066,37 +2132,55 @@ Latest browser Content Workspace Product Polish checks confirmed:
 - A disposable browser-created ContentItem was deleted through the UI, and the temporary verification Song was deleted through the API after verification.
 - Browser console still showed an existing `GET /api/songs/{id}/release` `404 Not Found` when a Song has no Release. It did not block Content verification, but it remains console noise to address in a later polish/cleanup pass.
 
-Latest browser Credit checks confirmed:
+Latest browser Credits Workspace Product Polish checks confirmed:
 
-- Song workspace loaded at `/songs/{songId}`.
-- Credits tab loaded real metadata from the backend.
-- Empty state appeared when a Song had no Credits.
-- Credit metadata was created through the frontend.
-- Page refresh preserved the created Credit metadata.
-- Credit metadata was edited through the frontend.
-- Updated contributor name, role, contact, status, planned split, and notes persisted.
-- Multiple Credit records were added for the same Song.
-- The same contributor can appear with more than one role.
-- Delete confirmation stated that only the credit record is removed.
-- Deleted Credit metadata disappeared from the Credits tab.
-- The parent Song still existed after deleting Credit metadata.
-- Credits UI remained clear that planned splits do not create payment, royalty, legal, or team-account workflows.
+- `/songs/{songId}` loaded real Song workspace data and real Credit metadata through the existing authenticated backend APIs.
+- Credits tab rendered the polished `CREDITS / CONTRIBUTORS` hierarchy with Summary, Credit Coverage / Planned Splits, and Contributors.
+- Empty state appeared when a Song had no Credits, and planned split coverage stayed hidden until real Credit data existed.
+- Browser-based Credit metadata create, edit, and delete worked through the existing API integration.
+- Page refresh preserved real Credit metadata loaded from the backend.
+- Summary counts reflected persisted Credit source data, including total Credits, distinct contributor names, confirmed, and pending counts.
+- Planned split coverage displayed an exact `100% recorded` state from persisted Credit split metadata while still allowing one missing split.
+- Same contributor/different role records, Pending and Confirmed states, missing contact, missing planned split, zero split, notes preview, and long contributor/contact wrapping were verified.
+- Delete confirmation now states that only contributor credit metadata is removed and does not introduce unsupported payment, royalty, legal, contract, invite, account, or publishing workflow language.
+- Desktop and mobile viewport checks confirmed the polished Credits layout remains readable and actionable.
+- Desktop and mobile screenshots were captured at `output/playwright/credits-polish/credits-workspace-desktop.png` and `output/playwright/credits-polish/credits-workspace-mobile.png`.
+- A disposable browser-created Credit was deleted through the UI, and the temporary verification Song was deleted through the API after verification.
+- Browser console still showed existing route-guard/no-release noise: one initial `401 Unauthorized` from navigating directly before login state was restored and existing `GET /api/songs/{id}/release` `404 Not Found` requests when a Song has no Release. These did not block Credits verification.
 
 Latest browser AnalyticsSnapshot checks confirmed:
 
-- Song workspace loaded at `/songs/{songId}`.
-- Analytics tab loaded real snapshot metadata from the backend.
-- Empty state appeared when a Song had no AnalyticsSnapshots.
-- Manual analytics snapshot metadata was created through the frontend.
-- Page refresh preserved the created AnalyticsSnapshot metadata.
-- A second AnalyticsSnapshot produced a real views-over-time trend.
-- AnalyticsSnapshot metadata was edited through the frontend.
-- Updated view count persisted.
-- Delete confirmation stated that only DARKROOM SYSTEM analytics metadata is removed and no external platform is affected.
+- Song workspace loaded at `/songs/{songId}` with real Song and AnalyticsSnapshot data.
+- Analytics tab rendered the polished `ANALYTICS / PERFORMANCE` hierarchy with Latest Performance and Performance History.
+- Empty state appeared when a Song had no AnalyticsSnapshots and did not render fake charts or zero-performance cards.
+- A YouTube AnalyticsSnapshot was created through the frontend with large values and zero values.
+- A clean browser load confirmed persisted backend snapshots appeared in the Analytics tab.
+- Latest Performance selected the latest stored snapshot per platform and did not sum historical cumulative snapshots.
+- Performance History displayed snapshots chronologically by measurement date.
+- Same-platform delta copy appeared as `change since previous snapshot` and compared only YouTube to the previous YouTube snapshot.
+- Recorded-platform filtering limited history to available platforms.
+- Watch time remained displayed in minutes.
+- AnalyticsSnapshot metadata was edited through the frontend and the updated view count persisted.
+- Delete confirmation stated that only recorded DARKROOM SYSTEM performance data is removed and no external platform analytics are affected.
 - Deleted AnalyticsSnapshot metadata disappeared from the Analytics tab.
-- The parent Song still existed after deleting AnalyticsSnapshot metadata.
-- Temporary verification Song was deleted after verification.
-- Analytics UI remained clear that values are manually recorded metadata and not synced external analytics.
+- Dashboard analytics overview still used the latest stored AnalyticsSnapshot for the Song/platform after the Analytics tab polish.
+- Analytics UI did not render unsupported live sync, import, external API status, OAuth, platform ingestion, or fake chart controls.
+- Desktop and mobile screenshots were captured at `output/playwright/analytics-polish/analytics-workspace-desktop.png` and `output/playwright/analytics-polish/analytics-workspace-mobile.png`.
+- The temporary verification Song was deleted through the API after verification, and the temporary QA state file was removed.
+- Browser console still showed the existing no-release noise: `GET /api/songs/{id}/release` `404 Not Found` requests when a Song has no Release. These did not block Analytics verification.
+
+Latest browser Song Workspace Architecture & Stabilization checks confirmed:
+
+- Local backend and frontend loaded at `http://localhost:5178` and `http://localhost:8080`.
+- A disposable authenticated user and Song were seeded through existing APIs.
+- The disposable Song included one real AudioAsset, VisualAsset, Release, ContentItem, Credit, and AnalyticsSnapshot record.
+- Dashboard loaded the seeded aggregate data and linked into the Song workspace.
+- Song Workspace Overview loaded the extracted shell, tab rail, workspace summary, release readiness, and Drive disconnected storage state.
+- Audio, Visuals, Release, Content, Credits, and Analytics tabs rendered populated real backend data after extraction.
+- Tab switching across all seven Song Workspace tabs worked in the browser.
+- Desktop and mobile screenshots were captured at `output/playwright/architecture-stabilization/song-workspace-desktop.png` and `output/playwright/architecture-stabilization/song-workspace-mobile.png`.
+- Browser console showed no errors or warnings during the release-present regression pass.
+- The temporary verification Song was deleted through the API after verification.
 
 Latest browser Calendar checks confirmed:
 
@@ -2270,8 +2354,10 @@ Remote GitHub Actions status:
 - Calendar does not yet support standalone sessions, reminders, external sync, or drag/drop rescheduling.
 - Dashboard is read-only and derives recent activity only from current source timestamps, not from an audit log.
 - Dashboard does not yet support notifications, saved filters, or user-specific/team-specific views.
-- Credits and Analytics workspace tab copy still need product polish now that the Google Drive upload MVP exists.
 - Song workspace load still emits a browser console `404 Not Found` for `GET /api/songs/{id}/release` when a Song has no Release. The UI handles the no-release state, but the console noise should be cleaned up later.
+- The `GET /api/songs/{id}/release` optional-resource contract still deserves a future backend contract decision; returning a clean optional/no-release representation would avoid expected browser-network 404 noise without hiding real missing-resource errors.
+- Dashboard, Songs, Calendar, Settings, Team, and Login still live in the public `Workbench.tsx` facade and can be extracted later if they start growing again.
+- Extracted Song Workspace modules intentionally preserve some local domain-specific helpers; further abstraction should wait until Media Experience V2 reveals real reuse.
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - Frontend automated tests are intentionally focused and do not yet cover the entire app, all routes, all workspace tabs, or visual regression.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
@@ -2310,10 +2396,10 @@ Google OAuth tokens are backend-managed and must not be exposed to the React fro
 
 ## Recommended Next Milestone
 
-Start Credits Workspace Product Polish Sprint #8 only after approval.
+Start Media Experience V2 — Architecture & Product Design only after approval.
 
 Suggested scope:
 
-- Polish the Credits workspace using existing real Credit metadata only.
-- Keep backend API contracts, database schema, migrations, auth, ownership, and Google Drive behavior unchanged unless a separately approved bug fix requires it.
-- Do not implement new domain modules, Drive file browsing, replace/version workflow, YouTube, publishing, collaboration, or analytics ingestion.
+- Design the next real media capabilities before implementation: playback, previews, replacement/version workflow, and stronger Google Drive file association.
+- Decide the user-facing product behavior and backend/API contracts before adding code.
+- Do not implement playback, previews, replace/version workflow, Drive browsing, YouTube, external analytics ingestion, publishing, or collaboration until that milestone is explicitly approved.
