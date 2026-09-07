@@ -160,6 +160,7 @@ import {
   visualAssetsQueryKey,
 } from "../shared";
 import { VisualImagePreview } from "./VisualImagePreview";
+import { VisualVideoPreview } from "./VisualVideoPreview";
 
 function useVisualAssetMutations(songId: string) {
   const queryClient = useQueryClient();
@@ -532,6 +533,9 @@ function VisualFileAssociationPanel({
   driveStatus,
   driveStatusError,
   upload,
+  activeVideoAssetId,
+  onVideoActivate,
+  onVideoDeactivate,
 }: {
   songId: string;
   asset: VisualAsset;
@@ -542,15 +546,26 @@ function VisualFileAssociationPanel({
     error: unknown;
     mutate: (input: { visualAssetId: string; file: File }) => void;
   };
+  activeVideoAssetId: string | null;
+  onVideoActivate: (visualAssetId: string) => void;
+  onVideoDeactivate: (visualAssetId: string) => void;
 }) {
   const fileInputId = useId();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const linkedFile = asset.linkedFile;
+  const assetId = String(asset.id);
 
   if (linkedFile) {
     return (
       <div className="border border-border bg-panel p-3">
         <VisualImagePreview songId={songId} asset={asset} />
+        <VisualVideoPreview
+          songId={songId}
+          asset={asset}
+          isActive={activeVideoAssetId === assetId}
+          onActivate={() => onVideoActivate(assetId)}
+          onDeactivate={() => onVideoDeactivate(assetId)}
+        />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -682,11 +697,17 @@ function VisualAssetRow({
   asset,
   driveStatus,
   driveStatusError,
+  activeVideoAssetId,
+  onVideoActivate,
+  onVideoDeactivate,
 }: {
   songId: string;
   asset: VisualAsset;
   driveStatus?: GoogleDriveConnectionStatus;
   driveStatusError: boolean;
+  activeVideoAssetId: string | null;
+  onVideoActivate: (visualAssetId: string) => void;
+  onVideoDeactivate: (visualAssetId: string) => void;
 }) {
   const mutations = useVisualAssetMutations(songId);
   const removeCopy = asset.linkedFile
@@ -761,6 +782,9 @@ function VisualAssetRow({
           asset={asset}
           driveStatus={driveStatus}
           driveStatusError={driveStatusError}
+          activeVideoAssetId={activeVideoAssetId}
+          onVideoActivate={onVideoActivate}
+          onVideoDeactivate={onVideoDeactivate}
           upload={mutations.upload}
         />
       </div>
@@ -769,6 +793,7 @@ function VisualAssetRow({
 }
 
 export function VisualsWorkspace({ songId }: { songId: string }) {
+  const [activeVideoAssetId, setActiveVideoAssetId] = useState<string | null>(null);
   const visualAssets = useQuery({
     queryKey: visualAssetsQueryKey(songId),
     queryFn: () => visualAssetsApi.getVisualAssets(songId),
@@ -860,6 +885,13 @@ export function VisualsWorkspace({ songId }: { songId: string }) {
                     asset={asset}
                     driveStatus={driveConnection.data}
                     driveStatusError={driveConnection.isError}
+                    activeVideoAssetId={activeVideoAssetId}
+                    onVideoActivate={setActiveVideoAssetId}
+                    onVideoDeactivate={(visualAssetId) =>
+                      setActiveVideoAssetId((current) =>
+                        current === visualAssetId ? null : current,
+                      )
+                    }
                   />
                 ))}
               </div>
