@@ -150,6 +150,14 @@ export interface AudioAsset {
   linkedFile?: ExternalFileReference | null;
 }
 
+export interface MediaAccessResponse {
+  mediaUrl: string;
+  expiresAt: string;
+  mimeType: string;
+  fileName: string;
+  sizeBytes?: number | null;
+}
+
 export interface AudioAssetPayload {
   type: AudioAssetType;
   fileName: string;

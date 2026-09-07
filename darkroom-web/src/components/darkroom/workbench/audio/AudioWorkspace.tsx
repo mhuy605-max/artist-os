@@ -152,6 +152,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { audioAssetsQueryKey, normalizeId } from "../shared";
+import { AudioPlayer } from "./AudioPlayer";
 
 function useAudioAssetMutations(songId: string) {
   const queryClient = useQueryClient();
@@ -496,11 +497,16 @@ function AudioAssetFormDialog({
 }
 
 function AudioFileAssociationPanel({
+  songId,
   asset,
   driveStatus,
   driveStatusError,
   upload,
+  isActive,
+  onActivate,
+  onDeactivate,
 }: {
+  songId: string;
   asset: AudioAsset;
   driveStatus?: GoogleDriveConnectionStatus;
   driveStatusError: boolean;
@@ -509,6 +515,9 @@ function AudioFileAssociationPanel({
     error: unknown;
     mutate: (input: { audioAssetId: string; file: File }) => void;
   };
+  isActive: boolean;
+  onActivate: () => void;
+  onDeactivate: () => void;
 }) {
   const fileInputId = useId();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -539,6 +548,13 @@ function AudioFileAssociationPanel({
             </Button>
           ) : null}
         </div>
+        <AudioPlayer
+          songId={songId}
+          asset={asset}
+          isActive={isActive}
+          onActivate={onActivate}
+          onDeactivate={onDeactivate}
+        />
       </div>
     );
   }
@@ -640,11 +656,17 @@ function AudioAssetRow({
   asset,
   driveStatus,
   driveStatusError,
+  activeAudioAssetId,
+  onActivateAudio,
+  onDeactivateAudio,
 }: {
   songId: string;
   asset: AudioAsset;
   driveStatus?: GoogleDriveConnectionStatus;
   driveStatusError: boolean;
+  activeAudioAssetId: string | null;
+  onActivateAudio: (audioAssetId: string) => void;
+  onDeactivateAudio: (audioAssetId: string) => void;
 }) {
   const mutations = useAudioAssetMutations(songId);
   const removeCopy = asset.linkedFile
@@ -712,10 +734,14 @@ function AudioAssetRow({
           </div>
         </div>
         <AudioFileAssociationPanel
+          songId={songId}
           asset={asset}
           driveStatus={driveStatus}
           driveStatusError={driveStatusError}
           upload={mutations.upload}
+          isActive={activeAudioAssetId === String(asset.id)}
+          onActivate={() => onActivateAudio(String(asset.id))}
+          onDeactivate={() => onDeactivateAudio(String(asset.id))}
         />
       </div>
     </article>
@@ -723,6 +749,7 @@ function AudioAssetRow({
 }
 
 export function AudioWorkspace({ songId }: { songId: string }) {
+  const [activeAudioAssetId, setActiveAudioAssetId] = useState<string | null>(null);
   const audioAssets = useQuery({
     queryKey: audioAssetsQueryKey(songId),
     queryFn: () => audioAssetsApi.getAudioAssets(songId),
@@ -814,6 +841,13 @@ export function AudioWorkspace({ songId }: { songId: string }) {
                     asset={asset}
                     driveStatus={driveConnection.data}
                     driveStatusError={driveConnection.isError}
+                    activeAudioAssetId={activeAudioAssetId}
+                    onActivateAudio={setActiveAudioAssetId}
+                    onDeactivateAudio={(audioAssetId) => {
+                      setActiveAudioAssetId((current) =>
+                        current === audioAssetId ? null : current,
+                      );
+                    }}
                   />
                 ))}
               </div>

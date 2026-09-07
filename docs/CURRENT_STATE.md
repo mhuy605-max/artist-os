@@ -4,9 +4,9 @@ Last updated: 2026-09-07
 
 ## Current Phase
 
-Media Experience V2.0 — Secure Media Delivery Foundation Complete.
+Media Experience V2.1 — Audio Playback Complete.
 
-Current focus: Google Drive upload and secure backend media delivery are implemented for existing linked AudioAsset and VisualAsset records. Authenticated DARKROOM SYSTEM users can request short-lived Artist OS media access URLs for owned linked media. Native media requests can then call domain-scoped Artist OS media endpoints with the short-lived signed token, while the backend revalidates the Song/asset/ExternalFileReference/GoogleDriveConnection chain, refreshes Google access internally, and streams Google Drive media without exposing Google token material or the main Artist OS JWT in the media URL. Single byte-range GET requests and HEAD metadata probes are supported for the future AudioPlayer/ImagePreview/VideoPreview work. Replace/version workflow, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform/thumbnail/transcoding, YouTube, publishing, and production deployment remain future work.
+Current focus: Google Drive upload, secure backend media delivery, and inline AudioAsset playback are implemented for existing linked AudioAsset records. Authenticated DARKROOM SYSTEM users can request short-lived Artist OS media access URLs for owned linked audio, and the Audio workspace now uses those signed Artist OS URLs with a native browser audio element for play/pause, seek, elapsed/duration display, loading/buffering/error states, and one active player at a time. Media URLs remain ephemeral runtime state and are not persisted in frontend storage. ImagePreview/VideoPreview, replace/version workflow, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform/thumbnail/transcoding, YouTube, publishing, and production deployment remain future work.
 
 ## Completed
 
@@ -221,6 +221,12 @@ Current focus: Google Drive upload and secure backend media delivery are impleme
 - Media responses set private/no-store cache behavior, `Accept-Ranges: bytes`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: no-referrer`.
 - Media V2.0 backend behavior is covered by 24 focused automated integration-style tests using fake OAuth and fake Drive clients.
 - Media V2.0 verification on 2026-09-07: `dotnet build` passed, full `dotnet test` passed with 271 backend tests, `npm run lint` passed with 0 errors and the existing 8 Fast Refresh warnings, `npm run test` passed with 117 frontend tests, and `npm run build` passed with existing Vite/Nitro advisories.
+- Media Experience V2.1 inline Audio Playback implemented for linked AudioAsset records in the Audio workspace.
+- Audio playback uses `POST /api/songs/{songId}/audio-assets/{audioAssetId}/media-access` to acquire a short-lived signed Artist OS media URL before assigning it to the native audio element.
+- Audio playback supports play/pause, seek, elapsed/duration display, loading/buffering/error states, near-expiry media-access refresh, one automatic stale-token recovery attempt, and one active player at a time.
+- Metadata-only/unlinked AudioAsset records do not render fake disabled playback controls.
+- Focused frontend playback tests cover linked/unlinked rendering, signed media URL use, play/pause, seek, duration/time updates, buffering/end/error states, stale media access refresh, one-active-player behavior, safe Drive guidance errors, accessible controls, and absence of waveform/download/replace controls.
+- Media V2.1 verification on 2026-09-07: `dotnet build` passed, full `dotnet test` passed with 271 backend tests, `npm run lint` passed with 0 errors and the existing 8 Fast Refresh warnings, `npm run test` passed with 137 frontend tests, and `npm run build` passed with existing Vite/Nitro advisories.
 - Focused Dashboard frontend tests were updated for the polished command-center labels and still cover success, empty, loading, error/retry, metrics, upcoming, readiness, analytics, recent activity, and navigation behavior.
 - Focused Songs frontend tests were updated for polished portfolio labels, empty/loading/error/retry states, search/lifecycle filtering, workspace row links, create validation, create failure display, and long-title rendering.
 - Song Workspace Overview Product Polish Sprint #3 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, or Google Drive architecture changes.
@@ -2272,6 +2278,17 @@ Latest browser Audio Workspace Product Polish checks confirmed:
 - Real Google Drive file upload was not attempted in-browser because the disposable verification account did not have Google Drive connected.
 - The temporary verification Songs were deleted after verification.
 
+Latest browser Audio Playback V2.1 checks confirmed:
+
+- `/songs/{songId}` loaded real Song workspace data and real AudioAsset metadata through the existing authenticated backend APIs.
+- Audio tab rendered the existing no-assets state, then a real metadata-only AudioAsset created through the browser rendered as an unlinked asset.
+- Metadata-only/unlinked AudioAsset rows did not show Play controls or fake disabled playback UI.
+- Browser API traffic showed successful authenticated register, Song create, Song workspace load, Google Drive status, AudioAsset list, AudioAsset create, and cleanup requests.
+- Browser console showed no errors on the corrected `http://localhost:8080` frontend origin.
+- Browser screenshot was captured at `output/playwright/audio-playback-v21/audio-unlinked-state.png`.
+- Real inline playback against a linked Google Drive audio file was not attempted in-browser because the disposable verification account did not have Google Drive connected or a safe linked real audio asset available. Linked playback behavior is covered by focused frontend tests using the media-access API boundary.
+- The temporary verification Song was deleted after verification.
+
 Latest browser Visuals Workspace Product Polish checks confirmed:
 
 - `/songs/{songId}` loaded real Song workspace data and real VisualAsset metadata through the existing authenticated backend APIs.
@@ -2386,7 +2403,7 @@ Remote GitHub Actions status:
 - Password reset, email verification, social login, MFA, account management, and production session hardening.
 - Google Drive download-original, Drive browsing, Picker, synchronization, external file deletion, and replace/version workflow.
 - YouTube integration and automated analytics ingestion.
-- AudioPlayer UI and waveform processing.
+- Waveform processing.
 - ImagePreview/VideoPreview UI, thumbnail generation, and visual playback.
 - Transcoding or browser codec normalization.
 - Automatic Release checklist completion based on asset/content/credit metadata.
@@ -2427,10 +2444,10 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-Start Media V2.1 — Audio Playback only after approval.
+Start Media V2.2 — Image Preview only after approval.
 
 Suggested scope:
 
-- Add a compact AudioPlayer UI to the existing Audio workspace using the V2.0 media-access endpoint.
-- Support play/pause, seek, elapsed/duration display, loading/buffering/error states, and one active player at a time.
-- Do not implement image preview, video preview, waveform generation, replace/version workflow, Drive browsing, YouTube, publishing, or collaboration until those milestones are explicitly approved.
+- Add a compact ImagePreview UI to the existing Visuals workspace using the V2.0 visual media-access endpoint.
+- Support linked visual preview loading, responsive image framing, loading/error states, and safe media-access refresh.
+- Do not implement video preview, waveform generation, replace/version workflow, Drive browsing, YouTube, publishing, or collaboration until those milestones are explicitly approved.

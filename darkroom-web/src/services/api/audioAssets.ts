@@ -1,5 +1,5 @@
 import { http } from "./client";
-import type { AudioAsset, AudioAssetPayload } from "@/types";
+import type { AudioAsset, AudioAssetPayload, MediaAccessResponse } from "@/types";
 
 export const audioAssetsApi = {
   getAudioAssets(songId: string): Promise<AudioAsset[]> {
@@ -33,6 +33,13 @@ export const audioAssetsApi = {
     return http.form<AudioAsset>(
       `/api/songs/${songId}/audio-assets/${audioAssetId}/upload`,
       formData,
+    );
+  },
+
+  getAudioMediaAccess(songId: string, audioAssetId: string): Promise<MediaAccessResponse> {
+    return http.post<MediaAccessResponse>(
+      `/api/songs/${songId}/audio-assets/${audioAssetId}/media-access`,
+      {},
     );
   },
 };
