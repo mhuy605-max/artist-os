@@ -159,6 +159,7 @@ import {
   parseApiProblemTitle,
   visualAssetsQueryKey,
 } from "../shared";
+import { VisualImagePreview } from "./VisualImagePreview";
 
 function useVisualAssetMutations(songId: string) {
   const queryClient = useQueryClient();
@@ -526,11 +527,13 @@ function VisualAssetFormDialog({
 }
 
 function VisualFileAssociationPanel({
+  songId,
   asset,
   driveStatus,
   driveStatusError,
   upload,
 }: {
+  songId: string;
   asset: VisualAsset;
   driveStatus?: GoogleDriveConnectionStatus;
   driveStatusError: boolean;
@@ -547,6 +550,7 @@ function VisualFileAssociationPanel({
   if (linkedFile) {
     return (
       <div className="border border-border bg-panel p-3">
+        <VisualImagePreview songId={songId} asset={asset} />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -753,6 +757,7 @@ function VisualAssetRow({
           </div>
         </div>
         <VisualFileAssociationPanel
+          songId={songId}
           asset={asset}
           driveStatus={driveStatus}
           driveStatusError={driveStatusError}

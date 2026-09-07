@@ -4,9 +4,9 @@ Last updated: 2026-09-07
 
 ## Current Phase
 
-Media Experience V2.1 — Audio Playback Complete.
+Media Experience V2.2 — Image Preview Complete.
 
-Current focus: Google Drive upload, secure backend media delivery, and inline AudioAsset playback are implemented for existing linked AudioAsset records. Authenticated DARKROOM SYSTEM users can request short-lived Artist OS media access URLs for owned linked audio, and the Audio workspace now uses those signed Artist OS URLs with a native browser audio element for play/pause, seek, elapsed/duration display, loading/buffering/error states, and one active player at a time. Media URLs remain ephemeral runtime state and are not persisted in frontend storage. ImagePreview/VideoPreview, replace/version workflow, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform/thumbnail/transcoding, YouTube, publishing, and production deployment remain future work.
+Current focus: Google Drive upload, secure backend media delivery, inline AudioAsset playback, and inline image preview for linked VisualAsset records are implemented. Authenticated DARKROOM SYSTEM users can request short-lived Artist OS media access URLs for owned linked audio and image assets. The Audio workspace uses signed Artist OS URLs with a native browser audio element. The Visuals workspace now uses signed Artist OS URLs with native image elements for PNG, JPEG, and WEBP previews, including a larger accessible preview dialog, loading/error/retry states, and stale-link/stale-token refresh behavior. Media URLs remain ephemeral runtime state and are not persisted in frontend storage. Video preview, generated thumbnails, image optimization/transcoding, replace/version workflow, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, and production deployment remain future work.
 
 ## Completed
 
@@ -227,6 +227,12 @@ Current focus: Google Drive upload, secure backend media delivery, and inline Au
 - Metadata-only/unlinked AudioAsset records do not render fake disabled playback controls.
 - Focused frontend playback tests cover linked/unlinked rendering, signed media URL use, play/pause, seek, duration/time updates, buffering/end/error states, stale media access refresh, one-active-player behavior, safe Drive guidance errors, accessible controls, and absence of waveform/download/replace controls.
 - Media V2.1 verification on 2026-09-07: `dotnet build` passed, full `dotnet test` passed with 271 backend tests, `npm run lint` passed with 0 errors and the existing 8 Fast Refresh warnings, `npm run test` passed with 137 frontend tests, and `npm run build` passed with existing Vite/Nitro advisories.
+- Media Experience V2.2 inline Image Preview implemented for linked image VisualAsset records in the Visuals workspace.
+- Image preview uses `POST /api/songs/{songId}/visual-assets/{visualAssetId}/media-access` to acquire a short-lived signed Artist OS media URL before assigning it to native image elements.
+- Image preview supports compact row previews, a larger accessible dialog preview, PNG/JPEG/WEBP detection from MIME type or safe extension, loading/error/retry states, near-expiry media-access refresh for large preview open, and stale linked-file invalidation.
+- Metadata-only/unlinked VisualAsset records and video VisualAsset records do not render fake image previews or request image media access.
+- Focused frontend image preview tests cover linked/unlinked rendering, signed media URL use, loading/load/error states, retry, disconnected/reauth guidance, PNG/JPEG/WEBP support, unsupported SVG/video exclusion, large dialog open/close, stale access refresh, linked-file change invalidation, accessibility labels, no signed URL persistence, and absence of download/version/edit-image controls.
+- Media V2.2 verification on 2026-09-07: `dotnet build` passed, full `dotnet test` passed with 271 backend tests, `npm run lint` passed with 0 errors and the existing 8 Fast Refresh warnings, `npm run test` passed with 159 frontend tests, and `npm run build` passed with existing Vite/Nitro advisories.
 - Focused Dashboard frontend tests were updated for the polished command-center labels and still cover success, empty, loading, error/retry, metrics, upcoming, readiness, analytics, recent activity, and navigation behavior.
 - Focused Songs frontend tests were updated for polished portfolio labels, empty/loading/error/retry states, search/lifecycle filtering, workspace row links, create validation, create failure display, and long-title rendering.
 - Song Workspace Overview Product Polish Sprint #3 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, or Google Drive architecture changes.
@@ -2289,6 +2295,17 @@ Latest browser Audio Playback V2.1 checks confirmed:
 - Real inline playback against a linked Google Drive audio file was not attempted in-browser because the disposable verification account did not have Google Drive connected or a safe linked real audio asset available. Linked playback behavior is covered by focused frontend tests using the media-access API boundary.
 - The temporary verification Song was deleted after verification.
 
+Latest browser Image Preview V2.2 checks confirmed:
+
+- `/songs/{songId}` loaded real Song workspace data and real VisualAsset metadata through the existing authenticated backend APIs.
+- Visuals tab rendered the existing no-assets state, then a real metadata-only VisualAsset created through the browser rendered as an unlinked asset.
+- Metadata-only/unlinked VisualAsset rows did not show image preview controls, fake thumbnails, or visual media-access requests.
+- Browser API traffic showed successful authenticated register, Song create, Song workspace load, Google Drive status, VisualAsset list, VisualAsset create, and cleanup requests.
+- Mobile viewport verification confirmed the Visuals workspace layout remained readable for metadata-only visuals.
+- Browser screenshots were captured at `output/playwright/image-preview-v22/visuals-unlinked-desktop.png` and `output/playwright/image-preview-v22/visuals-unlinked-mobile.png`.
+- Real inline image preview against a linked Google Drive image file was not attempted in-browser because the disposable verification account did not have Google Drive connected or a safe linked real image asset available. Linked preview, large preview, and media-access behavior are covered by focused frontend tests using the media-access API boundary.
+- The temporary verification Song was deleted after verification.
+
 Latest browser Visuals Workspace Product Polish checks confirmed:
 
 - `/songs/{songId}` loaded real Song workspace data and real VisualAsset metadata through the existing authenticated backend APIs.
@@ -2379,6 +2396,7 @@ Remote GitHub Actions status:
 - Replacing an already-linked asset file is intentionally blocked until a version/replace workflow exists.
 - Media access URLs contain short-lived signed query tokens; avoid logging full media URLs/query strings in hosting, reverse-proxy, analytics, or browser telemetry.
 - Media V2.0 uses current stored MIME/size metadata for HEAD responses; it does not yet synchronize provider ETag, checksum, duration, dimensions, or generated preview metadata.
+- Image Preview V2.2 streams the original linked image through the existing secure media endpoint; generated thumbnails and image optimization remain future performance work.
 - Release platforms are stored as a comma-separated string; a normalized platform table may become useful when real integrations exist.
 - ContentItem platform is stored as a string; richer channel/account modeling can wait until platform integrations exist.
 - Credit contributors are plain Song-scoped metadata strings; a normalized contributor directory can wait until team/auth requirements exist.
@@ -2404,7 +2422,7 @@ Remote GitHub Actions status:
 - Google Drive download-original, Drive browsing, Picker, synchronization, external file deletion, and replace/version workflow.
 - YouTube integration and automated analytics ingestion.
 - Waveform processing.
-- ImagePreview/VideoPreview UI, thumbnail generation, and visual playback.
+- VideoPreview UI, generated thumbnails, image optimization, and visual playback.
 - Transcoding or browser codec normalization.
 - Automatic Release checklist completion based on asset/content/credit metadata.
 - Distributor delivery or publishing workflow.
@@ -2444,10 +2462,10 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-Start Media V2.2 — Image Preview only after approval.
+Start Media V2.3 — Video Preview only after approval.
 
 Suggested scope:
 
-- Add a compact ImagePreview UI to the existing Visuals workspace using the V2.0 visual media-access endpoint.
-- Support linked visual preview loading, responsive image framing, loading/error states, and safe media-access refresh.
-- Do not implement video preview, waveform generation, replace/version workflow, Drive browsing, YouTube, publishing, or collaboration until those milestones are explicitly approved.
+- Add compact video preview/playback for linked video VisualAsset records using the V2.0 visual media-access endpoint.
+- Support loading/error states, browser codec limitations, safe media-access refresh, and responsive large preview behavior.
+- Do not implement transcoding, generated posters, waveform generation, replace/version workflow, Drive browsing, YouTube, publishing, or collaboration until those milestones are explicitly approved.

@@ -1,5 +1,5 @@
 import { http } from "./client";
-import type { VisualAsset, VisualAssetPayload } from "@/types";
+import type { MediaAccessResponse, VisualAsset, VisualAssetPayload } from "@/types";
 
 export const visualAssetsApi = {
   getVisualAssets(songId: string): Promise<VisualAsset[]> {
@@ -33,6 +33,13 @@ export const visualAssetsApi = {
     return http.form<VisualAsset>(
       `/api/songs/${songId}/visual-assets/${visualAssetId}/upload`,
       formData,
+    );
+  },
+
+  getVisualMediaAccess(songId: string, visualAssetId: string): Promise<MediaAccessResponse> {
+    return http.post<MediaAccessResponse>(
+      `/api/songs/${songId}/visual-assets/${visualAssetId}/media-access`,
+      {},
     );
   },
 };

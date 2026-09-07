@@ -99,6 +99,7 @@ vi.mock("@/services/api/visualAssets", () => ({
     updateVisualAsset: vi.fn(),
     deleteVisualAsset: vi.fn(),
     uploadVisualAssetFile: vi.fn(),
+    getVisualMediaAccess: vi.fn(),
   },
 }));
 

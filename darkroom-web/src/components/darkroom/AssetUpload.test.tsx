@@ -108,6 +108,7 @@ vi.mock("@/services/api/visualAssets", () => ({
     updateVisualAsset: updateVisualAssetMock,
     deleteVisualAsset: deleteVisualAssetMock,
     uploadVisualAssetFile: uploadVisualAssetFileMock,
+    getVisualMediaAccess: vi.fn(),
   },
 }));
 
