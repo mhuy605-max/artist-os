@@ -5,11 +5,13 @@ using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
 [Authorize]
+[EnableRateLimiting(RateLimitPolicyNames.NormalApi)]
 [ApiController]
 [Route("api/songs/{songId:int}/audio-assets")]
 public class AudioAssetsController : ControllerBase
@@ -18,17 +20,20 @@ public class AudioAssetsController : ControllerBase
     private readonly GoogleDriveAssetUploadService _uploadService;
     private readonly MediaAccessService _mediaAccessService;
     private readonly GoogleDriveMediaService _mediaService;
+    private readonly PublicUrlService _publicUrlService;
 
     public AudioAssetsController(
         AppDbContext context,
         GoogleDriveAssetUploadService uploadService,
         MediaAccessService mediaAccessService,
-        GoogleDriveMediaService mediaService)
+        GoogleDriveMediaService mediaService,
+        PublicUrlService publicUrlService)
     {
         _context = context;
         _uploadService = uploadService;
         _mediaAccessService = mediaAccessService;
         _mediaService = mediaService;
+        _publicUrlService = publicUrlService;
     }
 
     [HttpGet]
@@ -273,6 +278,7 @@ public class AudioAssetsController : ControllerBase
         return NoContent();
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPost("{audioAssetId:int}/upload")]
     [RequestSizeLimit(GoogleDriveUploadLimits.RequestBodyMaxBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = GoogleDriveUploadLimits.RequestBodyMaxBytes)]
@@ -298,6 +304,7 @@ public class AudioAssetsController : ControllerBase
         return ToAudioUploadActionResult(result);
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPost("{audioAssetId:int}/replace-file")]
     [RequestSizeLimit(GoogleDriveUploadLimits.RequestBodyMaxBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = GoogleDriveUploadLimits.RequestBodyMaxBytes)]
@@ -323,6 +330,7 @@ public class AudioAssetsController : ControllerBase
         return ToAudioUploadActionResult(result);
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.MediaAccess)]
     [HttpPost("{audioAssetId:int}/media-access")]
     public async Task<ActionResult<MediaAccessResponse>> CreateAudioMediaAccess(
         int songId,
@@ -340,16 +348,15 @@ public class AudioAssetsController : ControllerBase
             songId,
             audioAssetId,
             MediaAssetKinds.Audio,
-            token => Url.ActionLink(
-                    nameof(GetAudioAssetMedia),
-                    values: new { songId, audioAssetId, token }) ??
-                $"/api/songs/{songId}/audio-assets/{audioAssetId}/media?token={Uri.EscapeDataString(token)}",
+            token => _publicUrlService.BuildApiUrl(
+                $"/api/songs/{songId}/audio-assets/{audioAssetId}/media?token={Uri.EscapeDataString(token)}"),
             cancellationToken);
 
         return ToMediaAccessActionResult(result);
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicyNames.MediaStream)]
     [HttpGet("{audioAssetId:int}/media")]
     [HttpHead("{audioAssetId:int}/media")]
     public async Task<IActionResult> GetAudioAssetMedia(

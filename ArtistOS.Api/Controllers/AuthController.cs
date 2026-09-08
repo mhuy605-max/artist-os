@@ -7,6 +7,7 @@ using ArtistOS.Api.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
@@ -29,6 +30,7 @@ public class AuthController : ControllerBase
         _jwtTokenService = jwtTokenService;
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.AuthStrict)]
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request)
     {
@@ -59,6 +61,7 @@ public class AuthController : ControllerBase
         return CreatedAtAction(nameof(Me), ToAuthResponse(user));
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.AuthStrict)]
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {

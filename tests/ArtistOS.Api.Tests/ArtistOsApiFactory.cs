@@ -17,18 +17,26 @@ public sealed class ArtistOsApiFactory : WebApplicationFactory<Program>
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     private readonly Dictionary<string, string?> _configurationOverrides;
     private readonly Action<IServiceCollection>? _configureTestServices;
+    private readonly string? _environmentName;
 
     public ArtistOsApiFactory(
         Dictionary<string, string?>? configurationOverrides = null,
-        Action<IServiceCollection>? configureTestServices = null)
+        Action<IServiceCollection>? configureTestServices = null,
+        string? environmentName = null)
     {
         _configurationOverrides = configurationOverrides ?? [];
         _configureTestServices = configureTestServices;
+        _environmentName = environmentName;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         _connection.Open();
+
+        if (!string.IsNullOrWhiteSpace(_environmentName))
+        {
+            builder.UseEnvironment(_environmentName);
+        }
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {

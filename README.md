@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Release Readiness Automation
+Product V1 Feature Freeze + Application Security Hardening S2
 ```
 
 Implemented and verified:
@@ -105,10 +105,15 @@ Implemented and verified:
 - Canonical backend Release readiness calculation for Release Workspace, Song Overview, and Dashboard
 - Release readiness derives Master, Cover, Spotify Canvas, Credits, Content Plan, and Metadata readiness from existing Song workspace records
 - Optional Music Video readiness remains manually trackable and is excluded from required readiness unless completed
+- Product Completion Audit found no Product P0 blockers
+- Team route now presents an honest personal-workspace V1 state instead of mock collaborators
+- Application security hardening for auth/API/media/upload abuse protection
+- Production-aware CORS, trusted public URL configuration, forwarded-header handling, generic production exception responses, security headers, and Data Protection key-ring configuration hook
 
 Planned, not implemented yet:
 
 - Password reset, email verification, social login, MFA, and production refresh-token/session infrastructure
+- Infrastructure-level DDoS/WAF/CDN protection, provider secret vault wiring, deployment ingress rules, and reverse-proxy log redaction
 - Google Drive browsing, Picker, download-original, synchronization, external file deletion, and replacement audit/history views
 - YouTube analytics
 - Waveform processing
@@ -133,6 +138,7 @@ DARKROOM SYSTEM currently includes:
 - Responsive app shell with desktop sidebar and mobile drawer
 - Real login/register route backed by the ASP.NET Core auth API
 - Authenticated workspace route guard for dashboard, songs, song workspace, calendar, team, and settings
+- Team route remains available as a planned future collaboration surface for the current personal-workspace V1
 - Local transparent logo asset
 
 Current routes:
@@ -238,6 +244,33 @@ If the backend is unreachable during local development, the Song API service use
 
 Google Drive OAuth tokens remain backend-only and are not exposed to the React frontend. Drive folder provisioning, AudioAsset/VisualAsset upload association, backend-mediated media delivery, version creation, and linked-file replacement are implemented for owned Songs. Drive browsing, Picker, download-original, automatic folder rename, external file deletion, and replacement audit/history views are still planned.
 
+## Application Security
+
+Artist OS currently includes app-owned security hardening for the implemented backend/API surface:
+
+- strict rate limiting for register/login
+- general API and aggregate endpoint rate limits
+- concurrency limiting for upload and replace-file operations
+- dedicated media-access and media-stream abuse limits
+- login/register password length bounds on both backend DTOs and frontend form input
+- production generic exception responses with server-side logging
+- API security headers, including production HSTS and CSP on API responses
+- trusted public API/frontend URL configuration for generated OAuth, callback, redirect, and media URLs
+- production CORS based on exact configured frontend origins, without wildcard or credentialed browser cookies
+- ASP.NET Core Data Protection application name and key-ring path configuration hook for production
+
+For production-like environments, configure these non-secret deployment values outside source control:
+
+```text
+PublicUrls:ApiBaseUrl
+PublicUrls:FrontendBaseUrl
+Cors:AllowedOrigins:0
+DataProtection:KeyRingPath
+AllowedHosts
+```
+
+The current frontend still stores the short-lived Artist OS access token in `sessionStorage`. Future production session hardening, refresh-token rotation, account recovery, MFA, infrastructure DDoS protection, provider secret vault wiring, and reverse-proxy query-string redaction are still planned.
+
 ## Mock-Only Areas
 
 These areas are visible or planned in the frontend but are not backend-backed yet:
@@ -250,7 +283,6 @@ These areas are visible or planned in the frontend but are not backend-backed ye
 - Contributor directory, team permissions, contracts, royalties, and payout workflow
 - YouTube analytics ingestion and automated external platform sync
 - Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync
-- Team
 - Settings
 - Team roles, collaboration permissions, and multi-user workspace management
 
@@ -1300,6 +1332,7 @@ Deleting an AudioAsset or VisualAsset metadata record does not automatically del
 - [x] Optional AudioAsset/VisualAsset external file reference links
 - [x] AudioAsset/VisualAsset version family migration
 - [x] Local frontend development CORS
+- [x] Application security hardening S2
 - [x] Automated backend tests
 - [x] Automated frontend tests
 
@@ -1350,6 +1383,7 @@ Deleting an AudioAsset or VisualAsset metadata record does not automatically del
 - [ ] Google Drive download-original, synchronization, and external file deletion
 - [ ] YouTube analytics
 - [x] GitHub Actions CI foundation
+- [ ] Infrastructure security hardening, WAF/CDN/rate-limit edge protection, and production secret-provider wiring
 - [ ] CD and production deployment
 
 ## Development Principles

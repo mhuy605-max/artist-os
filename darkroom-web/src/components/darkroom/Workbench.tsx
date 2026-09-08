@@ -81,7 +81,6 @@ import { releaseChecklistApi } from "@/services/api/releaseChecklist";
 import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
 import { visualAssetsApi } from "@/services/api/visualAssets";
-import { teamMembers } from "@/services/mock/team";
 import {
   ANALYTICS_PLATFORM_LABELS,
   ANALYTICS_PLATFORMS,
@@ -1158,24 +1157,23 @@ function calendarEventLabel(eventType: CalendarEventType) {
 export function TeamPage() {
   return (
     <AppShell>
-      <PageHeader eyebrow="Team" title="Collaborators">
-        <Button variant="outline">Invite</Button>
-      </PageHeader>
-      <Panel title="Members" label="Mock-only">
-        <div className="grid gap-3 lg:grid-cols-2">
-          {teamMembers.map((member) => (
-            <FileRow
-              key={member.id}
-              title={member.name}
-              meta={`${member.role} / ${member.email}`}
-              status={
-                member.projects.length === 1
-                  ? member.projects[0]!
-                  : `${member.projects.length} projects`
-              }
-              detail={`Last activity ${formatDate(member.lastActivity)}`}
-            />
-          ))}
+      <PageHeader eyebrow="Team" title="Personal workspace" />
+      <Panel title="Collaboration" label="Planned">
+        <div className="max-w-3xl space-y-4">
+          <p className="text-sm text-muted-foreground">
+            DARKROOM SYSTEM V1 is currently built for a single artist account.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Team collaboration, shared project access, invitations, and role-based permissions are
+            planned for a future release.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {["Single account", "Private songs", "Future teams"].map((item) => (
+              <div key={item} className="border border-border bg-background p-3">
+                <p className="label-tech">{item}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </Panel>
     </AppShell>
@@ -1413,6 +1411,7 @@ export function LoginPage() {
                 className="mt-2"
                 required
                 minLength={8}
+                maxLength={200}
               />
             </div>
             {error ? <p className="text-sm text-muted-foreground">{error}</p> : null}

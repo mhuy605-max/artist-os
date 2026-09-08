@@ -3,6 +3,7 @@ using ArtistOS.Api.Integrations.GoogleDrive;
 using ArtistOS.Api.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -16,20 +17,24 @@ public class GoogleDriveIntegrationController : ControllerBase
     private readonly GoogleDriveOptions _options;
     private readonly ILogger<GoogleDriveIntegrationController> _logger;
     private readonly IHostEnvironment _environment;
+    private readonly PublicUrlService _publicUrlService;
 
     public GoogleDriveIntegrationController(
         GoogleDriveConnectionService connectionService,
         IOptions<GoogleDriveOptions> options,
         ILogger<GoogleDriveIntegrationController> logger,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        PublicUrlService publicUrlService)
     {
         _connectionService = connectionService;
         _options = options.Value;
         _logger = logger;
         _environment = environment;
+        _publicUrlService = publicUrlService;
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.NormalApi)]
     [HttpGet("status")]
     public async Task<ActionResult<GoogleDriveConnectionStatusResponse>> Status(
         CancellationToken cancellationToken)
@@ -44,6 +49,7 @@ public class GoogleDriveIntegrationController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.NormalApi)]
     [HttpPost("connect")]
     public ActionResult<GoogleDriveConnectResponse> Connect()
     {
@@ -140,6 +146,7 @@ public class GoogleDriveIntegrationController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.NormalApi)]
     [HttpPost("disconnect")]
     public async Task<ActionResult<GoogleDriveDisconnectResponse>> Disconnect(
         CancellationToken cancellationToken)
@@ -155,14 +162,16 @@ public class GoogleDriveIntegrationController : ControllerBase
 
     private string BuildCallbackUrl()
     {
-        return Url.ActionLink(nameof(Callback), values: null) ??
-            "http://localhost:5178/api/integrations/google-drive/callback";
+        return _publicUrlService.BuildApiUrl("/api/integrations/google-drive/callback");
     }
 
     private RedirectResult RedirectToSettings(string result)
     {
-        var separator = _options.FrontendRedirectUrl.Contains('?') ? '&' : '?';
-        return Redirect($"{_options.FrontendRedirectUrl}{separator}googleDrive={result}");
+        var redirectUrl = string.IsNullOrWhiteSpace(_options.FrontendRedirectUrl)
+            ? _publicUrlService.BuildFrontendUrl("/settings")
+            : _options.FrontendRedirectUrl;
+        var separator = redirectUrl.Contains('?') ? '&' : '?';
+        return Redirect($"{redirectUrl}{separator}googleDrive={result}");
     }
 
     private void LogDevelopment(string message, params object?[] args)

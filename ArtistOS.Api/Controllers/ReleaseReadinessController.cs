@@ -3,10 +3,12 @@ using ArtistOS.Api.Security;
 using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ArtistOS.Api.Controllers;
 
 [Authorize]
+[EnableRateLimiting(RateLimitPolicyNames.Aggregates)]
 [ApiController]
 [Route("api/songs/{songId:int}/release/readiness")]
 public class ReleaseReadinessController : ControllerBase

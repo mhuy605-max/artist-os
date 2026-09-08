@@ -5,11 +5,13 @@ using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
 [Authorize]
+[EnableRateLimiting(RateLimitPolicyNames.NormalApi)]
 [ApiController]
 [Route("api/songs/{songId:int}/visual-assets")]
 public class VisualAssetsController : ControllerBase
@@ -18,17 +20,20 @@ public class VisualAssetsController : ControllerBase
     private readonly GoogleDriveAssetUploadService _uploadService;
     private readonly MediaAccessService _mediaAccessService;
     private readonly GoogleDriveMediaService _mediaService;
+    private readonly PublicUrlService _publicUrlService;
 
     public VisualAssetsController(
         AppDbContext context,
         GoogleDriveAssetUploadService uploadService,
         MediaAccessService mediaAccessService,
-        GoogleDriveMediaService mediaService)
+        GoogleDriveMediaService mediaService,
+        PublicUrlService publicUrlService)
     {
         _context = context;
         _uploadService = uploadService;
         _mediaAccessService = mediaAccessService;
         _mediaService = mediaService;
+        _publicUrlService = publicUrlService;
     }
 
     [HttpGet]
@@ -225,6 +230,7 @@ public class VisualAssetsController : ControllerBase
             AssetFileResponseMapper.ToVisualAssetResponse(nextAsset));
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPost("{visualAssetId:int}/upload")]
     [RequestSizeLimit(GoogleDriveUploadLimits.RequestBodyMaxBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = GoogleDriveUploadLimits.RequestBodyMaxBytes)]
@@ -250,6 +256,7 @@ public class VisualAssetsController : ControllerBase
         return ToVisualUploadActionResult(result);
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPost("{visualAssetId:int}/replace-file")]
     [RequestSizeLimit(GoogleDriveUploadLimits.RequestBodyMaxBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = GoogleDriveUploadLimits.RequestBodyMaxBytes)]
@@ -275,6 +282,7 @@ public class VisualAssetsController : ControllerBase
         return ToVisualUploadActionResult(result);
     }
 
+    [EnableRateLimiting(RateLimitPolicyNames.MediaAccess)]
     [HttpPost("{visualAssetId:int}/media-access")]
     public async Task<ActionResult<MediaAccessResponse>> CreateVisualMediaAccess(
         int songId,
@@ -292,16 +300,15 @@ public class VisualAssetsController : ControllerBase
             songId,
             visualAssetId,
             MediaAssetKinds.Visual,
-            token => Url.ActionLink(
-                    nameof(GetVisualAssetMedia),
-                    values: new { songId, visualAssetId, token }) ??
-                $"/api/songs/{songId}/visual-assets/{visualAssetId}/media?token={Uri.EscapeDataString(token)}",
+            token => _publicUrlService.BuildApiUrl(
+                $"/api/songs/{songId}/visual-assets/{visualAssetId}/media?token={Uri.EscapeDataString(token)}"),
             cancellationToken);
 
         return ToMediaAccessActionResult(result);
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicyNames.MediaStream)]
     [HttpGet("{visualAssetId:int}/media")]
     [HttpHead("{visualAssetId:int}/media")]
     public async Task<IActionResult> GetVisualAssetMedia(

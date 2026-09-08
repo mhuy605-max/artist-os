@@ -4,11 +4,13 @@ using ArtistOS.Api.Security;
 using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
 [Authorize]
+[EnableRateLimiting(RateLimitPolicyNames.Aggregates)]
 [ApiController]
 [Route("api/dashboard")]
 public class DashboardController : ControllerBase

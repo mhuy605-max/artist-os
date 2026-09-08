@@ -4,6 +4,8 @@ namespace ArtistOS.Api.Dtos;
 
 public class RegisterRequest : IValidatableObject
 {
+    public const int PasswordMaxLength = LoginRequest.PasswordMaxLength;
+
     [Required]
     [EmailAddress]
     [StringLength(254)]
@@ -11,7 +13,7 @@ public class RegisterRequest : IValidatableObject
 
     [Required]
     [MinLength(8)]
-    [StringLength(200)]
+    [StringLength(PasswordMaxLength)]
     public string Password { get; set; } = string.Empty;
 
     [StringLength(120)]

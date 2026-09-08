@@ -81,7 +81,6 @@ import { releaseReadinessApi } from "@/services/api/releaseReadiness";
 import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
 import { visualAssetsApi } from "@/services/api/visualAssets";
-import { teamMembers } from "@/services/mock/team";
 import {
   ANALYTICS_PLATFORM_LABELS,
   ANALYTICS_PLATFORMS,

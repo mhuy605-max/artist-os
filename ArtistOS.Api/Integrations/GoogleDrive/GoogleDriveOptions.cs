@@ -6,7 +6,7 @@ public class GoogleDriveOptions
 
     public string ClientSecret { get; set; } = string.Empty;
 
-    public string FrontendRedirectUrl { get; set; } = "http://localhost:8080/settings";
+    public string FrontendRedirectUrl { get; set; } = string.Empty;
 
     public int StateLifetimeMinutes { get; set; } = 10;
 

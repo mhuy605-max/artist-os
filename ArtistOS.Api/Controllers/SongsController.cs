@@ -4,11 +4,13 @@ using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Controllers;
 
 [Authorize]
+[EnableRateLimiting(RateLimitPolicyNames.NormalApi)]
 [ApiController]
 [Route("api/[controller]")]
 public class SongsController : ControllerBase

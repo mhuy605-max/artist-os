@@ -28,6 +28,8 @@ public class FakeGoogleDriveApiClient : IGoogleDriveApiClient
 
     public string? FixedUploadFileId { get; set; }
 
+    public TimeSpan UploadDelay { get; set; } = TimeSpan.Zero;
+
     public Task<GoogleDriveFolder?> GetFolderAsync(
         string accessToken,
         string folderId,
@@ -58,7 +60,7 @@ public class FakeGoogleDriveApiClient : IGoogleDriveApiClient
         return Task.FromResult(folder);
     }
 
-    public Task<GoogleDriveUploadedFile> UploadFileAsync(
+    public async Task<GoogleDriveUploadedFile> UploadFileAsync(
         string accessToken,
         string name,
         string parentFolderId,
@@ -69,6 +71,11 @@ public class FakeGoogleDriveApiClient : IGoogleDriveApiClient
         if (FailUpload)
         {
             throw new InvalidOperationException("Fake Drive upload failed.");
+        }
+
+        if (UploadDelay > TimeSpan.Zero)
+        {
+            await Task.Delay(UploadDelay, cancellationToken);
         }
 
         using var countingStream = new MemoryStream();
@@ -87,7 +94,7 @@ public class FakeGoogleDriveApiClient : IGoogleDriveApiClient
         FileBytes[file.Id] = countingStream.ToArray();
         UploadedFiles.Add((name, parentFolderId, contentType, countingStream.Length));
 
-        return Task.FromResult(file);
+        return file;
     }
 
     public Task DeleteFileAsync(

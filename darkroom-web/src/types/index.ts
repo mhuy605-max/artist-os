@@ -637,15 +637,6 @@ export interface ActivityEvent {
   at: string;
 }
 
-export interface TeamMember {
-  id: string;
-  name: string;
-  role: "Owner" | "Admin" | "Artist" | "Producer" | "Engineer" | "Manager" | "Collaborator";
-  email: string;
-  projects: string[];
-  lastActivity: string;
-}
-
 export const CALENDAR_EVENT_TYPES = [
   "ReleaseDate",
   "ContentDue",

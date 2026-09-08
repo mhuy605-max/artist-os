@@ -3,10 +3,12 @@ using ArtistOS.Api.Integrations.GoogleDrive;
 using ArtistOS.Api.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ArtistOS.Api.Controllers;
 
 [Authorize]
+[EnableRateLimiting(RateLimitPolicyNames.NormalApi)]
 [ApiController]
 [Route("api/songs/{songId:int}/drive-workspace")]
 public class DriveWorkspacesController : ControllerBase

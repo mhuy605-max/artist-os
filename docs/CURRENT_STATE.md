@@ -1,12 +1,12 @@
 # Artist OS Current State
 
-Last updated: 2026-09-08
+Last updated: 2026-09-09
 
 ## Current Phase
 
-Release Readiness Automation Complete.
+Product V1 Feature Freeze Complete. Application Security Hardening S2 completed.
 
-Current focus: canonical Release readiness is implemented in the backend and consumed by Release Workspace, Song Overview, and Dashboard. Readiness now derives Master, Cover, Spotify Canvas, Credits, Content Plan, and Metadata status from the existing owned Song workspace records while preserving optional/manual Music Video tracking. Automatic readiness is calculated at read time and is not written back to ReleaseChecklist rows. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, and app-owned Security S2 hardening. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. Collaboration, generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security hardening, and production deployment remain future work.
 
 ## Completed
 
@@ -274,6 +274,21 @@ Current focus: canonical Release readiness is implemented in the backend and con
 - AudioAsset, VisualAsset, Credit, ContentItem, Release, and ReleaseChecklist frontend mutations invalidate the canonical Release readiness query.
 - Release Readiness Automation verification on 2026-09-08: `dotnet build` passed, full `dotnet test` passed with 313 backend tests, `npm run lint` passed with 0 errors and the existing 8 Fast Refresh warnings, `npm run test` passed with 190 frontend tests, and `npm run build` passed with existing Vite/Nitro advisories.
 - Browser smoke verification on 2026-09-08 created a local disposable user, created a Release Preparation Song, created a Spotify Release, and confirmed Release Workspace, Song Overview, and Dashboard display the canonical `1 / 6` required readiness state from real backend data.
+- Product Completion Audit found no Product P0 blockers and identified the old mock Team surface as the only accepted Product P1 gap before Product V1 Feature Freeze.
+- Team route now presents DARKROOM SYSTEM V1 as a personal workspace, with future collaboration clearly planned instead of mocked.
+- Fake Team collaborators and Invite behavior were removed from the V1 frontend surface.
+- Application Security Hardening S2 completed without schema changes, migrations, Google scope changes, Drive file/folder feature work, JWT architecture redesign, or product-scope reopening.
+- Auth endpoints now use a strict rate-limit policy for register/login.
+- Normal API, aggregate read API, media-access, media-stream, and upload/replace-file endpoint groups now use dedicated app-level rate/concurrency-limit policies.
+- Login and registration password inputs are bounded at 200 characters in backend DTO validation and the frontend auth form.
+- Backend-generated public API/frontend URLs now flow through trusted `PublicUrls` configuration with Development localhost fallback and non-Development startup validation.
+- Google OAuth callback URLs, Settings redirects, and signed media URLs now use trusted public URL generation instead of request `Host` header values.
+- Production CORS now requires exact configured frontend origins and does not use wildcard origins or credentialed browser cookies.
+- Forwarded headers are enabled with conservative ASP.NET Core defaults and a single-forward limit for future reverse-proxy deployment.
+- Production exception handling now returns generic JSON `500` responses while logging unexpected exceptions server-side.
+- API security headers are applied, including `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, and production `Strict-Transport-Security` plus API CSP.
+- Data Protection now has a stable application-name configuration and a production key-ring path hook; non-Development startup fails when the key-ring path is missing.
+- Focused backend security-hardening tests were added for auth/API/media/upload limits, password bounds, trusted public URL behavior, production CORS/security headers, callback redirects, and production Data Protection startup validation.
 - Focused Dashboard frontend tests were updated for the polished command-center labels and still cover success, empty, loading, error/retry, metrics, upcoming, readiness, analytics, recent activity, and navigation behavior.
 - Focused Songs frontend tests were updated for polished portfolio labels, empty/loading/error/retry states, search/lifecycle filtering, workspace row links, create validation, create failure display, and long-title rendering.
 - Song Workspace Overview Product Polish Sprint #3 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, or Google Drive architecture changes.
@@ -400,6 +415,17 @@ OPTIONS
 
 The `Authorization` header is allowed for local JWT Bearer requests. Credentialed CORS cookies are no longer required by Artist OS authentication.
 
+Production/non-Development CORS is environment-aware and requires exact configured frontend origins from `Cors:AllowedOrigins` and/or `PublicUrls:FrontendBaseUrl`. It does not fall back to wildcard origins or credentialed browser cookies.
+
+Trusted public URL generation is centralized through `PublicUrlService` and currently covers Google OAuth callback URL generation, Google Drive Settings redirect fallback, and signed media URL generation. Development falls back to:
+
+```text
+API: http://localhost:5178
+Frontend: http://localhost:8080
+```
+
+Non-Development startup validates configured public URLs, CORS origins, non-wildcard `AllowedHosts`, and Data Protection key-ring path before serving requests.
+
 Current frontend architecture:
 
 ```text
@@ -410,7 +436,7 @@ TanStack Router routes
   -> ASP.NET Core API
 ```
 
-Future workspace areas use centralized mock modules under `darkroom-web/src/services/mock/`. They are visually present for architecture and navigation, but they are not backend-backed yet.
+Remaining future-only support data is isolated under `darkroom-web/src/services/mock/` where still used. The Team route no longer renders mock collaborators.
 
 Settings now uses a dedicated Google Drive API service for connection status, connect, reconnect, and disconnect.
 
@@ -626,16 +652,14 @@ When the backend is running with CORS configured, the fallback notice does not a
 
 ## Mock-Only Areas
 
-These frontend areas are mock-only and do not have backend persistence yet:
+These visible or planned areas are not backend-backed production capabilities yet:
 
-- Audio waveform display, playback, replace/version workflow, and external Drive file deletion.
-- Visual thumbnails, previews, playback, replace/version workflow, and external Drive file deletion.
-- Automatic release checklist completion from asset/content/credit records.
+- Audio waveform display, download-original, replacement audit/history views, and external Drive file deletion.
+- Visual thumbnails/posters, transcoding, download-original, replacement audit/history views, and external Drive file deletion.
 - Content publishing and platform delivery.
 - Contributor directory, team permissions, contracts, royalties, and payout workflow.
 - External analytics ingestion and automated platform sync.
 - Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync.
-- Team.
 - Settings.
 - Team roles, collaboration permissions, password recovery, email verification, and production auth hardening.
 
@@ -1699,8 +1723,11 @@ Frontend expected API behavior:
 - Missing, unowned, cross-user, and legacy-unowned Song-scoped resources return `404 Not Found`.
 - Dashboard and Calendar aggregates are filtered to the current authenticated user.
 - Expired, missing, malformed, or invalid JWT access tokens return `401 Unauthorized`.
+- Application rate limiting returns `429 Too Many Requests` with a generic JSON error and a safe `Retry-After` header.
+- Upload and replace-file endpoints use an app-level concurrency limiter to reduce duplicate large-file operations per user/IP partition.
+- Media-access and media-stream endpoints use dedicated limits separate from normal metadata APIs.
 
-No custom global backend exception handling has been added yet.
+Production/non-Development backend exception handling now returns a generic JSON `500` response and logs unexpected exceptions server-side without exposing stack traces through API responses.
 
 ## Tests / Build Status
 
@@ -1715,7 +1742,7 @@ Automated tests:
 - Frontend tests use Vitest with jsdom and a shared setup file.
 - Frontend component tests use a fresh TanStack Query `QueryClient` per render with retries disabled.
 - Frontend tests mock API services such as `authApi`, `dashboardApi`, and `songsApi` instead of depending on ASP.NET, PostgreSQL, localhost, or network availability.
-- Frontend automated test foundation currently has 50 focused tests.
+- Frontend automated tests currently have 195 focused tests.
 - Auth API behavior has automated integration-style coverage for registration, duplicate email, login, invalid credentials, current JWT, logout semantics, password hash safety, malformed tokens, expired tokens, and unauthenticated access.
 - Song owner assignment has automated integration-style coverage for authenticated creates and spoofed owner rejection.
 - Resource ownership has automated integration-style coverage for unauthenticated `401`, cross-user `404`, nested Song resource scoping, Calendar/Dashboard scoping, and legacy unowned Song invisibility.
@@ -1733,6 +1760,27 @@ Automated tests:
 - Google Drive connection behavior has automated backend coverage for unauthenticated access, disconnected status, protected state, callback success, invalid/expired state, denied OAuth, user isolation, safe status responses, protected refresh-token persistence, reconnect refresh-token preservation, and disconnect behavior.
 - Google Drive workspace behavior has automated backend coverage for unauthenticated access, owned Song provisioning, cross-user `404`, missing Google connection, `ReauthRequired` connection, root provisioning, idempotent repeated provisioning, Song folder creation, persisted external reference reuse, deleted root recovery, deleted Song folder recovery, connection ownership isolation, refresh failure reauth marking, and no-token API responses.
 - Google Drive Settings behavior has automated frontend coverage for disconnected, connected, reconnect-needed, connect navigation, disconnect mutation, API error, and no-token-rendering states.
+- Security hardening behavior has automated backend coverage for auth rate limiting, normal API rate limiting, aggregate rate limiting, media stream rate limiting, upload concurrency limiting, password length bounds, trusted public URL generation, production CORS/security headers, callback redirect URL trust, and production Data Protection startup validation.
+
+Verification run during the Application Security Hardening S2 milestone:
+
+```text
+dotnet build ArtistOS.slnx
+dotnet test ArtistOS.slnx --no-build
+npm run lint
+npm run test
+npm run build
+```
+
+Results:
+
+```text
+dotnet build ArtistOS.slnx: succeeded, 0 warnings, 0 errors.
+dotnet test ArtistOS.slnx --no-build: succeeded, 324 passed, 0 failed, 0 skipped.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run test: succeeded, 195 passed, 0 failed, 0 skipped.
+npm run build: succeeded with existing Vite/Nitro advisories.
+```
 
 Verification run during the latest Cookie Auth -> JWT Bearer Auth Migration milestone:
 
@@ -2425,6 +2473,10 @@ Latest browser Release Workspace Product Polish checks confirmed:
 - Resumable upload session URIs are not logged or returned.
 - Google OAuth state is protected and expiring, and callback handling does not depend on the browser supplying an Artist OS Bearer header.
 - Production deployment must configure persistent/shared Data Protection keys appropriate to the hosting topology.
+- Production-like startup validates trusted public URLs, exact CORS origins, non-wildcard `AllowedHosts`, and a Data Protection key-ring path.
+- Register/login, normal API, aggregate API, media-access, media-stream, and upload/replace-file operations have app-level rate/concurrency protection.
+- Production/non-Development API responses include generic exception bodies for unexpected failures while logging server-side details.
+- API security headers are applied, including production HSTS and API CSP.
 - Frontend route protection is implemented for the app shell.
 - Backend resource authorization is enforced across existing Song workspace APIs, Calendar, and Dashboard.
 - `OwnerUserId` is the current backend security boundary for normal user data access.
@@ -2454,15 +2506,17 @@ Remote GitHub Actions status:
 - Existing pre-auth Songs have nullable `OwnerUserId`, remain unowned, and are invisible to normal authenticated users until a future ownership/backfill decision is made.
 - JWT access tokens are stored in `sessionStorage`, which is JavaScript-accessible; future production hardening must account for XSS risk.
 - Logout does not server-revoke already-issued stateless JWT access tokens.
-- Password reset, email verification, account management, refresh-token/session rotation, revocation, and rate limiting are not implemented yet.
+- Password reset, email verification, account management, refresh-token/session rotation, and server-side JWT revocation are not implemented yet.
 - The API now enforces one current AudioAsset per `AssetFamilyId`; it intentionally does not enforce one current AudioAsset per Song + Type because type is classification, not version lineage.
 - The API now enforces one current VisualAsset per `AssetFamilyId`; it intentionally does not enforce one current VisualAsset per Song + Type because type is classification, not version lineage.
 - Current upload limits are MVP/development application limits only; production hosting and reverse proxies will need matching request-size configuration.
+- Current rate limits are app-level protections only; production still needs edge/CDN/WAF protection and provider ingress controls.
 - Drive upload and PostgreSQL persistence are not one atomic transaction; the backend attempts best-effort Drive cleanup if persistence fails after upload succeeds.
 - Deleting AudioAsset or VisualAsset metadata does not automatically delete linked external Drive binaries.
 - Replace File is implemented for linked assets; replacement audit history and old Google Drive binary cleanup remain future work.
 - Metadata-only new asset versions currently retain a non-null `UploadedAt` creation timestamp for schema compatibility even before a file is attached.
 - Media access URLs contain short-lived signed query tokens; avoid logging full media URLs/query strings in hosting, reverse-proxy, analytics, or browser telemetry.
+- Signed media-token query leakage prevention still requires production reverse-proxy/CDN/server log redaction configuration outside the app.
 - Media V2.0 uses current stored MIME/size metadata for HEAD responses; it does not yet synchronize provider ETag, checksum, duration, dimensions, or generated preview metadata.
 - Image Preview V2.2 streams the original linked image through the existing secure media endpoint; generated thumbnails and image optimization remain future performance work.
 - Video Preview V2.3 streams the original linked video through the existing secure media endpoint; transcoding, generated posters, codec normalization, and persisted duration extraction remain future performance/compatibility work.
@@ -2483,11 +2537,14 @@ Remote GitHub Actions status:
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - Frontend automated tests are intentionally focused and do not yet cover the entire app, all routes, all workspace tabs, or visual regression.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
+- Production secret storage is still configuration-provider based; a cloud/provider secret vault is not wired in this repository.
+- Production Data Protection has a filesystem/key-ring configuration hook, but the actual shared durable key store must be selected and mounted by deployment infrastructure.
+- PostgreSQL TLS/private-networking, backup, restore, monitoring, and managed-provider security controls are still deployment responsibilities.
 
 ## Not Yet Implemented
 
 - Team collaboration or permissions.
-- Password reset, email verification, social login, MFA, account management, and production session hardening.
+- Password reset, email verification, social login, MFA, account management, production refresh-token/session hardening, and server-side JWT revocation.
 - Google Drive download-original, Drive browsing, Picker, synchronization, external file deletion, and replacement audit/history views.
 - YouTube integration and automated analytics ingestion.
 - Waveform processing.
@@ -2499,7 +2556,7 @@ Remote GitHub Actions status:
 - Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync.
 - Dashboard notifications, saved filters, user-specific/team-specific views, and audit history.
 - Contributor directory, contracts, royalties, payment workflow, and authenticated team permissions.
-- Production deployment.
+- Infrastructure security hardening, CDN/WAF/DDoS protection, reverse-proxy log redaction, production secret vault wiring, PostgreSQL hosting controls, and production deployment.
 
 ## Google Drive Compatibility
 
@@ -2531,10 +2588,10 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-Start Media Integration Checkpoint — Real Google Drive End-to-End Verification.
+Security S3 - Infrastructure / DDoS Security Requirements.
 
 Suggested scope:
 
-- Use a real connected Google Drive account and a safe, small media file to verify at least one complete upload/link/media-access/playback chain through DARKROOM SYSTEM.
-- Prefer verifying real video first; if unavailable, verify real image or audio media delivery before stacking more media product features.
-- Do not implement asset versioning, replacement, transcoding, generated posters, Drive browsing, YouTube, publishing, or collaboration until this provider chain is verified or explicitly deferred.
+- Define infrastructure-level controls for CDN/WAF/rate limiting, reverse-proxy query redaction, trusted ingress, production secrets, Data Protection key storage, PostgreSQL hosting/TLS/private networking, backup/restore, monitoring, and deployment security.
+- Keep product scope frozen while security risks are identified and prioritized.
+- Preserve the connected-Google-Drive Replace File checkpoint as verification debt; do not reopen product scope for new features.
