@@ -71,7 +71,7 @@ public class ReleaseChecklistApiTests
         using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
-        var item = (await GetChecklist(client, song.Id)).First();
+        var item = (await GetChecklist(client, song.Id)).Single(item => item.Key == "Metadata");
 
         var response = await client.GetAsync(
             $"/api/songs/{song.Id}/release/checklist/{item.Id}");
@@ -80,7 +80,7 @@ public class ReleaseChecklistApiTests
         var found = await response.Content.ReadFromJsonAsync<ReleaseChecklistItemResponse>();
         Assert.NotNull(found);
         Assert.Equal(item.Id, found.Id);
-        Assert.Equal("Master", found.Key);
+        Assert.Equal("Metadata", found.Key);
     }
 
     [Fact]
@@ -103,14 +103,14 @@ public class ReleaseChecklistApiTests
         using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
-        var item = (await GetChecklist(client, song.Id)).First();
+        var item = (await GetChecklist(client, song.Id)).Single(item => item.Key == "Metadata");
 
         var response = await client.PutAsJsonAsync(
             $"/api/songs/{song.Id}/release/checklist/{item.Id}",
             new
             {
                 isCompleted = true,
-                notes = "  Master approved.  ",
+                notes = "  Metadata approved.  ",
                 completedAt = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 createdAt = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 updatedAt = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -122,7 +122,7 @@ public class ReleaseChecklistApiTests
         Assert.True(updated.IsCompleted);
         Assert.NotNull(updated.CompletedAt);
         Assert.NotEqual(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc), updated.CompletedAt);
-        Assert.Equal("Master approved.", updated.Notes);
+        Assert.Equal("Metadata approved.", updated.Notes);
         Assert.Equal(item.CreatedAt, updated.CreatedAt);
         Assert.True(updated.UpdatedAt > item.UpdatedAt);
     }
@@ -134,7 +134,7 @@ public class ReleaseChecklistApiTests
         using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
-        var item = (await GetChecklist(client, song.Id)).First();
+        var item = (await GetChecklist(client, song.Id)).Single(item => item.Key == "Metadata");
 
         await client.PutAsJsonAsync(
             $"/api/songs/{song.Id}/release/checklist/{item.Id}",
@@ -159,7 +159,7 @@ public class ReleaseChecklistApiTests
         using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         await CreateRelease(client, song.Id);
-        var item = (await GetChecklist(client, song.Id)).First();
+        var item = (await GetChecklist(client, song.Id)).Single(item => item.Key == "Metadata");
 
         var response = await client.PutAsJsonAsync(
             $"/api/songs/{song.Id}/release/checklist/{item.Id}",
@@ -190,7 +190,7 @@ public class ReleaseChecklistApiTests
         using var client = await factory.CreateAuthenticatedClientAsync();
         var song = await CreateSong(client);
         var release = await CreateRelease(client, song.Id);
-        var item = (await GetChecklist(client, song.Id)).First();
+        var item = (await GetChecklist(client, song.Id)).Single(item => item.Key == "Metadata");
 
         var update = await client.PutAsJsonAsync(
             $"/api/songs/{song.Id}/release/checklist/{item.Id}",

@@ -157,6 +157,7 @@ import {
   normalizeId,
   numberOrNull,
   parseApiProblemTitle,
+  releaseReadinessQueryKey,
   visualAssetsQueryKey,
 } from "../shared";
 import { VisualImagePreview } from "./VisualImagePreview";
@@ -164,8 +165,10 @@ import { VisualVideoPreview } from "./VisualVideoPreview";
 
 function useVisualAssetMutations(songId: string) {
   const queryClient = useQueryClient();
-  const invalidate = () =>
+  const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: visualAssetsQueryKey(songId) });
+    queryClient.invalidateQueries({ queryKey: releaseReadinessQueryKey(songId) });
+  };
 
   return {
     create: useMutation({

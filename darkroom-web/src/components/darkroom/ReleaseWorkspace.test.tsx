@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 import { ApiError } from "@/services/api/client";
 import { renderWithQueryClient } from "@/test/render";
-import type { Release, ReleaseChecklistItem, Song } from "@/types";
+import type { Release, ReleaseChecklistItem, ReleaseReadiness, Song } from "@/types";
 
 const {
   getMeMock,
@@ -18,6 +18,7 @@ const {
   updateReleaseMock,
   deleteReleaseMock,
   getChecklistMock,
+  getReadinessMock,
   updateChecklistItemMock,
   getContentItemsMock,
   getCreditsMock,
@@ -36,6 +37,7 @@ const {
   updateReleaseMock: vi.fn(),
   deleteReleaseMock: vi.fn(),
   getChecklistMock: vi.fn(),
+  getReadinessMock: vi.fn(),
   updateChecklistItemMock: vi.fn(),
   getContentItemsMock: vi.fn(),
   getCreditsMock: vi.fn(),
@@ -119,11 +121,16 @@ vi.mock("@/services/api/releases", () => ({
 }));
 
 vi.mock("@/services/api/releaseChecklist", () => ({
-  releaseChecklistQueryKey: (songId: string) => ["songs", songId, "release", "checklist"],
   releaseChecklistApi: {
     getChecklist: getChecklistMock,
     getChecklistItem: vi.fn(),
     updateChecklistItem: updateChecklistItemMock,
+  },
+}));
+
+vi.mock("@/services/api/releaseReadiness", () => ({
+  releaseReadinessApi: {
+    getReadiness: getReadinessMock,
   },
 }));
 
@@ -295,6 +302,77 @@ const checklist: ReleaseChecklistItem[] = [
   },
 ];
 
+const readiness: ReleaseReadiness = {
+  songId: 1,
+  releaseId: 10,
+  readyCount: 2,
+  requiredCount: 6,
+  totalCount: 7,
+  percentage: 33,
+  items: [
+    {
+      key: "Master",
+      label: "Master",
+      state: "Ready",
+      source: "Derived",
+      reason: "Current Final Master linked.",
+      isRequired: true,
+      relatedResourceId: 201,
+      relatedResourceType: "AudioAsset",
+    },
+    {
+      key: "Cover",
+      label: "Cover",
+      state: "Ready",
+      source: "Derived",
+      reason: "Current Final Cover Art linked.",
+      isRequired: true,
+      relatedResourceId: 301,
+      relatedResourceType: "VisualAsset",
+    },
+    {
+      key: "Metadata",
+      label: "Metadata",
+      state: "Incomplete",
+      source: "Hybrid",
+      reason: "Set release date, release type, and at least one platform.",
+      isRequired: true,
+    },
+    {
+      key: "Credits",
+      label: "Credits",
+      state: "Incomplete",
+      source: "Hybrid",
+      reason: "Add and confirm release credits.",
+      isRequired: true,
+    },
+    {
+      key: "Canvas",
+      label: "Canvas",
+      state: "Incomplete",
+      source: "Derived",
+      reason: "Add and finalize a Spotify Canvas.",
+      isRequired: true,
+    },
+    {
+      key: "MusicVideo",
+      label: "Music Video",
+      state: "NotRequired",
+      source: "Manual",
+      reason: "Music video is optional for this release.",
+      isRequired: false,
+    },
+    {
+      key: "ContentPlan",
+      label: "Content Plan",
+      state: "Incomplete",
+      source: "Hybrid",
+      reason: "Add at least one planned content item.",
+      isRequired: true,
+    },
+  ],
+};
+
 async function renderReleaseWorkspace() {
   renderWithQueryClient(<SongWorkspacePage songId="1" />);
   await userEvent.click(await screen.findByRole("tab", { name: "release" }));
@@ -312,6 +390,7 @@ describe("Release workspace polish", () => {
     updateReleaseMock.mockReset();
     deleteReleaseMock.mockReset();
     getChecklistMock.mockReset();
+    getReadinessMock.mockReset();
     updateChecklistItemMock.mockReset();
     getContentItemsMock.mockReset();
     getCreditsMock.mockReset();
@@ -333,6 +412,7 @@ describe("Release workspace polish", () => {
     updateReleaseMock.mockResolvedValue(release);
     deleteReleaseMock.mockResolvedValue(undefined);
     getChecklistMock.mockResolvedValue(checklist);
+    getReadinessMock.mockResolvedValue(readiness);
     updateChecklistItemMock.mockResolvedValue(checklist[2]);
     getContentItemsMock.mockResolvedValue([]);
     getCreditsMock.mockResolvedValue([]);
@@ -482,46 +562,54 @@ describe("Release workspace polish", () => {
   it("renders readiness progress and next incomplete checklist item", async () => {
     await renderReleaseWorkspace();
 
-    expect(await screen.findByText("2 / 7 COMPLETE")).toBeInTheDocument();
-    expect(screen.getByText("29% preparation readiness")).toBeInTheDocument();
-    expect(screen.getByText("Complete Metadata")).toBeInTheDocument();
+    expect(await screen.findByText("2 / 6 READY")).toBeInTheDocument();
+    expect(screen.getByText("33% required readiness")).toBeInTheDocument();
+    expect(screen.getAllByText("Metadata").length).toBeGreaterThanOrEqual(1);
     expect(
-      screen.getByRole("progressbar", { name: "2 of 7 release checklist items complete" }),
+      screen.getAllByText("Set release date, release type, and at least one platform.").length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByRole("progressbar", {
+        name: "2 of 6 required release readiness items ready",
+      }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Current Final Master linked.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Master checklist item")).not.toBeInTheDocument();
   });
 
   it("renders all-complete checklist state without submission claims", async () => {
-    getChecklistMock.mockResolvedValue(
-      checklist.map((item) => ({
-        ...item,
-        isCompleted: true,
-        completedAt: "2026-09-02T10:00:00Z",
-      })),
-    );
+    getReadinessMock.mockResolvedValue({
+      ...readiness,
+      readyCount: 6,
+      percentage: 100,
+      items: readiness.items.map((item) =>
+        item.isRequired ? { ...item, state: "Ready", reason: `${item.label} ready.` } : item,
+      ),
+    });
 
     await renderReleaseWorkspace();
 
-    expect(await screen.findByText("7 / 7 COMPLETE")).toBeInTheDocument();
-    expect(screen.getByText("100% preparation readiness")).toBeInTheDocument();
-    expect(screen.getByText("ALL CHECKLIST ITEMS COMPLETE")).toBeInTheDocument();
+    expect(await screen.findByText("6 / 6 READY")).toBeInTheDocument();
+    expect(screen.getByText("100% required readiness")).toBeInTheDocument();
+    expect(screen.getByText("ALL REQUIRED ITEMS READY")).toBeInTheDocument();
     expect(screen.queryByText(/submitted/i)).not.toBeInTheDocument();
   });
 
-  it("updates checklist completion and removes completed date when unchecked in refreshed data", async () => {
+  it("updates manual checklist completion and removes completed date when unchecked in refreshed data", async () => {
     const user = userEvent.setup();
 
     await renderReleaseWorkspace();
-    await user.click(await screen.findByLabelText("Master checklist item"));
+    await user.click(await screen.findByLabelText("Metadata checklist item"));
 
     await waitFor(() => {
-      expect(updateChecklistItemMock).toHaveBeenCalledWith("1", "101", {
-        isCompleted: false,
+      expect(updateChecklistItemMock).toHaveBeenCalledWith("1", "103", {
+        isCompleted: true,
         notes: null,
       });
     });
 
     getChecklistMock.mockResolvedValue([
-      { ...checklist[0], isCompleted: false, completedAt: null },
+      { ...checklist[2], isCompleted: false, completedAt: null },
     ]);
   });
 
@@ -563,11 +651,13 @@ describe("Release workspace polish", () => {
 
   it("keeps release details visible when checklist loading fails", async () => {
     getChecklistMock.mockRejectedValue(new ApiError("Checklist unavailable", 500));
+    getReadinessMock.mockRejectedValue(new ApiError("Readiness unavailable", 500));
 
     await renderReleaseWorkspace();
 
     expect(await screen.findByText("DistroKid")).toBeInTheDocument();
     expect(screen.getAllByText("Release checklist could not be loaded.").length).toBeGreaterThan(0);
+    expect(screen.getByText("Release readiness could not be loaded.")).toBeInTheDocument();
   });
 
   it("shows loading and release query error states", async () => {

@@ -21,6 +21,10 @@ export function releaseChecklistQueryKey(songId: string) {
   return ["songs", songId, "release", "checklist"];
 }
 
+export function releaseReadinessQueryKey(songId: string) {
+  return ["songs", songId, "release", "readiness"];
+}
+
 export function contentItemsQueryKey(songId: string) {
   return ["songs", songId, "content-items"];
 }

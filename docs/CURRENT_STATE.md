@@ -4,9 +4,9 @@ Last updated: 2026-09-08
 
 ## Current Phase
 
-Media Experience V2.4 — Asset Versioning & Replace File Complete.
+Release Readiness Automation Complete.
 
-Current focus: Google Drive upload, secure backend media delivery, inline AudioAsset playback, inline image/video preview for linked VisualAsset records, explicit asset version families, new version creation, and linked-file replacement are implemented. Authenticated DARKROOM SYSTEM users can request short-lived Artist OS media access URLs for owned linked audio, image, and video assets. The Audio and Visuals workspaces group versions by `AssetFamilyId`, create metadata-only new versions, and expose Replace File only for linked assets. Media URLs remain ephemeral runtime state and are not persisted in frontend storage. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, and production deployment remain future work.
+Current focus: canonical Release readiness is implemented in the backend and consumed by Release Workspace, Song Overview, and Dashboard. Readiness now derives Master, Cover, Spotify Canvas, Credits, Content Plan, and Metadata status from the existing owned Song workspace records while preserving optional/manual Music Video tracking. Automatic readiness is calculated at read time and is not written back to ReleaseChecklist rows. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, and production deployment remain future work.
 
 ## Completed
 
@@ -69,7 +69,7 @@ Current focus: Google Drive upload, secure backend media delivery, inline AudioA
 - ReleaseChecklist EF Core migration created and applied.
 - Existing Release rows are backfilled with standard checklist items by the migration.
 - Release tab now reads/writes real Release checklist metadata through the ASP.NET Core API.
-- Release checklist progress is derived from persisted item completion state.
+- Release checklist notes and supported manual completion state are persisted; canonical Release readiness is calculated separately at read time.
 - Browser-based Release metadata create/edit/delete verified.
 - Release API create/read/update/delete, validation, timestamps, duplicate prevention, and Song relationship behavior covered by automated integration-style tests.
 - `ContentItem` model created and related to `Song`.
@@ -127,7 +127,7 @@ Current focus: Google Drive upload, secure backend media delivery, inline AudioA
 - Dashboard summary is derived from persisted Songs, Releases, and ContentItems.
 - Dashboard pipeline is derived from canonical Song statuses.
 - Dashboard upcoming work is derived from future ReleaseDate, ContentItem DueDate, and ContentItem ScheduledAt values.
-- Dashboard release readiness is derived from persisted ReleaseChecklistItems.
+- Dashboard release readiness is derived from the canonical backend Release readiness service.
 - Dashboard analytics overview uses latest stored AnalyticsSnapshot per Song and platform.
 - Dashboard recent activity is conservatively derived from existing source timestamps.
 - Dashboard route now reads real backend data through TanStack Query.
@@ -260,6 +260,20 @@ Current focus: Google Drive upload, secure backend media delivery, inline AudioA
 - Audio and Visuals tabs now group records by asset family, show version counts, expose Create New Version, and show Replace File only for linked records.
 - Metadata-only created versions show a clear no-file-attached state instead of fake upload/playback/preview controls.
 - Media V2.4 verification on 2026-09-08: `dotnet build` passed, full `dotnet test` passed with 293 backend tests, `npm run lint` passed with 0 errors and the existing 8 Fast Refresh warnings, `npm run test` passed with 190 frontend tests, and `npm run build` passed with existing Vite/Nitro advisories.
+- Release Readiness Automation implemented without database schema changes or migrations.
+- `ReleaseReadinessService` is the canonical backend source for readiness calculation across Release Workspace, Song Overview, and Dashboard.
+- `GET /api/songs/{songId}/release/readiness` returns `Ready`, `Incomplete`, and `NotRequired` readiness items with `Derived`, `Hybrid`, or `Manual` source metadata and user-facing reasons.
+- Master readiness is derived from any current linked Final AudioAsset with type `Master`; historical non-current Final versions do not count.
+- Cover readiness is derived from any current linked Final VisualAsset with type `CoverArt`.
+- Spotify Canvas is required only when the Release platforms include exact `Spotify`; otherwise it is `NotRequired` and excluded from the readiness denominator.
+- Credits readiness is hybrid: at least one Credit with all contributors confirmed is derived ready, while manual checklist completion can still mark the item ready.
+- Content Plan readiness is hybrid: at least one non-Idea ContentItem is derived ready, while manual checklist completion can still mark the item ready.
+- Metadata readiness is hybrid and requires Release date, valid Release type, and at least one platform; Distributor, ISRC, UPC, and Release status are not treated as proof.
+- Music Video remains optional/manual in this first implementation and is excluded from required readiness unless manually completed.
+- Manual completion override is blocked for derived-only Master, Cover, and Canvas checklist keys; notes remain editable.
+- AudioAsset, VisualAsset, Credit, ContentItem, Release, and ReleaseChecklist frontend mutations invalidate the canonical Release readiness query.
+- Release Readiness Automation verification on 2026-09-08: `dotnet build` passed, full `dotnet test` passed with 313 backend tests, `npm run lint` passed with 0 errors and the existing 8 Fast Refresh warnings, `npm run test` passed with 190 frontend tests, and `npm run build` passed with existing Vite/Nitro advisories.
+- Browser smoke verification on 2026-09-08 created a local disposable user, created a Release Preparation Song, created a Spotify Release, and confirmed Release Workspace, Song Overview, and Dashboard display the canonical `1 / 6` required readiness state from real backend data.
 - Focused Dashboard frontend tests were updated for the polished command-center labels and still cover success, empty, loading, error/retry, metrics, upcoming, readiness, analytics, recent activity, and navigation behavior.
 - Focused Songs frontend tests were updated for polished portfolio labels, empty/loading/error/retry states, search/lifecycle filtering, workspace row links, create validation, create failure display, and long-title rendering.
 - Song Workspace Overview Product Polish Sprint #3 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, or Google Drive architecture changes.
@@ -290,10 +304,10 @@ Current focus: Google Drive upload, secure backend media delivery, inline AudioA
 - Release tab information hierarchy now presents `RELEASE / CONTROL`, Release State, Release Details, Readiness, and Preparation Checklist.
 - No-release state now uses one focused `NO RELEASE SET UP` state and does not render checklist rows before a Release exists.
 - Release state/details now present status, release date, release type, distributor, platforms, ISRC, UPC, created date, and updated date using existing real Release fields.
-- Readiness derives completed/total count, percentage, and next incomplete checklist item from persisted ReleaseChecklist data.
+- Readiness now uses the canonical backend Release readiness response for required-ready count, percentage, and next incomplete readiness reason.
 - Checklist rows are compact and keep notes behind Add/Edit note dialogs while still showing saved note previews.
 - Delete confirmation clarifies that removing Release setup removes Release metadata and the preparation checklist from DARKROOM SYSTEM while the parent Song remains.
-- Misleading publishing/distributor/sync copy was removed from the Release tab; no publishing actions, platform sync, ISRC/UPC generation, distributor validation, or automatic checklist completion were introduced.
+- Misleading publishing/distributor/sync copy was removed from the Release tab; no publishing actions, platform sync, ISRC/UPC generation, or distributor validation were introduced.
 - Focused Release frontend tests cover loading, error, no-release, create/edit/delete, state/details/platforms/identifiers, readiness, checklist completion, notes, checklist failure, and truth-in-UX behavior.
 - Content Workspace Product Polish Sprint #7 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, Google Drive OAuth, Drive architecture, upload, Calendar, or Dashboard behavior changes.
 - Content tab information hierarchy now presents `CONTENT / PRODUCTION`, Summary, Content Pipeline, and Content Items.
@@ -352,7 +366,9 @@ ContentItemsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 CreditsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 AnalyticsSnapshotsController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 ReleaseChecklistController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+ReleaseReadinessController -> ReleaseReadinessService -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 CalendarController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
+DashboardController -> ReleaseReadinessService -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 DashboardController -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 GoogleDriveIntegrationController -> GoogleDriveConnectionService -> AppDbContext -> EF Core -> Npgsql -> PostgreSQL
 DriveWorkspacesController -> GoogleDriveWorkspaceService -> GoogleDriveApiClient -> Google Drive API
@@ -390,7 +406,7 @@ Current frontend architecture:
 TanStack Router routes
   -> DARKROOM SYSTEM app shell/pages
   -> TanStack Query
-  -> isolated Auth, Song, AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, AnalyticsSnapshot, Calendar, Dashboard, Google Drive, and Drive Workspace API services
+  -> isolated Auth, Song, AudioAsset, VisualAsset, Release, ReleaseChecklist, ReleaseReadiness, ContentItem, Credit, AnalyticsSnapshot, Calendar, Dashboard, Google Drive, and Drive Workspace API services
   -> ASP.NET Core API
 ```
 
@@ -497,6 +513,12 @@ The frontend also uses the real backend for Release checklist metadata:
 GET    /api/songs/{songId}/release/checklist
 GET    /api/songs/{songId}/release/checklist/{checklistItemId}
 PUT    /api/songs/{songId}/release/checklist/{checklistItemId}
+```
+
+The frontend also uses the real backend for canonical Release readiness:
+
+```text
+GET    /api/songs/{songId}/release/readiness
 ```
 
 The frontend also uses the real backend for ContentItem metadata:
@@ -949,9 +971,10 @@ Upcoming behavior:
 
 Release readiness behavior:
 
-- Uses persisted ReleaseChecklistItems.
-- Derives completed items, total items, and rounded readiness percentage.
-- Does not store readiness percentages.
+- Uses the canonical `ReleaseReadinessService`.
+- Derives required-ready count, required count, total item count, rounded readiness percentage, item state, source, and reason.
+- Excludes `NotRequired` items from the percentage denominator.
+- Does not store readiness percentages or write derived readiness back to ReleaseChecklist rows.
 
 Analytics overview behavior:
 
@@ -1670,7 +1693,7 @@ Frontend expected API behavior:
 - Mock-only areas are labeled as mock-only.
 - Audio playback/waveform behavior is explicitly described as future work.
 - Calendar standalone events, reminders, drag/drop rescheduling, and external calendar sync are described as future work.
-- Dashboard external analytics sync, notifications, audit history, and automatic readiness are described as future work.
+- Dashboard external analytics sync, notifications, audit history, and distributor delivery are described as future work.
 - Browser requests from `http://localhost:8080` to `http://localhost:5178` are allowed in Development by the backend CORS policy.
 - Protected backend endpoints return `401 Unauthorized` when no authenticated session exists.
 - Missing, unowned, cross-user, and legacy-unowned Song-scoped resources return `404 Not Found`.
@@ -2044,8 +2067,8 @@ Automated backend coverage now includes:
 - Dashboard canonical pipeline ordering and zero-count statuses.
 - Dashboard upcoming ReleaseDate, Content DueDate, and Content ScheduledAt aggregation.
 - Dashboard upcoming past-event exclusion, chronological ordering, and result bounding.
-- Dashboard ReleaseChecklist readiness derivation for `0 / 7`, `4 / 7`, and `7 / 7`.
-- Dashboard checklist changes reflected immediately.
+- Dashboard canonical Release readiness derivation from existing asset, credit, content, Release, and manual checklist records.
+- Dashboard readiness changes reflected immediately after source records change.
 - Dashboard latest AnalyticsSnapshot per Song and platform selection.
 - Dashboard analytics result bounding.
 - Dashboard conservative recent activity derivation.
@@ -2146,10 +2169,10 @@ Latest browser Release checks confirmed:
 - The checklist displayed Master, Cover, Metadata, Credits, Canvas, Music Video, and Content Plan.
 - Checking an item persisted immediately.
 - Page refresh preserved checked checklist state.
-- Checking multiple items updated derived progress from `0 / 7 COMPLETE` to `4 / 7 COMPLETE`.
+- Checking supported manual items updated persisted checklist state.
 - Unchecking an item cleared its server-controlled `CompletedAt` timestamp.
 - Completed items retained server-controlled `CompletedAt` timestamps.
-- Checklist progress is derived in the frontend and not stored as a separate percentage.
+- Canonical readiness is calculated by the backend and not stored as a separate percentage.
 - Page refresh preserved the created Release metadata.
 - Release plan was edited through the frontend.
 - Updated release date, distributor, identifiers, status, and platforms persisted.
@@ -2260,7 +2283,7 @@ Latest browser Dashboard checks confirmed:
 - Dashboard summary cards reflected persisted Song, Release, and ContentItem source data.
 - Song lifecycle pipeline reflected canonical Song status counts.
 - Upcoming work showed future ReleaseDate, Content DueDate, and Content ScheduledAt rows.
-- Release readiness showed derived `4 / 7` checklist progress and `57%`.
+- Release readiness is now served by the canonical backend readiness service; older browser notes used checklist-count wording before this automation milestone.
 - Analytics overview showed the latest stored AnalyticsSnapshot for the Song/platform instead of summing older snapshots.
 - Recent activity showed conservative timestamp-derived activity without fake users or external sync claims.
 - Clicking a Dashboard readiness row opened the source Song workspace.
@@ -2448,7 +2471,7 @@ Remote GitHub Actions status:
 - Credit contributors are plain Song-scoped metadata strings; a normalized contributor directory can wait until team/auth requirements exist.
 - Planned split percentages are stored independently per Credit and are not validated to total `100` across a Song.
 - Analytics snapshots are manually entered metadata and are not ingested from external platform APIs.
-- Release checklist items are not automatically completed from AudioAsset, VisualAsset, Credit, or ContentItem records yet.
+- Release readiness is automatically calculated from existing AudioAsset, VisualAsset, Credit, ContentItem, Release, and selected manual checklist records; derived readiness is intentionally not persisted back to checklist rows.
 - Calendar is read-only and currently aggregates only Release and ContentItem dates.
 - Calendar does not yet support standalone sessions, reminders, external sync, or drag/drop rescheduling.
 - Dashboard is read-only and derives recent activity only from current source timestamps, not from an audit log.
@@ -2470,7 +2493,7 @@ Remote GitHub Actions status:
 - Waveform processing.
 - Generated thumbnails, image optimization, and generated video posters.
 - Transcoding or browser codec normalization.
-- Automatic Release checklist completion based on asset/content/credit metadata.
+- Persisting derived Release readiness back into checklist rows.
 - Distributor delivery or publishing workflow.
 - Content publishing and platform delivery.
 - Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync.

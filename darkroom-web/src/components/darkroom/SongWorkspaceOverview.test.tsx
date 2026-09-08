@@ -11,7 +11,7 @@ import type {
   Credit,
   DriveWorkspace,
   Release,
-  ReleaseChecklistItem,
+  ReleaseReadiness,
   Song,
   VisualAsset,
 } from "@/types";
@@ -24,7 +24,7 @@ const {
   getAudioAssetsMock,
   getVisualAssetsMock,
   getReleaseMock,
-  getChecklistMock,
+  getReadinessMock,
   getContentItemsMock,
   getCreditsMock,
   getAnalyticsMock,
@@ -47,7 +47,7 @@ const {
     getAudioAssetsMock: vi.fn(),
     getVisualAssetsMock: vi.fn(),
     getReleaseMock: vi.fn(),
-    getChecklistMock: vi.fn(),
+    getReadinessMock: vi.fn(),
     getContentItemsMock: vi.fn(),
     getCreditsMock: vi.fn(),
     getAnalyticsMock: vi.fn(),
@@ -115,9 +115,9 @@ vi.mock("@/services/api/releases", () => ({
   },
 }));
 
-vi.mock("@/services/api/releaseChecklist", () => ({
-  releaseChecklistApi: {
-    getChecklist: getChecklistMock,
+vi.mock("@/services/api/releaseReadiness", () => ({
+  releaseReadinessApi: {
+    getReadiness: getReadinessMock,
   },
 }));
 
@@ -221,28 +221,40 @@ const release: Release = {
   updatedAt: "2026-09-01T10:00:00Z",
 };
 
-const checklist: ReleaseChecklistItem[] = [
-  {
-    id: 4,
-    releaseId: 3,
-    key: "Master",
-    label: "Master",
-    isCompleted: true,
-    sortOrder: 1,
-    createdAt: "2026-09-01T10:00:00Z",
-    updatedAt: "2026-09-01T10:00:00Z",
-  },
-  {
-    id: 5,
-    releaseId: 3,
-    key: "Cover",
-    label: "Cover",
-    isCompleted: false,
-    sortOrder: 2,
-    createdAt: "2026-09-01T10:00:00Z",
-    updatedAt: "2026-09-01T10:00:00Z",
-  },
-];
+const readiness: ReleaseReadiness = {
+  songId: 7,
+  releaseId: 3,
+  readyCount: 1,
+  requiredCount: 2,
+  totalCount: 3,
+  percentage: 50,
+  items: [
+    {
+      key: "Master",
+      label: "Master",
+      state: "Ready",
+      source: "Derived",
+      reason: "Current Final Master linked.",
+      isRequired: true,
+    },
+    {
+      key: "Cover",
+      label: "Cover",
+      state: "Incomplete",
+      source: "Derived",
+      reason: "Finalize a linked Cover Art version.",
+      isRequired: true,
+    },
+    {
+      key: "MusicVideo",
+      label: "Music Video",
+      state: "NotRequired",
+      source: "Manual",
+      reason: "Music video is optional for this release.",
+      isRequired: false,
+    },
+  ],
+};
 
 const contentItem: ContentItem = {
   id: 6,
@@ -306,7 +318,7 @@ function setDefaultMocks() {
   getAudioAssetsMock.mockResolvedValue([]);
   getVisualAssetsMock.mockResolvedValue([]);
   getReleaseMock.mockResolvedValue(null);
-  getChecklistMock.mockResolvedValue([]);
+  getReadinessMock.mockResolvedValue(readiness);
   getContentItemsMock.mockResolvedValue([]);
   getCreditsMock.mockResolvedValue([]);
   getAnalyticsMock.mockResolvedValue([]);
@@ -352,7 +364,7 @@ describe("Song workspace Overview", () => {
     getAudioAssetsMock.mockResolvedValue([audioAsset, { ...audioAsset, id: 11 }]);
     getVisualAssetsMock.mockResolvedValue([visualAsset]);
     getReleaseMock.mockResolvedValue(release);
-    getChecklistMock.mockResolvedValue(checklist);
+    getReadinessMock.mockResolvedValue(readiness);
     getContentItemsMock.mockResolvedValue([contentItem, { ...contentItem, id: 12 }]);
     getCreditsMock.mockResolvedValue([credit, { ...credit, id: 13, role: "Songwriter" }]);
     getAnalyticsMock.mockResolvedValue([analyticsSnapshot, { ...analyticsSnapshot, id: 14 }]);
@@ -366,10 +378,13 @@ describe("Song workspace Overview", () => {
     expect(screen.getByText("1 contributor")).toBeInTheDocument();
     expect(screen.getByText("2 snapshots")).toBeInTheDocument();
     expect(
-      await screen.findByRole("status", { name: "1 of 2 release checklist items complete" }),
+      await screen.findByRole("status", {
+        name: "1 of 2 required release readiness items ready",
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeInTheDocument();
     expect(screen.getByText("Cover")).toBeInTheDocument();
+    expect(screen.getByText("Finalize a linked Cover Art version.")).toBeInTheDocument();
   });
 
   it("uses workspace area buttons as tab navigation", async () => {

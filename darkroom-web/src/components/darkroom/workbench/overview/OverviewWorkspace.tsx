@@ -77,7 +77,7 @@ import {
   type GoogleDriveConnectionStatus,
 } from "@/services/api/googleDrive";
 import { ApiError } from "@/services/api/client";
-import { releaseChecklistApi } from "@/services/api/releaseChecklist";
+import { releaseReadinessApi } from "@/services/api/releaseReadiness";
 import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
 import { visualAssetsApi } from "@/services/api/visualAssets";
@@ -135,7 +135,7 @@ import {
   type DashboardReleaseReadiness,
   type DashboardUpcomingItem,
   type Release,
-  type ReleaseChecklistItem,
+  type ReleaseReadiness,
   type ReleaseChecklistItemPayload,
   type ReleasePayload,
   type ReleasePlatform,
@@ -157,8 +157,8 @@ import {
   contentItemsQueryKey,
   creditsQueryKey,
   normalizeId,
-  releaseChecklistQueryKey,
   releaseQueryKey,
+  releaseReadinessQueryKey,
   visualAssetsQueryKey,
 } from "../shared";
 import { Info } from "../shared-ui";
@@ -201,9 +201,9 @@ export function OverviewWorkspace({
     queryFn: () => releasesApi.getRelease(id),
     enabled: releaseRelevant,
   });
-  const checklist = useQuery({
-    queryKey: releaseChecklistQueryKey(id),
-    queryFn: () => releaseChecklistApi.getChecklist(id),
+  const readiness = useQuery({
+    queryKey: releaseReadinessQueryKey(id),
+    queryFn: () => releaseReadinessApi.getReadiness(id),
     enabled: releaseRelevant && release.data !== undefined && release.data !== null,
   });
   const content = useQuery({
@@ -223,7 +223,7 @@ export function OverviewWorkspace({
     audioAssets: audio.data,
     visualAssets: visuals.data,
     release: releaseRelevant ? release.data : null,
-    checklist: checklist.data,
+    readiness: readiness.data,
     contentItems: content.data,
   });
 
@@ -283,9 +283,9 @@ export function OverviewWorkspace({
         </div>
       </Panel>
 
-      {release.data && checklist.data?.length ? (
+      {release.data && readiness.data ? (
         <Panel title="Release readiness" label="Checklist">
-          <ReleaseReadinessSummary items={checklist.data} />
+          <ReleaseReadinessSummary readiness={readiness.data} />
         </Panel>
       ) : null}
 
@@ -380,11 +380,7 @@ function WorkspaceAreaLink({
   );
 }
 
-function ReleaseReadinessSummary({ items }: { items: ReleaseChecklistItem[] }) {
-  const completed = items.filter((item) => item.isCompleted).length;
-  const total = items.length;
-  const percentage = total ? Math.round((completed / total) * 100) : 0;
-
+function ReleaseReadinessSummary({ readiness }: { readiness: ReleaseReadiness }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -392,16 +388,16 @@ function ReleaseReadinessSummary({ items }: { items: ReleaseChecklistItem[] }) {
           <p
             className="font-mono text-3xl font-semibold leading-none"
             role="status"
-            aria-label={`${completed} of ${total} release checklist items complete`}
+            aria-label={`${readiness.readyCount} of ${readiness.requiredCount} required release readiness items ready`}
           >
-            {completed} / {total}
+            {readiness.readyCount} / {readiness.requiredCount}
           </p>
-          <p className="mt-2 text-sm text-muted-foreground">Checklist items complete</p>
+          <p className="mt-2 text-sm text-muted-foreground">Required items ready</p>
         </div>
-        <p className="font-mono text-sm text-muted-foreground">{percentage}%</p>
+        <p className="font-mono text-sm text-muted-foreground">{readiness.percentage}%</p>
       </div>
       <div className="h-1 bg-background" aria-hidden>
-        <div className="h-full bg-foreground" style={{ width: `${percentage}%` }} />
+        <div className="h-full bg-foreground" style={{ width: `${readiness.percentage}%` }} />
       </div>
     </div>
   );
@@ -447,14 +443,14 @@ function getNextAttention({
   audioAssets,
   visualAssets,
   release,
-  checklist,
+  readiness,
   contentItems,
 }: {
   song: Song;
   audioAssets?: AudioAsset[];
   visualAssets?: VisualAsset[];
   release?: Release | null;
-  checklist?: ReleaseChecklistItem[];
+  readiness?: ReleaseReadiness;
   contentItems?: ContentItem[];
 }): AttentionItem {
   if (!audioAssets || !visualAssets || release === undefined || !contentItems) {
@@ -491,13 +487,13 @@ function getNextAttention({
     };
   }
 
-  const nextChecklistItem = checklist
-    ?.filter((item) => !item.isCompleted)
-    .sort((a, b) => a.sortOrder - b.sortOrder)[0];
-  if (release && nextChecklistItem) {
+  const nextReadinessItem = readiness?.items.find(
+    (item) => item.isRequired && item.state === "Incomplete",
+  );
+  if (release && nextReadinessItem) {
     return {
-      title: nextChecklistItem.label,
-      detail: "Next incomplete release checklist item.",
+      title: nextReadinessItem.label,
+      detail: nextReadinessItem.reason,
       tab: "release",
     };
   }

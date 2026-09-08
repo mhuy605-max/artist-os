@@ -151,11 +151,14 @@ import {
 } from "@/types";
 import { cn } from "@/lib/utils";
 
-import { creditsQueryKey, normalizeId, numberOrNull } from "../shared";
+import { creditsQueryKey, normalizeId, numberOrNull, releaseReadinessQueryKey } from "../shared";
 
 function useCreditMutations(songId: string) {
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: creditsQueryKey(songId) });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: creditsQueryKey(songId) });
+    queryClient.invalidateQueries({ queryKey: releaseReadinessQueryKey(songId) });
+  };
 
   return {
     create: useMutation({

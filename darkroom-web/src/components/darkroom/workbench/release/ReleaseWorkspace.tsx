@@ -78,6 +78,7 @@ import {
 } from "@/services/api/googleDrive";
 import { ApiError } from "@/services/api/client";
 import { releaseChecklistApi } from "@/services/api/releaseChecklist";
+import { releaseReadinessApi } from "@/services/api/releaseReadiness";
 import { releasesApi } from "@/services/api/releases";
 import { songsApi, isUsingFallbackData } from "@/services/api/songs";
 import { visualAssetsApi } from "@/services/api/visualAssets";
@@ -139,6 +140,9 @@ import {
   type ReleaseChecklistItemPayload,
   type ReleasePayload,
   type ReleasePlatform,
+  type ReleaseReadiness,
+  type ReleaseReadinessItem,
+  type ReleaseReadinessState,
   type ReleaseStatus,
   type ReleaseType,
   type Song,
@@ -151,7 +155,12 @@ import {
 } from "@/types";
 import { cn } from "@/lib/utils";
 
-import { normalizeId, releaseChecklistQueryKey, releaseQueryKey } from "../shared";
+import {
+  normalizeId,
+  releaseChecklistQueryKey,
+  releaseQueryKey,
+  releaseReadinessQueryKey,
+} from "../shared";
 import { Info } from "../shared-ui";
 
 function useReleaseMutations(songId: string) {
@@ -159,6 +168,7 @@ function useReleaseMutations(songId: string) {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: releaseQueryKey(songId) });
     queryClient.invalidateQueries({ queryKey: releaseChecklistQueryKey(songId) });
+    queryClient.invalidateQueries({ queryKey: releaseReadinessQueryKey(songId) });
   };
 
   return {
@@ -179,8 +189,10 @@ function useReleaseMutations(songId: string) {
 
 function useReleaseChecklistMutations(songId: string) {
   const queryClient = useQueryClient();
-  const invalidate = () =>
+  const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: releaseChecklistQueryKey(songId) });
+    queryClient.invalidateQueries({ queryKey: releaseReadinessQueryKey(songId) });
+  };
 
   return {
     update: useMutation({
@@ -226,18 +238,6 @@ function releaseDateLabel(releaseDate?: string | null) {
 
 function optionalReleaseValue(value?: string | null) {
   return value?.trim() ? value : "Not set";
-}
-
-function releaseReadiness(items: ReleaseChecklistItem[]) {
-  const completedCount = items.filter((item) => item.isCompleted).length;
-  const progressPercent = items.length ? Math.round((completedCount / items.length) * 100) : 0;
-  const nextItem = items.find((item) => !item.isCompleted);
-
-  return {
-    completedCount,
-    progressPercent,
-    nextItem,
-  };
 }
 
 function validateReleasePayload(payload: ReleasePayload) {
@@ -445,6 +445,11 @@ export function ReleaseWorkspace({ songId }: { songId: string }) {
     queryFn: () => releaseChecklistApi.getChecklist(songId),
     enabled: Boolean(release.data),
   });
+  const readiness = useQuery({
+    queryKey: releaseReadinessQueryKey(songId),
+    queryFn: () => releaseReadinessApi.getReadiness(songId),
+    enabled: Boolean(release.data),
+  });
   const mutations = useReleaseMutations(songId);
 
   if (release.isLoading) {
@@ -498,7 +503,7 @@ export function ReleaseWorkspace({ songId }: { songId: string }) {
   }
 
   const checklistItems = checklist.data ?? [];
-  const readiness = releaseReadiness(checklistItems);
+  const readinessItemsByKey = new Map(readiness.data?.items.map((item) => [item.key, item]) ?? []);
 
   return (
     <div className="space-y-4">
@@ -580,21 +585,27 @@ export function ReleaseWorkspace({ songId }: { songId: string }) {
 
         <div className="space-y-4">
           <Panel title="Readiness" label="READINESS">
-            {checklist.isLoading ? (
+            {readiness.isLoading ? (
               <LoadingState label="Loading preparation readiness" />
-            ) : checklist.isError ? (
+            ) : readiness.isError ? (
               <ErrorState
-                detail="Release checklist could not be loaded."
-                onRetry={() => checklist.refetch()}
+                detail="Release readiness could not be loaded."
+                onRetry={() => readiness.refetch()}
               />
+            ) : readiness.data ? (
+              <ReleaseReadinessPanel readiness={readiness.data} />
             ) : (
-              <ReleaseReadinessPanel items={checklistItems} readiness={readiness} />
+              <EmptyState
+                title="No readiness available"
+                detail="Release readiness is not ready yet."
+              />
             )}
           </Panel>
 
           <ReleaseChecklistPanel
             songId={songId}
             items={checklistItems}
+            readinessItemsByKey={readinessItemsByKey}
             isLoading={checklist.isLoading}
             isError={checklist.isError}
             onRetry={() => checklist.refetch()}
@@ -605,37 +616,31 @@ export function ReleaseWorkspace({ songId }: { songId: string }) {
   );
 }
 
-function ReleaseReadinessPanel({
-  items,
-  readiness,
-}: {
-  items: ReleaseChecklistItem[];
-  readiness: ReturnType<typeof releaseReadiness>;
-}) {
-  const total = items.length;
+function ReleaseReadinessPanel({ readiness }: { readiness: ReleaseReadiness }) {
+  const nextItem = readiness.items.find((item) => item.isRequired && item.state === "Incomplete");
 
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="font-mono text-3xl">
-            {readiness.completedCount} / {total} COMPLETE
+            {readiness.readyCount} / {readiness.requiredCount} READY
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {readiness.progressPercent}% preparation readiness
+            {readiness.percentage}% required readiness
           </p>
         </div>
         <div
           className="h-2 w-full bg-muted sm:w-48"
           role="progressbar"
-          aria-label={`${readiness.completedCount} of ${total} release checklist items complete`}
+          aria-label={`${readiness.readyCount} of ${readiness.requiredCount} required release readiness items ready`}
           aria-valuemin={0}
-          aria-valuemax={total}
-          aria-valuenow={readiness.completedCount}
+          aria-valuemax={readiness.requiredCount}
+          aria-valuenow={readiness.readyCount}
         >
           <div
             className="h-full bg-foreground"
-            style={{ width: `${readiness.progressPercent}%` }}
+            style={{ width: `${readiness.percentage}%` }}
             aria-hidden="true"
           />
         </div>
@@ -643,9 +648,10 @@ function ReleaseReadinessPanel({
       <div className="mt-4 border-t border-border pt-4">
         <p className="label-tech">NEXT ATTENTION</p>
         <p className="mt-2 text-sm font-medium">
-          {readiness.nextItem
-            ? `Complete ${readiness.nextItem.label}`
-            : "ALL CHECKLIST ITEMS COMPLETE"}
+          {nextItem ? nextItem.label : "ALL REQUIRED ITEMS READY"}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {nextItem ? nextItem.reason : "Optional items can still be tracked manually."}
         </p>
       </div>
     </div>
@@ -680,12 +686,14 @@ function ReleaseStateRows({ release }: { release: Release }) {
 function ReleaseChecklistPanel({
   songId,
   items,
+  readinessItemsByKey,
   isLoading,
   isError,
   onRetry,
 }: {
   songId: string;
   items: ReleaseChecklistItem[];
+  readinessItemsByKey: Map<string, ReleaseReadinessItem>;
   isLoading: boolean;
   isError: boolean;
   onRetry: () => void;
@@ -704,6 +712,7 @@ function ReleaseChecklistPanel({
             <ReleaseChecklistItemRow
               key={item.id}
               item={item}
+              readinessItem={readinessItemsByKey.get(item.key)}
               isPending={mutations.update.isPending}
               onUpdate={(payload) =>
                 mutations.update.mutateAsync({
@@ -721,10 +730,12 @@ function ReleaseChecklistPanel({
 
 function ReleaseChecklistItemRow({
   item,
+  readinessItem,
   isPending,
   onUpdate,
 }: {
   item: ReleaseChecklistItem;
+  readinessItem?: ReleaseReadinessItem;
   isPending: boolean;
   onUpdate: (payload: ReleaseChecklistItemPayload) => Promise<unknown>;
 }) {
@@ -733,6 +744,9 @@ function ReleaseChecklistItemRow({
   const trimmedNotes = notes.trim();
   const savedNotes = item.notes ?? "";
   const noteChanged = trimmedNotes !== savedNotes;
+  const isAutomatic = ["Master", "Cover", "Canvas"].includes(item.key);
+  const canToggle = !isAutomatic;
+  const stateLabel = readinessStateLabel(readinessItem?.state);
 
   async function updateCompletion(checked: boolean) {
     try {
@@ -767,20 +781,40 @@ function ReleaseChecklistItemRow({
     <div className="border border-border bg-background p-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <Checkbox
-            aria-label={`${item.label} checklist item`}
-            checked={item.isCompleted}
-            disabled={isPending}
-            onCheckedChange={(checked) => updateCompletion(checked === true)}
-            className="mt-1"
-          />
+          {canToggle ? (
+            <Checkbox
+              aria-label={`${item.label} checklist item`}
+              checked={item.isCompleted}
+              disabled={isPending}
+              onCheckedChange={(checked) => updateCompletion(checked === true)}
+              className="mt-1"
+            />
+          ) : (
+            <span
+              className={cn(
+                "mt-1 flex h-4 w-4 shrink-0 items-center justify-center border border-border",
+                readinessItem?.state === "Ready" &&
+                  "border-border-strong bg-foreground text-background",
+              )}
+              aria-hidden
+            >
+              {readinessItem?.state === "Ready" ? <Check className="h-3 w-3" /> : null}
+            </span>
+          )}
           <div className="min-w-0">
             <p className="text-sm font-medium">{item.label}</p>
             <p className="mt-1 text-xs uppercase text-muted-foreground">
-              {item.isCompleted && item.completedAt
-                ? `Completed ${formatDate(item.completedAt)}`
-                : "Open"}
+              {stateLabel}
+              {readinessItem?.source ? ` / ${readinessSourceLabel(readinessItem.source)}` : ""}
+              {!readinessItem && item.isCompleted && item.completedAt
+                ? ` / Completed ${formatDate(item.completedAt)}`
+                : ""}
             </p>
+            {readinessItem?.reason ? (
+              <p className="mt-2 max-w-xl break-words text-xs text-muted-foreground">
+                {readinessItem.reason}
+              </p>
+            ) : null}
             {savedNotes ? (
               <p className="mt-2 max-w-xl break-words text-xs text-muted-foreground">
                 {savedNotes}
@@ -829,4 +863,17 @@ function ReleaseChecklistItemRow({
       {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
     </div>
   );
+}
+
+function readinessStateLabel(state?: ReleaseReadinessState) {
+  if (state === "Ready") return "READY";
+  if (state === "NotRequired") return "NOT REQUIRED";
+  if (state === "Incomplete") return "NEEDS ATTENTION";
+  return "OPEN";
+}
+
+function readinessSourceLabel(source: ReleaseReadinessItem["source"]) {
+  if (source === "Derived") return "Automatic";
+  if (source === "Hybrid") return "Hybrid";
+  return "Manual";
 }

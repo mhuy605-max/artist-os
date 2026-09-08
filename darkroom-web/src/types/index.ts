@@ -348,6 +348,35 @@ export interface ReleaseChecklistItemPayload {
   notes?: string | null;
 }
 
+export const RELEASE_READINESS_STATES = ["Ready", "Incomplete", "NotRequired"] as const;
+
+export type ReleaseReadinessState = (typeof RELEASE_READINESS_STATES)[number];
+
+export const RELEASE_READINESS_SOURCES = ["Derived", "Hybrid", "Manual"] as const;
+
+export type ReleaseReadinessSource = (typeof RELEASE_READINESS_SOURCES)[number];
+
+export interface ReleaseReadinessItem {
+  key: ReleaseChecklistKey;
+  label: string;
+  state: ReleaseReadinessState;
+  source: ReleaseReadinessSource;
+  reason: string;
+  isRequired: boolean;
+  relatedResourceId?: string | number | null;
+  relatedResourceType?: string | null;
+}
+
+export interface ReleaseReadiness {
+  songId: string | number;
+  releaseId: string | number;
+  readyCount: number;
+  requiredCount: number;
+  totalCount: number;
+  percentage: number;
+  items: ReleaseReadinessItem[];
+}
+
 export interface MockAudioAsset {
   id: string;
   songId: string;

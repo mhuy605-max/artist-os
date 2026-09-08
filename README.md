@@ -29,7 +29,7 @@ The `Song` is currently the central implemented domain concept.
 Current phase:
 
 ```text
-Media Experience V2.4 — Asset Versioning & Replace File
+Release Readiness Automation
 ```
 
 Implemented and verified:
@@ -102,6 +102,9 @@ Implemented and verified:
 - Explicit AudioAsset and VisualAsset version families through `AssetFamilyId`
 - Create New Version workflow for AudioAsset and VisualAsset records
 - Replace File workflow for already-linked AudioAsset and VisualAsset records
+- Canonical backend Release readiness calculation for Release Workspace, Song Overview, and Dashboard
+- Release readiness derives Master, Cover, Spotify Canvas, Credits, Content Plan, and Metadata readiness from existing Song workspace records
+- Optional Music Video readiness remains manually trackable and is excluded from required readiness unless completed
 
 Planned, not implemented yet:
 
@@ -111,7 +114,6 @@ Planned, not implemented yet:
 - Waveform processing
 - Generated visual thumbnails, posters, optimization, and transcoding
 - Real release publishing or distributor delivery
-- Automatic checklist completion from asset/content/credit records
 - Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync
 - Contributor directory, team permissions, contracts, royalties, or payout workflow
 - YouTube analytics ingestion and automated external platform sync
@@ -149,7 +151,7 @@ The `/` route redirects to `/dashboard`.
 
 ## Real Backend Integration
 
-Authentication, Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, the Calendar aggregate, the Dashboard aggregate, Google Drive connection status/connect/disconnect, Song Drive workspace provisioning, AudioAsset/VisualAsset Drive file upload, media playback/preview access, asset versioning, and linked-file replacement are connected to the ASP.NET Core backend.
+Authentication, Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, Release readiness, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, the Calendar aggregate, the Dashboard aggregate, Google Drive connection status/connect/disconnect, Song Drive workspace provisioning, AudioAsset/VisualAsset Drive file upload, media playback/preview access, asset versioning, and linked-file replacement are connected to the ASP.NET Core backend.
 
 The frontend sends `Authorization: Bearer <access_token>` on authenticated API requests so the ASP.NET Core backend can identify the current user from validated JWT claims.
 
@@ -172,6 +174,7 @@ http://localhost:5178/api/songs/{songId}/audio-assets
 http://localhost:5178/api/songs/{songId}/visual-assets
 http://localhost:5178/api/songs/{songId}/release
 http://localhost:5178/api/songs/{songId}/release/checklist
+http://localhost:5178/api/songs/{songId}/release/readiness
 http://localhost:5178/api/songs/{songId}/content-items
 http://localhost:5178/api/songs/{songId}/credits
 http://localhost:5178/api/songs/{songId}/analytics
@@ -225,7 +228,7 @@ http://localhost:5178/api/songs/{songId}/audio-assets/{audioAssetId}/replace-fil
 http://localhost:5178/api/songs/{songId}/visual-assets/{visualAssetId}/replace-file
 ```
 
-The Song workspace loads real Song data by id for the current user. New Songs created while signed in receive the current user's `OwnerUserId` from the backend; the client does not send ownership. The Audio tab loads and writes real AudioAsset metadata for the selected owned Song, groups asset versions by `AssetFamilyId`, can upload one linked Drive file per metadata record, can create metadata-only next versions, can replace files for already-linked records, and can play linked audio through short-lived Artist OS media URLs. The Visuals tab loads and writes real VisualAsset metadata for the selected owned Song, groups asset versions by `AssetFamilyId`, can upload one linked Drive file per metadata record, can create metadata-only next versions, can replace files for already-linked records, and can preview linked images/videos through short-lived Artist OS media URLs. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected owned Song. The Content tab loads and writes real ContentItem metadata for the selected owned Song. The Credits tab loads and writes real Credit metadata for the selected owned Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected owned Song. The Calendar route reads the current user's Release and ContentItem dates from the backend and links entries back to the Song workspace. The Dashboard route reads real user-scoped aggregate data from the backend. The frontend stores the current access token in `sessionStorage`, so refresh works within the browser session; invalid/expired tokens and logout clear that token. Local CORS is configured for frontend development from:
+The Song workspace loads real Song data by id for the current user. New Songs created while signed in receive the current user's `OwnerUserId` from the backend; the client does not send ownership. The Audio tab loads and writes real AudioAsset metadata for the selected owned Song, groups asset versions by `AssetFamilyId`, can upload one linked Drive file per metadata record, can create metadata-only next versions, can replace files for already-linked records, and can play linked audio through short-lived Artist OS media URLs. The Visuals tab loads and writes real VisualAsset metadata for the selected owned Song, groups asset versions by `AssetFamilyId`, can upload one linked Drive file per metadata record, can create metadata-only next versions, can replace files for already-linked records, and can preview linked images/videos through short-lived Artist OS media URLs. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected owned Song, while readiness is calculated by the backend from current asset, credit, content, checklist, and Release records. The Content tab loads and writes real ContentItem metadata for the selected owned Song. The Credits tab loads and writes real Credit metadata for the selected owned Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected owned Song. The Calendar route reads the current user's Release and ContentItem dates from the backend and links entries back to the Song workspace. The Dashboard route reads real user-scoped aggregate data from the backend, including the canonical Release readiness summary. The frontend stores the current access token in `sessionStorage`, so refresh works within the browser session; invalid/expired tokens and logout clear that token. Local CORS is configured for frontend development from:
 
 ```text
 http://localhost:8080
@@ -241,7 +244,7 @@ These areas are visible or planned in the frontend but are not backend-backed ye
 
 - Audio waveform display, download-original, replacement audit/history views, and external file deletion
 - Generated visual thumbnails/posters, transcoding, download-original, replacement audit/history views, and external file deletion
-- Automatic release checklist completion from asset/content/credit records
+- Real release publishing and distributor delivery
 - Release publishing and distributor delivery
 - Content publishing and platform delivery
 - Contributor directory, team permissions, contracts, royalties, and payout workflow
@@ -539,13 +542,21 @@ Other
 
 ### Release Checklist Metadata API
 
-The backend supports a fixed preparation checklist for each Release plan. Items are initialized automatically when a Release is created.
+The backend supports a fixed preparation checklist for each Release plan. Items are initialized automatically when a Release is created. Master, Cover, and Spotify Canvas completion are derived by Release readiness and cannot be manually overridden through the checklist API.
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `GET` | `/api/songs/{songId}/release/checklist` | List checklist items for a Song's Release, ordered by `SortOrder`. |
 | `GET` | `/api/songs/{songId}/release/checklist/{checklistItemId}` | Get one checklist item. |
 | `PUT` | `/api/songs/{songId}/release/checklist/{checklistItemId}` | Update completion state and optional notes. Returns `204 No Content`. |
+
+### Release Readiness API
+
+The backend calculates canonical Release readiness from existing Song workspace records. It does not persist readiness percentages or write derived readiness back to checklist rows.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/songs/{songId}/release/readiness` | Return required-ready count, required count, total item count, percentage, and item-level state/source/reason for a Song's Release. |
 
 Current `ReleaseChecklistItem` shape:
 
@@ -774,7 +785,7 @@ The backend exposes a read-only Dashboard aggregate assembled from existing pers
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/dashboard` | Return portfolio summary, Song pipeline counts, upcoming Release/Content work, Release checklist readiness, latest analytics snapshots, and derived recent activity. |
+| `GET` | `/api/dashboard` | Return portfolio summary, Song pipeline counts, upcoming Release/Content work, canonical Release readiness, latest analytics snapshots, and derived recent activity. |
 
 Current summary definitions:
 
@@ -944,6 +955,12 @@ Release checklist metadata endpoints:
 GET    /api/songs/{songId}/release/checklist
 GET    /api/songs/{songId}/release/checklist/{checklistItemId}
 PUT    /api/songs/{songId}/release/checklist/{checklistItemId}
+```
+
+Release readiness endpoint:
+
+```text
+GET    /api/songs/{songId}/release/readiness
 ```
 
 Content item metadata endpoints:
@@ -1265,6 +1282,7 @@ Deleting an AudioAsset or VisualAsset metadata record does not automatically del
 - [x] Nested Release metadata API
 - [x] Release checklist metadata model and migration
 - [x] Nested Release checklist API
+- [x] Canonical Release readiness API
 - [x] ContentItem metadata model and migration
 - [x] Nested ContentItem metadata API
 - [x] Credit metadata model and migration
@@ -1296,6 +1314,7 @@ Deleting an AudioAsset or VisualAsset metadata record does not automatically del
 - [x] Browser-based real VisualAsset metadata integration
 - [x] Browser-based real Release metadata integration
 - [x] Browser-based real Release checklist integration
+- [x] Browser-based canonical Release readiness integration
 - [x] Browser-based real ContentItem metadata integration
 - [x] Browser-based real Credit metadata integration
 - [x] Browser-based real AnalyticsSnapshot metadata integration

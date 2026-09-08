@@ -151,12 +151,14 @@ import {
 } from "@/types";
 import { cn } from "@/lib/utils";
 
-import { contentItemsQueryKey, normalizeId } from "../shared";
+import { contentItemsQueryKey, normalizeId, releaseReadinessQueryKey } from "../shared";
 
 function useContentItemMutations(songId: string) {
   const queryClient = useQueryClient();
-  const invalidate = () =>
+  const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: contentItemsQueryKey(songId) });
+    queryClient.invalidateQueries({ queryKey: releaseReadinessQueryKey(songId) });
+  };
 
   return {
     create: useMutation({

@@ -646,7 +646,7 @@ function DashboardReadinessRow({ item }: { item: DashboardReleaseReadiness }) {
       </div>
       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
         <span>
-          {item.completedItems} / {item.totalItems} complete
+          {item.completedItems} / {item.totalItems} ready
         </span>
         <span>{item.readinessPercentage}%</span>
       </div>

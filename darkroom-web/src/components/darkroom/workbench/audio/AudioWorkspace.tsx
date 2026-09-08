@@ -151,12 +151,15 @@ import {
 } from "@/types";
 import { cn } from "@/lib/utils";
 
-import { audioAssetsQueryKey, normalizeId } from "../shared";
+import { audioAssetsQueryKey, normalizeId, releaseReadinessQueryKey } from "../shared";
 import { AudioPlayer } from "./AudioPlayer";
 
 function useAudioAssetMutations(songId: string) {
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: audioAssetsQueryKey(songId) });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: audioAssetsQueryKey(songId) });
+    queryClient.invalidateQueries({ queryKey: releaseReadinessQueryKey(songId) });
+  };
 
   return {
     create: useMutation({

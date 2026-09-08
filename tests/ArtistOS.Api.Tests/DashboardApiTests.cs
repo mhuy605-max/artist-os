@@ -163,34 +163,36 @@ public class DashboardApiTests
     }
 
     [Fact]
-    public async Task GetDashboard_DerivesReleaseReadinessFromChecklistState()
+    public async Task GetDashboard_DerivesReleaseReadinessFromCanonicalReadiness()
     {
         await using var factory = new ArtistOsApiFactory();
         using var client = await factory.CreateAuthenticatedClientAsync();
-        var emptySong = await CreateSong(client, "Empty Checklist", "ReleasePreparation");
-        var partialSong = await CreateSong(client, "Partial Checklist", "ReleasePreparation");
-        var completeSong = await CreateSong(client, "Complete Checklist", "ReleasePreparation");
+        var emptySong = await CreateSong(client, "Empty Readiness", "ReleasePreparation");
+        var partialSong = await CreateSong(client, "Partial Readiness", "ReleasePreparation");
+        var manualSong = await CreateSong(client, "Manual Optional", "ReleasePreparation");
         await CreateRelease(client, emptySong.Id, Today.AddDays(4));
-        await CreateRelease(client, partialSong.Id, Today.AddDays(5));
-        await CreateRelease(client, completeSong.Id, Today.AddDays(6));
-        await CompleteChecklistItems(client, partialSong.Id, count: 4);
-        await CompleteChecklistItems(client, completeSong.Id, count: 7);
+        await CreateRelease(client, partialSong.Id, Today.AddDays(5), platforms: ["AppleMusic"]);
+        await CreateRelease(client, manualSong.Id, Today.AddDays(6), platforms: ["AppleMusic"]);
+        await CompleteChecklistItem(client, partialSong.Id, "Metadata");
+        await CompleteChecklistItem(client, manualSong.Id, "Metadata");
+        await CompleteChecklistItem(client, manualSong.Id, "Credits");
+        await CompleteChecklistItem(client, manualSong.Id, "ContentPlan");
 
         var dashboard = await GetDashboard(client);
 
         var empty = dashboard.ReleaseReadiness.Single(item => item.SongId == emptySong.Id);
         var partial = dashboard.ReleaseReadiness.Single(item => item.SongId == partialSong.Id);
-        var complete = dashboard.ReleaseReadiness.Single(item => item.SongId == completeSong.Id);
+        var manual = dashboard.ReleaseReadiness.Single(item => item.SongId == manualSong.Id);
 
-        Assert.Equal(0, empty.CompletedItems);
-        Assert.Equal(7, empty.TotalItems);
-        Assert.Equal(0, empty.ReadinessPercentage);
-        Assert.Equal(4, partial.CompletedItems);
-        Assert.Equal(7, partial.TotalItems);
-        Assert.Equal(57, partial.ReadinessPercentage);
-        Assert.Equal(7, complete.CompletedItems);
-        Assert.Equal(7, complete.TotalItems);
-        Assert.Equal(100, complete.ReadinessPercentage);
+        Assert.Equal(1, empty.CompletedItems);
+        Assert.Equal(6, empty.TotalItems);
+        Assert.Equal(17, empty.ReadinessPercentage);
+        Assert.Equal(1, partial.CompletedItems);
+        Assert.Equal(5, partial.TotalItems);
+        Assert.Equal(20, partial.ReadinessPercentage);
+        Assert.Equal(3, manual.CompletedItems);
+        Assert.Equal(5, manual.TotalItems);
+        Assert.Equal(60, manual.ReadinessPercentage);
     }
 
     [Fact]
@@ -202,13 +204,15 @@ public class DashboardApiTests
         await CreateRelease(client, song.Id, Today.AddDays(3));
         var checklist = await GetChecklist(client, song.Id);
 
-        await UpdateChecklistItem(client, song.Id, checklist[0].Id, isCompleted: true);
+        var contentPlan = checklist.Single(item => item.Key == "ContentPlan");
+
+        await UpdateChecklistItem(client, song.Id, contentPlan.Id, isCompleted: true);
         var afterComplete = await GetDashboard(client);
-        await UpdateChecklistItem(client, song.Id, checklist[0].Id, isCompleted: false);
+        await UpdateChecklistItem(client, song.Id, contentPlan.Id, isCompleted: false);
         var afterUncomplete = await GetDashboard(client);
 
-        Assert.Equal(1, afterComplete.ReleaseReadiness.Single().CompletedItems);
-        Assert.Equal(0, afterUncomplete.ReleaseReadiness.Single().CompletedItems);
+        Assert.Equal(2, afterComplete.ReleaseReadiness.Single().CompletedItems);
+        Assert.Equal(1, afterUncomplete.ReleaseReadiness.Single().CompletedItems);
     }
 
     [Fact]
@@ -361,7 +365,8 @@ public class DashboardApiTests
         HttpClient client,
         int songId,
         DateOnly? releaseDate,
-        string status = "Scheduled")
+        string status = "Scheduled",
+        string[]? platforms = null)
     {
         var response = await client.PostAsJsonAsync($"/api/songs/{songId}/release", new
         {
@@ -369,7 +374,7 @@ public class DashboardApiTests
             releaseType = "Single",
             distributor = "DISTROKID",
             status,
-            platforms = new[] { "Spotify" }
+            platforms = platforms ?? ["Spotify"]
         });
         response.EnsureSuccessStatusCode();
 
@@ -416,14 +421,11 @@ public class DashboardApiTests
         return checklist;
     }
 
-    private static async Task CompleteChecklistItems(HttpClient client, int songId, int count)
+    private static async Task CompleteChecklistItem(HttpClient client, int songId, string key)
     {
         var checklist = await GetChecklist(client, songId);
-
-        foreach (var item in checklist.Take(count))
-        {
-            await UpdateChecklistItem(client, songId, item.Id, isCompleted: true);
-        }
+        var item = checklist.Single(item => item.Key == key);
+        await UpdateChecklistItem(client, songId, item.Id, isCompleted: true);
     }
 
     private static async Task UpdateChecklistItem(

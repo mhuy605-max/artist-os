@@ -1,6 +1,7 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Security;
+using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -33,10 +34,12 @@ public class DashboardController : ControllerBase
     };
 
     private readonly AppDbContext _context;
+    private readonly ReleaseReadinessService _releaseReadinessService;
 
-    public DashboardController(AppDbContext context)
+    public DashboardController(AppDbContext context, ReleaseReadinessService releaseReadinessService)
     {
         _context = context;
+        _releaseReadinessService = releaseReadinessService;
     }
 
     [HttpGet]
@@ -204,8 +207,6 @@ public class DashboardController : ControllerBase
                 SongTitle = release.Song.Title,
                 release.ReleaseDate,
                 release.Status,
-                CompletedItems = release.ChecklistItems.Count(item => item.IsCompleted),
-                TotalItems = release.ChecklistItems.Count
             })
             .OrderBy(release => release.ReleaseDate == null)
             .ThenBy(release => release.ReleaseDate < today)
@@ -214,22 +215,31 @@ public class DashboardController : ControllerBase
             .Take(ReleaseReadinessLimit)
             .ToListAsync();
 
-        return releases
-            .Select(release => new DashboardReleaseReadinessResponse
+        var response = new List<DashboardReleaseReadinessResponse>();
+
+        foreach (var release in releases)
+        {
+            var readiness = await _releaseReadinessService.GetForReleaseAsync(release.Id, userId!.Value);
+            if (readiness is null)
+            {
+                continue;
+            }
+
+            response.Add(new DashboardReleaseReadinessResponse
             {
                 ReleaseId = release.Id,
                 SongId = release.SongId,
                 SongTitle = release.SongTitle,
                 ReleaseDate = release.ReleaseDate,
                 Status = release.Status,
-                CompletedItems = release.CompletedItems,
-                TotalItems = release.TotalItems,
-                ReadinessPercentage = release.TotalItems == 0
-                    ? 0
-                    : (int)Math.Round((double)release.CompletedItems / release.TotalItems * 100),
+                CompletedItems = readiness.ReadyCount,
+                TotalItems = readiness.RequiredCount,
+                ReadinessPercentage = readiness.Percentage,
                 NavigationTarget = $"/songs/{release.SongId}"
-            })
-            .ToList();
+            });
+        }
+
+        return response;
     }
 
     private async Task<List<DashboardAnalyticsItemResponse>> GetAnalyticsOverview(int? userId)

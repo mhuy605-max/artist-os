@@ -2,6 +2,7 @@ using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
+using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -107,10 +108,13 @@ public class ReleaseChecklistController : ControllerBase
         var now = DateTime.UtcNow;
         var wasCompleted = item.IsCompleted;
 
-        item.IsCompleted = request.IsCompleted;
-        item.CompletedAt = request.IsCompleted
-            ? (wasCompleted ? item.CompletedAt : now)
-            : null;
+        if (!ReleaseReadinessService.DerivedChecklistKeys.Contains(item.Key))
+        {
+            item.IsCompleted = request.IsCompleted;
+            item.CompletedAt = request.IsCompleted
+                ? (wasCompleted ? item.CompletedAt : now)
+                : null;
+        }
         item.Notes = TrimToNull(request.Notes);
         item.UpdatedAt = now;
 

@@ -1,6 +1,7 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Integrations.GoogleDrive;
 using ArtistOS.Api.Models;
+using ArtistOS.Api.Services;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using ArtistOS.Api.Auth;
@@ -41,6 +42,7 @@ builder.Services.AddScoped<GoogleDriveAssetUploadService>();
 builder.Services.AddScoped<MediaTokenService>();
 builder.Services.AddScoped<MediaAccessService>();
 builder.Services.AddScoped<GoogleDriveMediaService>();
+builder.Services.AddScoped<ReleaseReadinessService>();
 builder.Services.AddHttpClient();
 builder.Services.Configure<FormOptions>(options =>
 {

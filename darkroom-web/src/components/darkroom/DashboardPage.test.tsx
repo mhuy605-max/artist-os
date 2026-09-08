@@ -182,7 +182,7 @@ describe("DashboardPage", () => {
     expect(screen.getAllByText("Release Preparation").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Neon Control release")).toBeInTheDocument();
     expect(screen.getAllByText("Neon Control")[0]).toBeInTheDocument();
-    expect(screen.getByText("4 / 7 complete")).toBeInTheDocument();
+    expect(screen.getByText("4 / 7 ready")).toBeInTheDocument();
     expect(screen.getByText("Stored manually. No platform sync active.")).toBeInTheDocument();
     expect(screen.getByText("24K views")).toBeInTheDocument();
     expect(screen.getByText("Release plan updated")).toBeInTheDocument();
