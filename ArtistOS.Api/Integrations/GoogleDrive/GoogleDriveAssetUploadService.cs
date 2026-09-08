@@ -157,6 +157,112 @@ public class GoogleDriveAssetUploadService
             cancellationToken);
     }
 
+    public async Task<GoogleDriveAssetUploadResult> ReplaceAudioAssetFileAsync(
+        int userId,
+        int songId,
+        int audioAssetId,
+        IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        var audioAsset = await _context.AudioAssets
+            .Include(asset => asset.ExternalFileReference)
+            .FirstOrDefaultAsync(asset =>
+                asset.Id == audioAssetId &&
+                asset.SongId == songId &&
+                asset.Song.OwnerUserId == userId,
+                cancellationToken);
+
+        if (audioAsset is null)
+        {
+            return GoogleDriveAssetUploadResult.Failure(GoogleDriveAssetUploadStatus.AssetNotFound);
+        }
+
+        if (audioAsset.ExternalFileReferenceId is null || audioAsset.ExternalFileReference is null)
+        {
+            return GoogleDriveAssetUploadResult.Failure(
+                GoogleDriveAssetUploadStatus.NotLinked,
+                "This audio asset does not have a linked Drive file. Use Upload file first.");
+        }
+
+        var validation = ValidateFile(file, GoogleDriveAssetKind.Audio);
+        if (validation.Status != GoogleDriveAssetUploadStatus.Success)
+        {
+            return validation;
+        }
+
+        var uploadContext = await PrepareUploadAsync(
+            userId,
+            songId,
+            GoogleDriveAssetKind.Audio,
+            cancellationToken);
+
+        if (uploadContext.Status != GoogleDriveAssetUploadStatus.Success)
+        {
+            return GoogleDriveAssetUploadResult.Failure(uploadContext.Status, uploadContext.Detail);
+        }
+
+        return await UploadAndReplaceAudioAsync(
+            userId,
+            songId,
+            audioAsset,
+            file!,
+            uploadContext,
+            cancellationToken);
+    }
+
+    public async Task<GoogleDriveAssetUploadResult> ReplaceVisualAssetFileAsync(
+        int userId,
+        int songId,
+        int visualAssetId,
+        IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        var visualAsset = await _context.VisualAssets
+            .Include(asset => asset.ExternalFileReference)
+            .FirstOrDefaultAsync(asset =>
+                asset.Id == visualAssetId &&
+                asset.SongId == songId &&
+                asset.Song.OwnerUserId == userId,
+                cancellationToken);
+
+        if (visualAsset is null)
+        {
+            return GoogleDriveAssetUploadResult.Failure(GoogleDriveAssetUploadStatus.AssetNotFound);
+        }
+
+        if (visualAsset.ExternalFileReferenceId is null || visualAsset.ExternalFileReference is null)
+        {
+            return GoogleDriveAssetUploadResult.Failure(
+                GoogleDriveAssetUploadStatus.NotLinked,
+                "This visual asset does not have a linked Drive file. Use Upload file first.");
+        }
+
+        var validation = ValidateFile(file, GoogleDriveAssetKind.Visual);
+        if (validation.Status != GoogleDriveAssetUploadStatus.Success)
+        {
+            return validation;
+        }
+
+        var uploadContext = await PrepareUploadAsync(
+            userId,
+            songId,
+            GoogleDriveAssetKind.Visual,
+            cancellationToken);
+
+        if (uploadContext.Status != GoogleDriveAssetUploadStatus.Success)
+        {
+            return GoogleDriveAssetUploadResult.Failure(uploadContext.Status, uploadContext.Detail);
+        }
+
+        return await UploadAndReplaceVisualAsync(
+            userId,
+            songId,
+            visualAsset,
+            file!,
+            uploadContext,
+            cancellationToken);
+    }
+
     private async Task<GoogleDriveAssetUploadResult> UploadAndAssociateAudioAsync(
         int userId,
         int songId,
@@ -266,6 +372,130 @@ public class GoogleDriveAssetUploadService
             _logger.LogError(
                 exception,
                 "Persisting Google Drive visual upload failed for user {UserId}, song {SongId}, visual asset {VisualAssetId}.",
+                userId,
+                songId,
+                visualAsset.Id);
+
+            return GoogleDriveAssetUploadResult.Failure(
+                GoogleDriveAssetUploadStatus.PersistenceFailed);
+        }
+    }
+
+    private async Task<GoogleDriveAssetUploadResult> UploadAndReplaceAudioAsync(
+        int userId,
+        int songId,
+        AudioAsset audioAsset,
+        IFormFile file,
+        PreparedUpload uploadContext,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = file.OpenReadStream();
+        var uploadedFile = await UploadToDriveAsync(file, uploadContext, stream, cancellationToken);
+
+        if (uploadedFile is null)
+        {
+            return GoogleDriveAssetUploadResult.Failure(
+                GoogleDriveAssetUploadStatus.GoogleDriveUnavailable);
+        }
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var oldReference = audioAsset.ExternalFileReference;
+            var reference = CreateFileReference(
+                userId,
+                songId,
+                uploadContext.ConnectionId,
+                uploadedFile,
+                ExternalResourceTypes.AudioAssetFile,
+                nameof(AudioAsset),
+                audioAsset.Id,
+                now);
+
+            DetachOldReference(oldReference, now);
+            _context.ExternalFileReferences.Add(reference);
+            audioAsset.ExternalFileReference = reference;
+            audioAsset.FileName = uploadedFile.Name;
+            audioAsset.FileSizeBytes = uploadedFile.SizeBytes ?? file.Length;
+            audioAsset.UploadedAt = now;
+            audioAsset.Status = ReplacementStatus(audioAsset.Status);
+
+            await _context.SaveChangesAsync(cancellationToken);
+            return GoogleDriveAssetUploadResult.Success(
+                AssetFileResponseMapper.ToAudioAssetResponse(audioAsset));
+        }
+        catch (Exception exception)
+        {
+            await TryCleanupUploadedFileAsync(
+                uploadContext.AccessToken,
+                uploadedFile.Id,
+                cancellationToken);
+
+            _logger.LogError(
+                exception,
+                "Persisting Google Drive audio replacement failed for user {UserId}, song {SongId}, audio asset {AudioAssetId}.",
+                userId,
+                songId,
+                audioAsset.Id);
+
+            return GoogleDriveAssetUploadResult.Failure(
+                GoogleDriveAssetUploadStatus.PersistenceFailed);
+        }
+    }
+
+    private async Task<GoogleDriveAssetUploadResult> UploadAndReplaceVisualAsync(
+        int userId,
+        int songId,
+        VisualAsset visualAsset,
+        IFormFile file,
+        PreparedUpload uploadContext,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = file.OpenReadStream();
+        var uploadedFile = await UploadToDriveAsync(file, uploadContext, stream, cancellationToken);
+
+        if (uploadedFile is null)
+        {
+            return GoogleDriveAssetUploadResult.Failure(
+                GoogleDriveAssetUploadStatus.GoogleDriveUnavailable);
+        }
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var oldReference = visualAsset.ExternalFileReference;
+            var reference = CreateFileReference(
+                userId,
+                songId,
+                uploadContext.ConnectionId,
+                uploadedFile,
+                ExternalResourceTypes.VisualAssetFile,
+                nameof(VisualAsset),
+                visualAsset.Id,
+                now);
+
+            DetachOldReference(oldReference, now);
+            _context.ExternalFileReferences.Add(reference);
+            visualAsset.ExternalFileReference = reference;
+            visualAsset.FileName = uploadedFile.Name;
+            visualAsset.FileSizeBytes = uploadedFile.SizeBytes ?? file.Length;
+            visualAsset.UploadedAt = now;
+            visualAsset.Status = ReplacementStatus(visualAsset.Status);
+
+            await _context.SaveChangesAsync(cancellationToken);
+            return GoogleDriveAssetUploadResult.Success(
+                AssetFileResponseMapper.ToVisualAssetResponse(visualAsset));
+        }
+        catch (Exception exception)
+        {
+            await TryCleanupUploadedFileAsync(
+                uploadContext.AccessToken,
+                uploadedFile.Id,
+                cancellationToken);
+
+            _logger.LogError(
+                exception,
+                "Persisting Google Drive visual replacement failed for user {UserId}, song {SongId}, visual asset {VisualAssetId}.",
                 userId,
                 songId,
                 visualAsset.Id);
@@ -444,6 +674,25 @@ public class GoogleDriveAssetUploadService
             CreatedAt = now,
             UpdatedAt = now
         };
+    }
+
+    private static void DetachOldReference(ExternalFileReference? reference, DateTime now)
+    {
+        if (reference is null)
+        {
+            return;
+        }
+
+        reference.LinkedResourceType = null;
+        reference.LinkedResourceId = null;
+        reference.UpdatedAt = now;
+    }
+
+    private static string ReplacementStatus(string status)
+    {
+        return status is "Approved" or "Final"
+            ? "Review"
+            : status;
     }
 
     private static GoogleDriveAssetUploadResult ValidateFile(

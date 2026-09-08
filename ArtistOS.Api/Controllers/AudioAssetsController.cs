@@ -94,14 +94,15 @@ public class AudioAssetsController : ControllerBase
         var audioAsset = new AudioAsset
         {
             SongId = songId,
+            AssetFamilyId = Guid.NewGuid(),
             Type = NormalizeType(request.Type),
             FileName = request.FileName.Trim(),
-            Version = request.Version,
+            Version = 1,
             Status = NormalizeStatus(request.Status),
             DurationSeconds = request.DurationSeconds,
             FileSizeBytes = request.FileSizeBytes,
             UploadedAt = DateTime.UtcNow,
-            IsCurrent = request.IsCurrent
+            IsCurrent = true
         };
 
         _context.AudioAssets.Add(audioAsset);
@@ -138,15 +139,85 @@ public class AudioAssetsController : ControllerBase
 
         existingAudioAsset.Type = NormalizeType(request.Type);
         existingAudioAsset.FileName = request.FileName.Trim();
-        existingAudioAsset.Version = request.Version;
         existingAudioAsset.Status = NormalizeStatus(request.Status);
         existingAudioAsset.DurationSeconds = request.DurationSeconds;
         existingAudioAsset.FileSizeBytes = request.FileSizeBytes;
-        existingAudioAsset.IsCurrent = request.IsCurrent;
 
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    [HttpPost("{audioAssetId:int}/versions")]
+    public async Task<ActionResult<AudioAssetResponse>> CreateAudioAssetVersion(
+        int songId,
+        int audioAssetId,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+        var sourceAsset = await _context.AudioAssets
+            .FirstOrDefaultAsync(audioAsset =>
+                audioAsset.SongId == songId &&
+                audioAsset.Id == audioAssetId &&
+                audioAsset.Song.OwnerUserId == currentUserId,
+                cancellationToken);
+
+        if (sourceAsset is null)
+        {
+            return NotFound();
+        }
+
+        var familyAssets = await _context.AudioAssets
+            .Where(audioAsset =>
+                audioAsset.SongId == songId &&
+                audioAsset.AssetFamilyId == sourceAsset.AssetFamilyId)
+            .ToListAsync(cancellationToken);
+
+        var nextVersion = familyAssets.Max(audioAsset => audioAsset.Version) + 1;
+        foreach (var familyAsset in familyAssets)
+        {
+            familyAsset.IsCurrent = false;
+        }
+
+        var nextAsset = new AudioAsset
+        {
+            SongId = songId,
+            AssetFamilyId = sourceAsset.AssetFamilyId,
+            Type = sourceAsset.Type,
+            FileName = string.Empty,
+            Version = nextVersion,
+            Status = "Draft",
+            DurationSeconds = null,
+            FileSizeBytes = null,
+            UploadedAt = DateTime.UtcNow,
+            IsCurrent = true,
+            ExternalFileReferenceId = null
+        };
+
+        _context.AudioAssets.Add(nextAsset);
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return Conflict(new { error = "A new version was created at the same time. Refresh and try again." });
+        }
+
+        return CreatedAtAction(
+            nameof(GetAudioAsset),
+            new { songId, audioAssetId = nextAsset.Id },
+            AssetFileResponseMapper.ToAudioAssetResponse(nextAsset));
     }
 
     [HttpDelete("{audioAssetId:int}")]
@@ -169,8 +240,35 @@ public class AudioAssetsController : ControllerBase
             return NotFound();
         }
 
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        var familyId = audioAsset.AssetFamilyId;
+        var wasCurrent = audioAsset.IsCurrent;
+
+        if (wasCurrent)
+        {
+            audioAsset.IsCurrent = false;
+            await _context.SaveChangesAsync();
+        }
+
         _context.AudioAssets.Remove(audioAsset);
         await _context.SaveChangesAsync();
+
+        if (wasCurrent)
+        {
+            var nextCurrent = await _context.AudioAssets
+                .Where(asset => asset.SongId == songId && asset.AssetFamilyId == familyId)
+                .OrderByDescending(asset => asset.Version)
+                .FirstOrDefaultAsync();
+
+            if (nextCurrent is not null)
+            {
+                nextCurrent.IsCurrent = true;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        await transaction.CommitAsync();
 
         return NoContent();
     }
@@ -191,6 +289,31 @@ public class AudioAssetsController : ControllerBase
         }
 
         var result = await _uploadService.UploadAudioAssetAsync(
+            currentUserId.Value,
+            songId,
+            audioAssetId,
+            file,
+            cancellationToken);
+
+        return ToAudioUploadActionResult(result);
+    }
+
+    [HttpPost("{audioAssetId:int}/replace-file")]
+    [RequestSizeLimit(GoogleDriveUploadLimits.RequestBodyMaxBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = GoogleDriveUploadLimits.RequestBodyMaxBytes)]
+    public async Task<ActionResult<AudioAssetResponse>> ReplaceAudioAssetFile(
+        int songId,
+        int audioAssetId,
+        [FromForm] IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await _uploadService.ReplaceAudioAssetFileAsync(
             currentUserId.Value,
             songId,
             audioAssetId,
@@ -260,6 +383,7 @@ public class AudioAssetsController : ControllerBase
             GoogleDriveAssetUploadStatus.UnsupportedFileType => BadRequest(new { error = result.Detail }),
             GoogleDriveAssetUploadStatus.FileTooLarge => BadRequest(new { error = result.Detail }),
             GoogleDriveAssetUploadStatus.AlreadyLinked => Conflict(new { error = result.Detail }),
+            GoogleDriveAssetUploadStatus.NotLinked => Conflict(new { error = result.Detail }),
             GoogleDriveAssetUploadStatus.GoogleDriveNotConnected => Problem(
                 title: "Google Drive is not connected.",
                 statusCode: StatusCodes.Status409Conflict),

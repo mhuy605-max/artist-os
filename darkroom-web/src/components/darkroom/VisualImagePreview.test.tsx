@@ -20,6 +20,7 @@ vi.mock("@/services/api/visualAssets", () => ({
 const baseVisual: VisualAsset = {
   id: 22,
   songId: 1,
+  assetFamilyId: "visual-family-1",
   type: "CoverArt",
   fileName: "cover-final.png",
   version: 2,

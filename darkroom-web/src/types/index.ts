@@ -139,6 +139,7 @@ export type AudioAssetStatus = (typeof AUDIO_ASSET_STATUSES)[number];
 export interface AudioAsset {
   id: string | number;
   songId: string | number;
+  assetFamilyId: string;
   type: AudioAssetType;
   fileName: string;
   version: number;
@@ -210,6 +211,7 @@ export const VISUAL_ASSET_STATUS_LABELS: Record<VisualAssetStatus, string> = {
 export interface VisualAsset {
   id: string | number;
   songId: string | number;
+  assetFamilyId: string;
   type: VisualAssetType;
   fileName: string;
   version: number;

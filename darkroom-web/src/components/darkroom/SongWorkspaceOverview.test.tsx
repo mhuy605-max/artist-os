@@ -187,6 +187,7 @@ const longTitleSong: Song = {
 const audioAsset: AudioAsset = {
   id: 1,
   songId: 7,
+  assetFamilyId: "audio-family-7",
   type: "Demo",
   fileName: "demo.wav",
   version: 1,
@@ -199,6 +200,7 @@ const audioAsset: AudioAsset = {
 const visualAsset: VisualAsset = {
   id: 2,
   songId: 7,
+  assetFamilyId: "visual-family-7",
   type: "CoverArt",
   fileName: "cover.png",
   version: 1,

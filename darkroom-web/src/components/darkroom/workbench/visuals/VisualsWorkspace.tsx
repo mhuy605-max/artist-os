@@ -193,6 +193,16 @@ function useVisualAssetMutations(songId: string) {
         visualAssetsApi.uploadVisualAssetFile(songId, visualAssetId, file),
       onSuccess: invalidate,
     }),
+    createVersion: useMutation({
+      mutationFn: (visualAssetId: string) =>
+        visualAssetsApi.createVisualAssetVersion(songId, visualAssetId),
+      onSuccess: invalidate,
+    }),
+    replaceFile: useMutation({
+      mutationFn: ({ visualAssetId, file }: { visualAssetId: string; file: File }) =>
+        visualAssetsApi.replaceVisualAssetFile(songId, visualAssetId, file),
+      onSuccess: invalidate,
+    }),
   };
 }
 
@@ -271,7 +281,11 @@ function visualUploadErrorMessage(error: unknown) {
     }
 
     if (error.status === 409 && detail.toLowerCase().includes("already")) {
-      return "File already linked. Replacing files is not available yet.";
+      return "File already linked. Use Replace File to swap the Drive file for this version.";
+    }
+
+    if (error.status === 409 && detail.toLowerCase().includes("does not have a linked")) {
+      return "This version has no linked file yet. Use Upload file first.";
     }
 
     if (error.status === 400) {
@@ -286,11 +300,40 @@ function visualUploadErrorMessage(error: unknown) {
   return error.message || "The visual file could not be uploaded.";
 }
 
+interface VisualAssetFamilyGroup {
+  assetFamilyId: string;
+  assets: VisualAsset[];
+}
+
+function sortVisualVersions(assets: VisualAsset[]) {
+  return [...assets].sort((a, b) => {
+    if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1;
+    return b.version - a.version;
+  });
+}
+
 function groupedVisualAssets(assets: VisualAsset[]) {
   return VISUAL_ASSET_TYPES.map((type) => ({
     type,
-    assets: assets.filter((asset) => asset.type === type),
-  })).filter((group) => group.assets.length > 0);
+    families: Array.from(
+      assets
+        .filter((asset) => asset.type === type)
+        .reduce((families, asset) => {
+          const existing = families.get(asset.assetFamilyId) ?? [];
+          existing.push(asset);
+          families.set(asset.assetFamilyId, existing);
+          return families;
+        }, new Map<string, VisualAsset[]>()),
+      ([assetFamilyId, familyAssets]): VisualAssetFamilyGroup => ({
+        assetFamilyId,
+        assets: sortVisualVersions(familyAssets),
+      }),
+    ).sort((a, b) => {
+      const currentA = a.assets.find((asset) => asset.isCurrent) ?? a.assets[0];
+      const currentB = b.assets.find((asset) => asset.isCurrent) ?? b.assets[0];
+      return (currentB?.version ?? 0) - (currentA?.version ?? 0);
+    }),
+  })).filter((group) => group.families.length > 0);
 }
 
 function VisualSummary({ assets }: { assets: VisualAsset[] }) {
@@ -328,14 +371,12 @@ function VisualAssetFormDialog({
   const [open, setOpen] = useState(false);
   const [fileName, setFileName] = useState(asset?.fileName ?? "");
   const [type, setType] = useState<VisualAssetType>(asset?.type ?? defaultType);
-  const [version, setVersion] = useState(String(asset?.version ?? 1));
   const [status, setStatus] = useState<VisualAssetStatus>(asset?.status ?? "Draft");
   const [width, setWidth] = useState(asset?.width == null ? "" : String(asset.width));
   const [height, setHeight] = useState(asset?.height == null ? "" : String(asset.height));
   const [fileSizeMb, setFileSizeMb] = useState(
     asset?.fileSizeBytes == null ? "" : (asset.fileSizeBytes / 1024 / 1024).toFixed(1),
   );
-  const [isCurrent, setIsCurrent] = useState(asset?.isCurrent ?? false);
   const [error, setError] = useState("");
   const mutations = useVisualAssetMutations(songId);
   const mutation = mode === "create" ? mutations.create : mutations.update;
@@ -345,12 +386,12 @@ function VisualAssetFormDialog({
     const payload: VisualAssetPayload = {
       type,
       fileName: fileName.trim(),
-      version: Number(version),
+      version: asset?.version ?? 1,
       status,
       width: numberOrNull(width),
       height: numberOrNull(height),
       fileSizeBytes: fileSizeMbValue == null ? null : Math.round(fileSizeMbValue * 1024 * 1024),
-      isCurrent,
+      isCurrent: asset?.isCurrent ?? true,
     };
     const validationError = validateVisualAssetPayload(payload);
     if (validationError) {
@@ -363,12 +404,10 @@ function VisualAssetFormDialog({
         await mutations.create.mutateAsync(payload);
         setFileName("");
         setType(defaultType);
-        setVersion("1");
         setStatus("Draft");
         setWidth("");
         setHeight("");
         setFileSizeMb("");
-        setIsCurrent(false);
       } else if (asset) {
         await mutations.update.mutateAsync({
           visualAssetId: String(asset.id),
@@ -431,20 +470,6 @@ function VisualAssetFormDialog({
             </Select>
           </div>
           <div>
-            <label className="label-tech" htmlFor={`${mode}-visual-version-${asset?.id ?? "new"}`}>
-              Version
-            </label>
-            <Input
-              id={`${mode}-visual-version-${asset?.id ?? "new"}`}
-              type="number"
-              min={1}
-              step={1}
-              value={version}
-              onChange={(event) => setVersion(event.target.value)}
-              className="mt-2"
-            />
-          </div>
-          <div>
             <label className="label-tech">Status</label>
             <Select value={status} onValueChange={(value) => setStatus(value as VisualAssetStatus)}>
               <SelectTrigger className="mt-2">
@@ -505,13 +530,12 @@ function VisualAssetFormDialog({
             />
             <p className="mt-1 text-xs text-muted-foreground">MB, when known.</p>
           </div>
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <Checkbox
-              checked={isCurrent}
-              onCheckedChange={(checked) => setIsCurrent(checked === true)}
-            />
-            Current version
-          </label>
+          {asset ? (
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              V{asset.version} {asset.isCurrent ? "is current. " : ""}
+              Versions are created with Create New Version.
+            </p>
+          ) : null}
           {error ? <p className="text-sm text-muted-foreground sm:col-span-2">{error}</p> : null}
           <div className="flex justify-end gap-2 sm:col-span-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
@@ -527,12 +551,131 @@ function VisualAssetFormDialog({
   );
 }
 
+function CreateVisualVersionDialog({
+  asset,
+  createVersion,
+  trigger,
+}: {
+  asset: VisualAsset;
+  createVersion: {
+    isPending: boolean;
+    error: unknown;
+    mutate: (visualAssetId: string) => void;
+  };
+  trigger: ReactNode;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Create new version?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Preserve v{asset.version} and start a new creative revision. The new version becomes
+            current, starts as Draft, and will need its own uploaded file.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {createVersion.error ? (
+          <p className="text-sm text-destructive">
+            {createVersion.error instanceof Error
+              ? createVersion.error.message
+              : "The new version could not be created."}
+          </p>
+        ) : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={createVersion.isPending}
+            onClick={() => createVersion.mutate(String(asset.id))}
+          >
+            {createVersion.isPending ? "Creating" : "Create version"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function ReplaceVisualFileDialog({
+  asset,
+  replaceFile,
+  trigger,
+}: {
+  asset: VisualAsset;
+  replaceFile: {
+    isPending: boolean;
+    error: unknown;
+    mutate: (input: { visualAssetId: string; file: File }) => void;
+  };
+  trigger: ReactNode;
+}) {
+  const fileInputId = useId();
+  const [open, setOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  function replace() {
+    if (!selectedFile) return;
+    replaceFile.mutate({ visualAssetId: String(asset.id), file: selectedFile });
+    setOpen(false);
+    setSelectedFile(null);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="border-border bg-background">
+        <DialogHeader>
+          <DialogTitle className="uppercase">Replace file</DialogTitle>
+          <DialogDescription>
+            Keep v{asset.version}, but replace its uploaded file. Approved or Final versions may
+            return to Review, and the old Drive file is not deleted.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <label className="label-tech" htmlFor={fileInputId}>
+              Replacement visual file
+            </label>
+            <Input
+              id={fileInputId}
+              className="mt-2 text-xs"
+              type="file"
+              accept=".png,.jpg,.jpeg,.webp,.mp4,.mov,.webm,image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
+              disabled={replaceFile.isPending}
+              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+            />
+            {selectedFile ? (
+              <p className="mt-2 break-words text-xs text-muted-foreground">
+                Selected: {selectedFile.name} / {formatFileSize(selectedFile.size)}
+              </p>
+            ) : null}
+          </div>
+          {replaceFile.error ? (
+            <p className="text-sm text-destructive">
+              {visualUploadErrorMessage(replaceFile.error)}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={replace} disabled={!selectedFile || replaceFile.isPending}>
+              {replaceFile.isPending ? "Replacing" : "Replace file"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function VisualFileAssociationPanel({
   songId,
   asset,
   driveStatus,
   driveStatusError,
   upload,
+  replaceFile,
   activeVideoAssetId,
   onVideoActivate,
   onVideoDeactivate,
@@ -542,6 +685,11 @@ function VisualFileAssociationPanel({
   driveStatus?: GoogleDriveConnectionStatus;
   driveStatusError: boolean;
   upload: {
+    isPending: boolean;
+    error: unknown;
+    mutate: (input: { visualAssetId: string; file: File }) => void;
+  };
+  replaceFile: {
     isPending: boolean;
     error: unknown;
     mutate: (input: { visualAssetId: string; file: File }) => void;
@@ -592,6 +740,16 @@ function VisualFileAssociationPanel({
               </a>
             </Button>
           ) : null}
+          <ReplaceVisualFileDialog
+            asset={asset}
+            replaceFile={replaceFile}
+            trigger={
+              <Button variant="outline" size="sm">
+                <Upload className="h-4 w-4" />
+                Replace File
+              </Button>
+            }
+          />
         </div>
       </div>
     );
@@ -710,9 +868,11 @@ function VisualAssetRow({
   onVideoDeactivate: (visualAssetId: string) => void;
 }) {
   const mutations = useVisualAssetMutations(songId);
-  const removeCopy = asset.linkedFile
-    ? "This removes the asset from DARKROOM SYSTEM. The linked Google Drive file will remain."
-    : "This removes the asset from DARKROOM SYSTEM.";
+  const removeCopy = asset.isCurrent
+    ? "Deleting the current version will make the previous highest version current. The Google Drive file is not deleted."
+    : asset.linkedFile
+      ? "This removes the asset from DARKROOM SYSTEM. The linked Google Drive file will remain."
+      : "This removes the asset from DARKROOM SYSTEM.";
 
   return (
     <article className="border border-border bg-background p-4">
@@ -730,7 +890,9 @@ function VisualAssetRow({
             ) : null}
             <StatusBadge status={visualStatusLabel(asset.status)} />
           </div>
-          <p className="mt-3 break-words text-base font-semibold">{asset.fileName}</p>
+          <p className="mt-3 break-words text-base font-semibold">
+            {asset.fileName || "No file attached yet"}
+          </p>
           <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
             <p>
               <span className="label-tech block">DIMENSIONS</span>
@@ -752,6 +914,16 @@ function VisualAssetRow({
               trigger={
                 <Button variant="outline" size="sm">
                   Edit
+                </Button>
+              }
+            />
+            <CreateVisualVersionDialog
+              asset={asset}
+              createVersion={mutations.createVersion}
+              trigger={
+                <Button variant="outline" size="sm">
+                  <Plus className="h-4 w-4" />
+                  Create New Version
                 </Button>
               }
             />
@@ -786,6 +958,7 @@ function VisualAssetRow({
           onVideoActivate={onVideoActivate}
           onVideoDeactivate={onVideoDeactivate}
           upload={mutations.upload}
+          replaceFile={mutations.replaceFile}
         />
       </div>
     </article>
@@ -875,24 +1048,38 @@ export function VisualsWorkspace({ songId }: { songId: string }) {
             <Panel
               key={group.type}
               title={visualTypeLabel(group.type)}
-              label={`${group.assets.length} ${group.assets.length === 1 ? "ASSET" : "ASSETS"}`}
+              label={`${group.families.length} ${
+                group.families.length === 1 ? "FAMILY" : "FAMILIES"
+              }`}
             >
-              <div className="space-y-3">
-                {group.assets.map((asset) => (
-                  <VisualAssetRow
-                    key={asset.id}
-                    songId={songId}
-                    asset={asset}
-                    driveStatus={driveConnection.data}
-                    driveStatusError={driveConnection.isError}
-                    activeVideoAssetId={activeVideoAssetId}
-                    onVideoActivate={setActiveVideoAssetId}
-                    onVideoDeactivate={(visualAssetId) =>
-                      setActiveVideoAssetId((current) =>
-                        current === visualAssetId ? null : current,
-                      )
-                    }
-                  />
+              <div className="space-y-5">
+                {group.families.map((family, index) => (
+                  <section key={family.assetFamilyId} className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="label-tech">
+                        VERSION FAMILY {group.families.length > 1 ? index + 1 : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {family.assets.length} {family.assets.length === 1 ? "version" : "versions"}
+                      </p>
+                    </div>
+                    {family.assets.map((asset) => (
+                      <VisualAssetRow
+                        key={asset.id}
+                        songId={songId}
+                        asset={asset}
+                        driveStatus={driveConnection.data}
+                        driveStatusError={driveConnection.isError}
+                        activeVideoAssetId={activeVideoAssetId}
+                        onVideoActivate={setActiveVideoAssetId}
+                        onVideoDeactivate={(visualAssetId) =>
+                          setActiveVideoAssetId((current) =>
+                            current === visualAssetId ? null : current,
+                          )
+                        }
+                      />
+                    ))}
+                  </section>
                 ))}
               </div>
             </Panel>

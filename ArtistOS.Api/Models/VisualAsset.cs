@@ -10,6 +10,8 @@ public class VisualAsset
 
     public Song Song { get; set; } = null!;
 
+    public Guid AssetFamilyId { get; set; } = Guid.NewGuid();
+
     [MaxLength(40)]
     public string Type { get; set; } = "CoverArt";
 

@@ -374,6 +374,238 @@ public class AssetFileUploadApiTests
         Assert.Null(saved.LinkedFile);
     }
 
+    [Fact]
+    public async Task Replace_audio_file_keeps_version_identity_and_detaches_old_reference()
+    {
+        var fakeDrive = new FakeGoogleDriveApiClient();
+        await using var factory = CreateFactory(fakeDrive: fakeDrive);
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var audioAsset = await CreateAudioAsset(client, song.Id);
+        await CreateGoogleConnectionAsync(factory, song.OwnerUserId!.Value);
+
+        var firstUpload = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{audioAsset.Id}/upload",
+            CreateMultipartFile("mix-v1.wav", "audio/wav", [1, 2, 3]));
+        firstUpload.EnsureSuccessStatusCode();
+        var linked = (await firstUpload.Content.ReadFromJsonAsync<AudioAssetResponse>())!;
+
+        await UpdateAudioStatusAsync(client, song.Id, linked, "Final");
+
+        var replace = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{audioAsset.Id}/replace-file",
+            CreateMultipartFile("mix-v1-fixed.wav", "audio/wav", [4, 5, 6, 7]));
+
+        replace.EnsureSuccessStatusCode();
+        var replaced = (await replace.Content.ReadFromJsonAsync<AudioAssetResponse>())!;
+        Assert.Equal(linked.Id, replaced.Id);
+        Assert.Equal(linked.AssetFamilyId, replaced.AssetFamilyId);
+        Assert.Equal(linked.Version, replaced.Version);
+        Assert.True(replaced.IsCurrent);
+        Assert.Equal("Review", replaced.Status);
+        Assert.Equal("mix-v1-fixed.wav", replaced.FileName);
+        Assert.Equal(4, replaced.FileSizeBytes);
+        Assert.NotNull(replaced.LinkedFile);
+        Assert.NotEqual(linked.LinkedFile!.Id, replaced.LinkedFile.Id);
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var oldReference = await dbContext.ExternalFileReferences.SingleAsync(
+            reference => reference.Id == linked.LinkedFile.Id);
+        var newReference = await dbContext.ExternalFileReferences.SingleAsync(
+            reference => reference.Id == replaced.LinkedFile.Id);
+        Assert.Null(oldReference.LinkedResourceType);
+        Assert.Null(oldReference.LinkedResourceId);
+        Assert.Equal("AudioAsset", newReference.LinkedResourceType);
+        Assert.Equal(audioAsset.Id, newReference.LinkedResourceId);
+        Assert.Equal(2, fakeDrive.UploadedFiles.Count);
+        Assert.Empty(fakeDrive.DeletedFileIds);
+    }
+
+    [Fact]
+    public async Task Replace_audio_file_preserves_draft_status_and_rejects_unlinked_asset()
+    {
+        await using var factory = CreateFactory();
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var audioAsset = await CreateAudioAsset(client, song.Id);
+        await CreateGoogleConnectionAsync(factory, song.OwnerUserId!.Value);
+
+        var unlinkedReplace = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{audioAsset.Id}/replace-file",
+            CreateMultipartFile("demo-fixed.wav", "audio/wav"));
+        Assert.Equal(HttpStatusCode.Conflict, unlinkedReplace.StatusCode);
+
+        var upload = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{audioAsset.Id}/upload",
+            CreateMultipartFile("demo.wav", "audio/wav"));
+        upload.EnsureSuccessStatusCode();
+
+        var replace = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{audioAsset.Id}/replace-file",
+            CreateMultipartFile("demo-fixed.wav", "audio/wav"));
+
+        replace.EnsureSuccessStatusCode();
+        var replaced = (await replace.Content.ReadFromJsonAsync<AudioAssetResponse>())!;
+        Assert.Equal("Draft", replaced.Status);
+        Assert.Equal(1, replaced.Version);
+    }
+
+    [Fact]
+    public async Task Replace_visual_file_keeps_version_identity_and_detaches_old_reference()
+    {
+        var fakeDrive = new FakeGoogleDriveApiClient();
+        await using var factory = CreateFactory(fakeDrive: fakeDrive);
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var visualAsset = await CreateVisualAsset(client, song.Id);
+        await CreateGoogleConnectionAsync(factory, song.OwnerUserId!.Value);
+
+        var firstUpload = await client.PostAsync(
+            $"/api/songs/{song.Id}/visual-assets/{visualAsset.Id}/upload",
+            CreateMultipartFile("cover-v1.png", "image/png", [1, 2, 3]));
+        firstUpload.EnsureSuccessStatusCode();
+        var linked = (await firstUpload.Content.ReadFromJsonAsync<VisualAssetResponse>())!;
+
+        await UpdateVisualStatusAsync(client, song.Id, linked, "Final");
+
+        var replace = await client.PostAsync(
+            $"/api/songs/{song.Id}/visual-assets/{visualAsset.Id}/replace-file",
+            CreateMultipartFile("cover-v1-fixed.png", "image/png", [8, 9]));
+
+        replace.EnsureSuccessStatusCode();
+        var replaced = (await replace.Content.ReadFromJsonAsync<VisualAssetResponse>())!;
+        Assert.Equal(linked.Id, replaced.Id);
+        Assert.Equal(linked.AssetFamilyId, replaced.AssetFamilyId);
+        Assert.Equal(linked.Version, replaced.Version);
+        Assert.True(replaced.IsCurrent);
+        Assert.Equal("Review", replaced.Status);
+        Assert.Equal("cover-v1-fixed.png", replaced.FileName);
+        Assert.Equal(2, replaced.FileSizeBytes);
+        Assert.NotNull(replaced.LinkedFile);
+        Assert.NotEqual(linked.LinkedFile!.Id, replaced.LinkedFile.Id);
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var oldReference = await dbContext.ExternalFileReferences.SingleAsync(
+            reference => reference.Id == linked.LinkedFile.Id);
+        var newReference = await dbContext.ExternalFileReferences.SingleAsync(
+            reference => reference.Id == replaced.LinkedFile.Id);
+        Assert.Null(oldReference.LinkedResourceType);
+        Assert.Null(oldReference.LinkedResourceId);
+        Assert.Equal("VisualAsset", newReference.LinkedResourceType);
+        Assert.Equal(visualAsset.Id, newReference.LinkedResourceId);
+        Assert.Equal(2, fakeDrive.UploadedFiles.Count);
+        Assert.Empty(fakeDrive.DeletedFileIds);
+    }
+
+    [Fact]
+    public async Task Replace_visual_file_preserves_in_progress_status()
+    {
+        await using var factory = CreateFactory();
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var visualAsset = await CreateVisualAsset(client, song.Id);
+        await CreateGoogleConnectionAsync(factory, song.OwnerUserId!.Value);
+
+        var upload = await client.PostAsync(
+            $"/api/songs/{song.Id}/visual-assets/{visualAsset.Id}/upload",
+            CreateMultipartFile("cut.mov", "video/quicktime"));
+        upload.EnsureSuccessStatusCode();
+        var linked = (await upload.Content.ReadFromJsonAsync<VisualAssetResponse>())!;
+        await UpdateVisualStatusAsync(client, song.Id, linked, "InProgress");
+
+        var replace = await client.PostAsync(
+            $"/api/songs/{song.Id}/visual-assets/{visualAsset.Id}/replace-file",
+            CreateMultipartFile("cut-fixed.mov", "video/quicktime"));
+
+        replace.EnsureSuccessStatusCode();
+        var replaced = (await replace.Content.ReadFromJsonAsync<VisualAssetResponse>())!;
+        Assert.Equal("InProgress", replaced.Status);
+        Assert.Equal(1, replaced.Version);
+    }
+
+    [Fact]
+    public async Task Replace_provider_failure_preserves_original_active_link()
+    {
+        var fakeDrive = new FakeGoogleDriveApiClient();
+        await using var factory = CreateFactory(fakeDrive: fakeDrive);
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var audioAsset = await CreateAudioAsset(client, song.Id);
+        await CreateGoogleConnectionAsync(factory, song.OwnerUserId!.Value);
+        var upload = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{audioAsset.Id}/upload",
+            CreateMultipartFile("demo.wav", "audio/wav"));
+        upload.EnsureSuccessStatusCode();
+        var linked = (await upload.Content.ReadFromJsonAsync<AudioAssetResponse>())!;
+
+        fakeDrive.FailUpload = true;
+        var replace = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{audioAsset.Id}/replace-file",
+            CreateMultipartFile("demo-fixed.wav", "audio/wav"));
+
+        Assert.Equal(HttpStatusCode.BadGateway, replace.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await dbContext.AudioAssets.SingleAsync(asset => asset.Id == audioAsset.Id);
+        var oldReference = await dbContext.ExternalFileReferences.SingleAsync(
+            reference => reference.Id == linked.LinkedFile!.Id);
+        Assert.Equal(linked.LinkedFile!.Id, saved.ExternalFileReferenceId);
+        Assert.Equal("AudioAsset", oldReference.LinkedResourceType);
+        Assert.Equal(audioAsset.Id, oldReference.LinkedResourceId);
+    }
+
+    [Fact]
+    public async Task Replace_persistence_failure_attempts_cleanup_and_preserves_original_link()
+    {
+        var fakeDrive = new FakeGoogleDriveApiClient();
+        await using var factory = CreateFactory(fakeDrive: fakeDrive);
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var audioAsset = await CreateAudioAsset(client, song.Id);
+        await CreateGoogleConnectionAsync(factory, song.OwnerUserId!.Value);
+        var upload = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{audioAsset.Id}/upload",
+            CreateMultipartFile("demo.wav", "audio/wav"));
+        upload.EnsureSuccessStatusCode();
+        var linked = (await upload.Content.ReadFromJsonAsync<AudioAssetResponse>())!;
+
+        fakeDrive.FixedUploadFileId = "duplicate-replacement-id";
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            dbContext.ExternalFileReferences.Add(new ExternalFileReference
+            {
+                OwnerUserId = song.OwnerUserId!.Value,
+                SongId = song.Id,
+                Provider = ExternalFileProviders.GoogleDrive,
+                ExternalId = "duplicate-replacement-id",
+                ResourceType = ExternalResourceTypes.AudioAssetFile,
+                IsFolder = false,
+                DisplayName = "existing.wav",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        var replace = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{audioAsset.Id}/replace-file",
+            CreateMultipartFile("demo-fixed.wav", "audio/wav"));
+
+        Assert.Equal(HttpStatusCode.InternalServerError, replace.StatusCode);
+        Assert.Contains("duplicate-replacement-id", fakeDrive.DeletedFileIds);
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await verifyDb.AudioAssets.SingleAsync(asset => asset.Id == audioAsset.Id);
+        var oldReference = await verifyDb.ExternalFileReferences.SingleAsync(
+            reference => reference.Id == linked.LinkedFile!.Id);
+        Assert.Equal(linked.LinkedFile!.Id, saved.ExternalFileReferenceId);
+        Assert.Equal("AudioAsset", oldReference.LinkedResourceType);
+        Assert.Equal(audioAsset.Id, oldReference.LinkedResourceId);
+    }
+
     private static ArtistOsApiFactory CreateFactory(
         FakeGoogleDriveOAuthClient? fakeGoogle = null,
         FakeGoogleDriveApiClient? fakeDrive = null)
@@ -463,6 +695,45 @@ public class AssetFileUploadApiTests
         });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<VisualAssetResponse>())!;
+    }
+
+    private static async Task UpdateAudioStatusAsync(
+        HttpClient client,
+        int songId,
+        AudioAssetResponse asset,
+        string status)
+    {
+        var response = await client.PutAsJsonAsync($"/api/songs/{songId}/audio-assets/{asset.Id}", new
+        {
+            type = asset.Type,
+            fileName = asset.FileName,
+            version = asset.Version,
+            status,
+            durationSeconds = asset.DurationSeconds,
+            fileSizeBytes = asset.FileSizeBytes,
+            isCurrent = asset.IsCurrent
+        });
+        response.EnsureSuccessStatusCode();
+    }
+
+    private static async Task UpdateVisualStatusAsync(
+        HttpClient client,
+        int songId,
+        VisualAssetResponse asset,
+        string status)
+    {
+        var response = await client.PutAsJsonAsync($"/api/songs/{songId}/visual-assets/{asset.Id}", new
+        {
+            type = asset.Type,
+            fileName = asset.FileName,
+            version = asset.Version,
+            status,
+            width = asset.Width,
+            height = asset.Height,
+            fileSizeBytes = asset.FileSizeBytes,
+            isCurrent = asset.IsCurrent
+        });
+        response.EnsureSuccessStatusCode();
     }
 
     private static async Task<DriveWorkspaceResponse> ProvisionWorkspace(HttpClient client, int songId)

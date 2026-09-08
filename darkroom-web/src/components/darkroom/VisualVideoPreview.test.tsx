@@ -21,6 +21,7 @@ vi.mock("@/services/api/visualAssets", () => ({
 const baseVideo: VisualAsset = {
   id: 22,
   songId: 1,
+  assetFamilyId: "visual-family-1",
   type: "MusicVideo",
   fileName: "official-video-v1.mp4",
   version: 1,

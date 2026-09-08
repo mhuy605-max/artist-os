@@ -14,6 +14,10 @@ export const audioAssetsApi = {
     return http.post<AudioAsset>(`/api/songs/${songId}/audio-assets`, payload);
   },
 
+  createAudioAssetVersion(songId: string, audioAssetId: string): Promise<AudioAsset> {
+    return http.post<AudioAsset>(`/api/songs/${songId}/audio-assets/${audioAssetId}/versions`, {});
+  },
+
   async updateAudioAsset(
     songId: string,
     audioAssetId: string,
@@ -32,6 +36,15 @@ export const audioAssetsApi = {
     formData.append("file", file);
     return http.form<AudioAsset>(
       `/api/songs/${songId}/audio-assets/${audioAssetId}/upload`,
+      formData,
+    );
+  },
+
+  replaceAudioAssetFile(songId: string, audioAssetId: string, file: File): Promise<AudioAsset> {
+    const formData = new FormData();
+    formData.append("file", file);
+    return http.form<AudioAsset>(
+      `/api/songs/${songId}/audio-assets/${audioAssetId}/replace-file`,
       formData,
     );
   },

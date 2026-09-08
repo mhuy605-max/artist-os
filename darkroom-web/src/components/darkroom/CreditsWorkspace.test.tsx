@@ -88,6 +88,8 @@ vi.mock("@/services/api/audioAssets", () => ({
     createAudioAsset: vi.fn(),
     updateAudioAsset: vi.fn(),
     deleteAudioAsset: vi.fn(),
+    createAudioAssetVersion: vi.fn(),
+    replaceAudioAssetFile: vi.fn(),
     uploadAudioAssetFile: vi.fn(),
   },
 }));
@@ -98,6 +100,8 @@ vi.mock("@/services/api/visualAssets", () => ({
     createVisualAsset: vi.fn(),
     updateVisualAsset: vi.fn(),
     deleteVisualAsset: vi.fn(),
+    createVisualAssetVersion: vi.fn(),
+    replaceVisualAssetFile: vi.fn(),
     uploadVisualAssetFile: vi.fn(),
     getVisualMediaAccess: vi.fn(),
   },

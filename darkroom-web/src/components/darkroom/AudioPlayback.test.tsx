@@ -40,6 +40,8 @@ vi.mock("@/services/api/audioAssets", () => ({
     updateAudioAsset: updateAudioAssetMock,
     deleteAudioAsset: deleteAudioAssetMock,
     uploadAudioAssetFile: uploadAudioAssetFileMock,
+    createAudioAssetVersion: vi.fn(),
+    replaceAudioAssetFile: vi.fn(),
     getAudioMediaAccess: getAudioMediaAccessMock,
   },
 }));
@@ -56,6 +58,7 @@ import { AudioWorkspace } from "./workbench/audio/AudioWorkspace";
 const baseAudio: AudioAsset = {
   id: 11,
   songId: 1,
+  assetFamilyId: "audio-family-1",
   type: "Demo",
   fileName: "demo.wav",
   version: 1,
@@ -357,14 +360,13 @@ describe("Audio playback", () => {
     expect(getAudioMediaAccessMock).toHaveBeenCalledTimes(1);
   });
 
-  it("does not render waveform, download, sync, or version controls", async () => {
+  it("does not render waveform, download, or sync controls", async () => {
     renderAudioWorkspace();
 
     expect(await screen.findByRole("button", { name: /play master.wav/i })).toBeInTheDocument();
     expect(screen.queryByText(/waveform/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /download/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /replace/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /new version/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /sync/i })).not.toBeInTheDocument();
   });
 
   it("has accessible playback and seek controls", async () => {

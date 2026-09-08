@@ -11,6 +11,7 @@ public static class AssetFileResponseMapper
         {
             Id = audioAsset.Id,
             SongId = audioAsset.SongId,
+            AssetFamilyId = audioAsset.AssetFamilyId,
             Type = audioAsset.Type,
             FileName = audioAsset.FileName,
             Version = audioAsset.Version,
@@ -29,6 +30,7 @@ public static class AssetFileResponseMapper
         {
             Id = visualAsset.Id,
             SongId = visualAsset.SongId,
+            AssetFamilyId = visualAsset.AssetFamilyId,
             Type = visualAsset.Type,
             FileName = visualAsset.FileName,
             Version = visualAsset.Version,

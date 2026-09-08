@@ -6,6 +6,8 @@ public class VisualAssetResponse
 
     public int SongId { get; set; }
 
+    public Guid AssetFamilyId { get; set; }
+
     public string Type { get; set; } = string.Empty;
 
     public string FileName { get; set; } = string.Empty;

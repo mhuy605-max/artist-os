@@ -402,6 +402,37 @@ public class MediaDeliveryApiTests
     }
 
     [Fact]
+    public async Task Old_audio_media_token_fails_after_file_replacement_and_new_access_streams_replacement()
+    {
+        var fakeDrive = new FakeGoogleDriveApiClient();
+        await using var factory = CreateFactory(fakeDrive: fakeDrive);
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var scenario = await CreateLinkedAudioScenarioAsync(
+            factory,
+            client,
+            bytes: [1, 2, 3]);
+        var oldAccess = await CreateAudioAccessAsync(client, scenario);
+
+        var replacement = new MultipartFormDataContent();
+        var file = new ByteArrayContent([7, 8, 9, 10]);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+        replacement.Add(file, "file", "demo-fixed.wav");
+        var replace = await client.PostAsync(
+            $"/api/songs/{scenario.Song.Id}/audio-assets/{scenario.AudioAsset!.Id}/replace-file",
+            replacement);
+        replace.EnsureSuccessStatusCode();
+
+        var oldResponse = await client.GetAsync(ToPathAndQuery(oldAccess.MediaUrl));
+        Assert.Equal(HttpStatusCode.NotFound, oldResponse.StatusCode);
+
+        var newAccess = await CreateAudioAccessAsync(client, scenario);
+        var newResponse = await client.GetAsync(ToPathAndQuery(newAccess.MediaUrl));
+
+        Assert.Equal(HttpStatusCode.OK, newResponse.StatusCode);
+        Assert.Equal([7, 8, 9, 10], await newResponse.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
     public async Task Provider_404_maps_safely()
     {
         var fakeDrive = new FakeGoogleDriveApiClient();

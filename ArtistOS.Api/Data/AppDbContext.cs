@@ -105,6 +105,12 @@ public class AppDbContext : DbContext
         {
             entity.HasIndex(audioAsset => audioAsset.SongId);
             entity.HasIndex(audioAsset => new { audioAsset.SongId, audioAsset.Type });
+            entity.HasIndex(audioAsset => new { audioAsset.AssetFamilyId, audioAsset.Version })
+                .IsUnique();
+            entity.HasIndex(audioAsset => audioAsset.AssetFamilyId)
+                .IsUnique()
+                .HasDatabaseName("IX_AudioAssets_AssetFamilyId_Current")
+                .HasFilter("\"IsCurrent\" = TRUE");
             entity.HasIndex(audioAsset => audioAsset.ExternalFileReferenceId);
 
             entity.HasOne(audioAsset => audioAsset.Song)
@@ -122,6 +128,12 @@ public class AppDbContext : DbContext
         {
             entity.HasIndex(visualAsset => visualAsset.SongId);
             entity.HasIndex(visualAsset => new { visualAsset.SongId, visualAsset.Type });
+            entity.HasIndex(visualAsset => new { visualAsset.AssetFamilyId, visualAsset.Version })
+                .IsUnique();
+            entity.HasIndex(visualAsset => visualAsset.AssetFamilyId)
+                .IsUnique()
+                .HasDatabaseName("IX_VisualAssets_AssetFamilyId_Current")
+                .HasFilter("\"IsCurrent\" = TRUE");
             entity.HasIndex(visualAsset => visualAsset.ExternalFileReferenceId);
 
             entity.HasOne(visualAsset => visualAsset.Song)

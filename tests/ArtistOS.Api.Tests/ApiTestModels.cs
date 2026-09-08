@@ -39,6 +39,8 @@ public sealed class AudioAssetResponse
 
     public int SongId { get; set; }
 
+    public Guid AssetFamilyId { get; set; }
+
     public string Type { get; set; } = string.Empty;
 
     public string FileName { get; set; } = string.Empty;
@@ -63,6 +65,8 @@ public sealed class VisualAssetResponse
     public int Id { get; set; }
 
     public int SongId { get; set; }
+
+    public Guid AssetFamilyId { get; set; }
 
     public string Type { get; set; } = string.Empty;
 

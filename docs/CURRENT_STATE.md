@@ -1,12 +1,12 @@
 # Artist OS Current State
 
-Last updated: 2026-09-07
+Last updated: 2026-09-08
 
 ## Current Phase
 
-Media Experience V2.3 — Video Preview Complete.
+Media Experience V2.4 — Asset Versioning & Replace File Complete.
 
-Current focus: Google Drive upload, secure backend media delivery, inline AudioAsset playback, inline image preview, and inline video preview for linked VisualAsset records are implemented. Authenticated DARKROOM SYSTEM users can request short-lived Artist OS media access URLs for owned linked audio, image, and video assets. The Audio workspace uses signed Artist OS URLs with a native browser audio element. The Visuals workspace uses signed Artist OS URLs with native image elements for PNG, JPEG, and WEBP previews, and native video elements for MP4, MOV, and WEBM preview attempts. Media URLs remain ephemeral runtime state and are not persisted in frontend storage. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, replace/version workflow, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, and production deployment remain future work.
+Current focus: Google Drive upload, secure backend media delivery, inline AudioAsset playback, inline image/video preview for linked VisualAsset records, explicit asset version families, new version creation, and linked-file replacement are implemented. Authenticated DARKROOM SYSTEM users can request short-lived Artist OS media access URLs for owned linked audio, image, and video assets. The Audio and Visuals workspaces group versions by `AssetFamilyId`, create metadata-only new versions, and expose Replace File only for linked assets. Media URLs remain ephemeral runtime state and are not persisted in frontend storage. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, and production deployment remain future work.
 
 ## Completed
 
@@ -240,6 +240,26 @@ Current focus: Google Drive upload, secure backend media delivery, inline AudioA
 - Metadata-only/unlinked VisualAsset records and image VisualAsset records do not render fake video playback or request video media access.
 - Focused frontend video preview tests cover linked/unlinked rendering, image/video separation, signed media URL use, no autoplay, play/pause, seek, duration/time updates, buffering/end/error states, disconnected/reauth guidance, codec/browser fallback, stale media access refresh/retry, one-active-video behavior, linked-file change invalidation, accessible controls, no signed URL persistence, and absence of download/version/transcoding/poster controls.
 - Media V2.3 verification on 2026-09-07: `dotnet build` passed, full `dotnet test` passed with 271 backend tests, `npm run lint` passed with 0 errors and the existing 8 Fast Refresh warnings, `npm run test` passed with 185 frontend tests, and `npm run build` passed with existing Vite/Nitro advisories.
+- Media Experience V2.4 Asset Versioning & Replace File implemented for AudioAsset and VisualAsset records.
+- `AssetFamilyId` added to AudioAsset and VisualAsset as the stable version-lineage identifier.
+- The `AddAssetVersionFamilies` EF Core migration was created and applied.
+- Existing VisualAsset rows are backfilled with one independent family per row.
+- Existing AudioAsset rows are backfilled into shared families only for unambiguous old `SongId + Type` groups; ambiguous groups safely receive one independent family per row.
+- Database constraints now enforce unique `(AssetFamilyId, Version)` values and at most one current row per asset family.
+- Normal Add Audio/Visual asset creates a new independent family with server-controlled version `1` and `IsCurrent = true`.
+- Audio and Visual metadata updates no longer let clients alter version number or current-version state.
+- `POST /api/songs/{songId}/audio-assets/{audioAssetId}/versions` creates a metadata-only next AudioAsset version in the same family, makes it current, demotes the previous current version, and leaves file/link metadata empty.
+- `POST /api/songs/{songId}/visual-assets/{visualAssetId}/versions` creates a metadata-only next VisualAsset version in the same family, makes it current, demotes the previous current version, and leaves file/link metadata empty.
+- New version numbers are server-generated as max existing family version plus one and are not reused after deletion.
+- `POST /api/songs/{songId}/audio-assets/{audioAssetId}/replace-file` replaces the linked file reference on the same AudioAsset row without changing id, family, version, type, or current state.
+- `POST /api/songs/{songId}/visual-assets/{visualAssetId}/replace-file` replaces the linked file reference on the same VisualAsset row without changing id, family, version, type, or current state.
+- Replace File requires an already-linked asset; unlinked assets return a conflict directing the user to upload first.
+- Replace File creates a new provider file and new `ExternalFileReference`, detaches the old file reference from active asset ownership, and intentionally does not delete the old Google Drive binary.
+- Replace File preserves Draft/Review/InProgress status and moves Approved/Final assets back to Review.
+- Deleting the current version promotes the highest remaining version in that family; deleting a historical version does not alter the current version.
+- Audio and Visuals tabs now group records by asset family, show version counts, expose Create New Version, and show Replace File only for linked records.
+- Metadata-only created versions show a clear no-file-attached state instead of fake upload/playback/preview controls.
+- Media V2.4 verification on 2026-09-08: `dotnet build` passed, full `dotnet test` passed with 293 backend tests, `npm run lint` passed with 0 errors and the existing 8 Fast Refresh warnings, `npm run test` passed with 190 frontend tests, and `npm run build` passed with existing Vite/Nitro advisories.
 - Focused Dashboard frontend tests were updated for the polished command-center labels and still cover success, empty, loading, error/retry, metrics, upcoming, readiness, analytics, recent activity, and navigation behavior.
 - Focused Songs frontend tests were updated for polished portfolio labels, empty/loading/error/retry states, search/lifecycle filtering, workspace row links, create validation, create failure display, and long-title rendering.
 - Song Workspace Overview Product Polish Sprint #3 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, or Google Drive architecture changes.
@@ -1441,6 +1461,7 @@ Current `AudioAssets` schema:
 
 - `Id` integer primary key, generated by PostgreSQL identity.
 - `SongId` integer, required, foreign key to `Songs`.
+- `AssetFamilyId` uuid, required.
 - `Type` character varying(40), required.
 - `FileName` character varying(255), required.
 - `Version` integer, required.
@@ -1450,11 +1471,14 @@ Current `AudioAssets` schema:
 - `UploadedAt` timestamp with time zone, required.
 - `IsCurrent` boolean, required.
 - `ExternalFileReferenceId` integer, optional, foreign key to `ExternalFileReferences`.
+- Unique index on (`AssetFamilyId`, `Version`).
+- Filtered unique current-version index on `AssetFamilyId` where `IsCurrent` is true.
 
 Current `VisualAssets` schema:
 
 - `Id` integer primary key, generated by PostgreSQL identity.
 - `SongId` integer, required, foreign key to `Songs`.
+- `AssetFamilyId` uuid, required.
 - `Type` character varying(40), required.
 - `FileName` character varying(255), required.
 - `Version` integer, required.
@@ -1465,6 +1489,8 @@ Current `VisualAssets` schema:
 - `UploadedAt` timestamp with time zone, required.
 - `IsCurrent` boolean, required.
 - `ExternalFileReferenceId` integer, optional, foreign key to `ExternalFileReferences`.
+- Unique index on (`AssetFamilyId`, `Version`).
+- Filtered unique current-version index on `AssetFamilyId` where `IsCurrent` is true.
 
 Current `Releases` schema:
 
@@ -2406,12 +2432,13 @@ Remote GitHub Actions status:
 - JWT access tokens are stored in `sessionStorage`, which is JavaScript-accessible; future production hardening must account for XSS risk.
 - Logout does not server-revoke already-issued stateless JWT access tokens.
 - Password reset, email verification, account management, refresh-token/session rotation, revocation, and rate limiting are not implemented yet.
-- The API does not yet enforce only one current AudioAsset per Song + Type.
-- The API does not yet enforce only one current VisualAsset per Song + Type.
+- The API now enforces one current AudioAsset per `AssetFamilyId`; it intentionally does not enforce one current AudioAsset per Song + Type because type is classification, not version lineage.
+- The API now enforces one current VisualAsset per `AssetFamilyId`; it intentionally does not enforce one current VisualAsset per Song + Type because type is classification, not version lineage.
 - Current upload limits are MVP/development application limits only; production hosting and reverse proxies will need matching request-size configuration.
 - Drive upload and PostgreSQL persistence are not one atomic transaction; the backend attempts best-effort Drive cleanup if persistence fails after upload succeeds.
 - Deleting AudioAsset or VisualAsset metadata does not automatically delete linked external Drive binaries.
-- Replacing an already-linked asset file is intentionally blocked until a version/replace workflow exists.
+- Replace File is implemented for linked assets; replacement audit history and old Google Drive binary cleanup remain future work.
+- Metadata-only new asset versions currently retain a non-null `UploadedAt` creation timestamp for schema compatibility even before a file is attached.
 - Media access URLs contain short-lived signed query tokens; avoid logging full media URLs/query strings in hosting, reverse-proxy, analytics, or browser telemetry.
 - Media V2.0 uses current stored MIME/size metadata for HEAD responses; it does not yet synchronize provider ETag, checksum, duration, dimensions, or generated preview metadata.
 - Image Preview V2.2 streams the original linked image through the existing secure media endpoint; generated thumbnails and image optimization remain future performance work.
@@ -2438,7 +2465,7 @@ Remote GitHub Actions status:
 
 - Team collaboration or permissions.
 - Password reset, email verification, social login, MFA, account management, and production session hardening.
-- Google Drive download-original, Drive browsing, Picker, synchronization, external file deletion, and replace/version workflow.
+- Google Drive download-original, Drive browsing, Picker, synchronization, external file deletion, and replacement audit/history views.
 - YouTube integration and automated analytics ingestion.
 - Waveform processing.
 - Generated thumbnails, image optimization, and generated video posters.

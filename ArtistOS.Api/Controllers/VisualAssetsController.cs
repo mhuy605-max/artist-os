@@ -96,15 +96,16 @@ public class VisualAssetsController : ControllerBase
         var visualAsset = new VisualAsset
         {
             SongId = songId,
+            AssetFamilyId = Guid.NewGuid(),
             Type = NormalizeType(request.Type),
             FileName = request.FileName.Trim(),
-            Version = request.Version,
+            Version = 1,
             Status = NormalizeStatus(request.Status),
             Width = request.Width,
             Height = request.Height,
             FileSizeBytes = request.FileSizeBytes,
             UploadedAt = DateTime.UtcNow,
-            IsCurrent = request.IsCurrent
+            IsCurrent = true
         };
 
         _context.VisualAssets.Add(visualAsset);
@@ -141,16 +142,87 @@ public class VisualAssetsController : ControllerBase
 
         existingVisualAsset.Type = NormalizeType(request.Type);
         existingVisualAsset.FileName = request.FileName.Trim();
-        existingVisualAsset.Version = request.Version;
         existingVisualAsset.Status = NormalizeStatus(request.Status);
         existingVisualAsset.Width = request.Width;
         existingVisualAsset.Height = request.Height;
         existingVisualAsset.FileSizeBytes = request.FileSizeBytes;
-        existingVisualAsset.IsCurrent = request.IsCurrent;
 
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    [HttpPost("{visualAssetId:int}/versions")]
+    public async Task<ActionResult<VisualAssetResponse>> CreateVisualAssetVersion(
+        int songId,
+        int visualAssetId,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+        var sourceAsset = await _context.VisualAssets
+            .FirstOrDefaultAsync(visualAsset =>
+                visualAsset.SongId == songId &&
+                visualAsset.Id == visualAssetId &&
+                visualAsset.Song.OwnerUserId == currentUserId,
+                cancellationToken);
+
+        if (sourceAsset is null)
+        {
+            return NotFound();
+        }
+
+        var familyAssets = await _context.VisualAssets
+            .Where(visualAsset =>
+                visualAsset.SongId == songId &&
+                visualAsset.AssetFamilyId == sourceAsset.AssetFamilyId)
+            .ToListAsync(cancellationToken);
+
+        var nextVersion = familyAssets.Max(visualAsset => visualAsset.Version) + 1;
+        foreach (var familyAsset in familyAssets)
+        {
+            familyAsset.IsCurrent = false;
+        }
+
+        var nextAsset = new VisualAsset
+        {
+            SongId = songId,
+            AssetFamilyId = sourceAsset.AssetFamilyId,
+            Type = sourceAsset.Type,
+            FileName = string.Empty,
+            Version = nextVersion,
+            Status = "Draft",
+            Width = null,
+            Height = null,
+            FileSizeBytes = null,
+            UploadedAt = DateTime.UtcNow,
+            IsCurrent = true,
+            ExternalFileReferenceId = null
+        };
+
+        _context.VisualAssets.Add(nextAsset);
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return Conflict(new { error = "A new version was created at the same time. Refresh and try again." });
+        }
+
+        return CreatedAtAction(
+            nameof(GetVisualAsset),
+            new { songId, visualAssetId = nextAsset.Id },
+            AssetFileResponseMapper.ToVisualAssetResponse(nextAsset));
     }
 
     [HttpPost("{visualAssetId:int}/upload")]
@@ -169,6 +241,31 @@ public class VisualAssetsController : ControllerBase
         }
 
         var result = await _uploadService.UploadVisualAssetAsync(
+            currentUserId.Value,
+            songId,
+            visualAssetId,
+            file,
+            cancellationToken);
+
+        return ToVisualUploadActionResult(result);
+    }
+
+    [HttpPost("{visualAssetId:int}/replace-file")]
+    [RequestSizeLimit(GoogleDriveUploadLimits.RequestBodyMaxBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = GoogleDriveUploadLimits.RequestBodyMaxBytes)]
+    public async Task<ActionResult<VisualAssetResponse>> ReplaceVisualAssetFile(
+        int songId,
+        int visualAssetId,
+        [FromForm] IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await _uploadService.ReplaceVisualAssetFileAsync(
             currentUserId.Value,
             songId,
             visualAssetId,
@@ -241,8 +338,35 @@ public class VisualAssetsController : ControllerBase
             return NotFound();
         }
 
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        var familyId = visualAsset.AssetFamilyId;
+        var wasCurrent = visualAsset.IsCurrent;
+
+        if (wasCurrent)
+        {
+            visualAsset.IsCurrent = false;
+            await _context.SaveChangesAsync();
+        }
+
         _context.VisualAssets.Remove(visualAsset);
         await _context.SaveChangesAsync();
+
+        if (wasCurrent)
+        {
+            var nextCurrent = await _context.VisualAssets
+                .Where(asset => asset.SongId == songId && asset.AssetFamilyId == familyId)
+                .OrderByDescending(asset => asset.Version)
+                .FirstOrDefaultAsync();
+
+            if (nextCurrent is not null)
+            {
+                nextCurrent.IsCurrent = true;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        await transaction.CommitAsync();
 
         return NoContent();
     }
@@ -264,6 +388,7 @@ public class VisualAssetsController : ControllerBase
             GoogleDriveAssetUploadStatus.UnsupportedFileType => BadRequest(new { error = result.Detail }),
             GoogleDriveAssetUploadStatus.FileTooLarge => BadRequest(new { error = result.Detail }),
             GoogleDriveAssetUploadStatus.AlreadyLinked => Conflict(new { error = result.Detail }),
+            GoogleDriveAssetUploadStatus.NotLinked => Conflict(new { error = result.Detail }),
             GoogleDriveAssetUploadStatus.GoogleDriveNotConnected => Problem(
                 title: "Google Drive is not connected.",
                 statusCode: StatusCodes.Status409Conflict),

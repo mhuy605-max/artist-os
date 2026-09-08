@@ -14,6 +14,13 @@ export const visualAssetsApi = {
     return http.post<VisualAsset>(`/api/songs/${songId}/visual-assets`, payload);
   },
 
+  createVisualAssetVersion(songId: string, visualAssetId: string): Promise<VisualAsset> {
+    return http.post<VisualAsset>(
+      `/api/songs/${songId}/visual-assets/${visualAssetId}/versions`,
+      {},
+    );
+  },
+
   async updateVisualAsset(
     songId: string,
     visualAssetId: string,
@@ -32,6 +39,15 @@ export const visualAssetsApi = {
     formData.append("file", file);
     return http.form<VisualAsset>(
       `/api/songs/${songId}/visual-assets/${visualAssetId}/upload`,
+      formData,
+    );
+  },
+
+  replaceVisualAssetFile(songId: string, visualAssetId: string, file: File): Promise<VisualAsset> {
+    const formData = new FormData();
+    formData.append("file", file);
+    return http.form<VisualAsset>(
+      `/api/songs/${songId}/visual-assets/${visualAssetId}/replace-file`,
       formData,
     );
   },

@@ -11,6 +11,7 @@ public enum GoogleDriveAssetUploadStatus
     UnsupportedFileType,
     FileTooLarge,
     AlreadyLinked,
+    NotLinked,
     GoogleDriveUnavailable,
     PersistenceFailed
 }

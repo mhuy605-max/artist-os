@@ -16,12 +16,12 @@ public class AudioAssetsApiTests
         {
             type = "mix",
             fileName = "  mix_v1.wav  ",
-            version = 1,
+            version = 7,
             status = "review",
             durationSeconds = 198,
             fileSizeBytes = 64700000,
             uploadedAt = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            isCurrent = true
+            isCurrent = false
         });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -30,6 +30,7 @@ public class AudioAssetsApiTests
         Assert.NotNull(asset);
         Assert.True(asset.Id > 0);
         Assert.Equal(song.Id, asset.SongId);
+        Assert.NotEqual(Guid.Empty, asset.AssetFamilyId);
         Assert.Equal("Mix", asset.Type);
         Assert.Equal("mix_v1.wav", asset.FileName);
         Assert.Equal(1, asset.Version);
@@ -206,7 +207,7 @@ public class AudioAssetsApiTests
         {
             type = "master",
             fileName = "master_v2.wav",
-            version = 2,
+            version = 9,
             status = "final",
             durationSeconds = 201,
             fileSizeBytes = 66000000,
@@ -221,11 +222,11 @@ public class AudioAssetsApiTests
         Assert.NotNull(updated);
         Assert.Equal("Master", updated.Type);
         Assert.Equal("master_v2.wav", updated.FileName);
-        Assert.Equal(2, updated.Version);
+        Assert.Equal(asset.Version, updated.Version);
         Assert.Equal("Final", updated.Status);
         Assert.Equal(201, updated.DurationSeconds);
         Assert.Equal(66000000, updated.FileSizeBytes);
-        Assert.False(updated.IsCurrent);
+        Assert.Equal(asset.IsCurrent, updated.IsCurrent);
         Assert.Equal(asset.UploadedAt, updated.UploadedAt);
     }
 
@@ -340,6 +341,154 @@ public class AudioAssetsApiTests
         Assert.All(assets, asset => Assert.Equal(song.Id, asset.SongId));
         Assert.Contains(assets, asset => asset.Id == mix.Id);
         Assert.Contains(assets, asset => asset.Id == master.Id);
+    }
+
+    [Fact]
+    public async Task CreateAudioAssetVersion_CreatesDraftCurrentMetadataOnlyVersionInSameFamily()
+    {
+        await using var factory = new ArtistOsApiFactory();
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var v1 = await CreateAudioAsset(client, song.Id, "Mix", "mix_v1.wav");
+
+        var response = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{v1.Id}/versions",
+            null);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var v2 = await response.Content.ReadFromJsonAsync<AudioAssetResponse>();
+        Assert.NotNull(v2);
+        Assert.NotEqual(v1.Id, v2.Id);
+        Assert.Equal(v1.AssetFamilyId, v2.AssetFamilyId);
+        Assert.Equal("Mix", v2.Type);
+        Assert.Equal("", v2.FileName);
+        Assert.Equal(2, v2.Version);
+        Assert.Equal("Draft", v2.Status);
+        Assert.True(v2.IsCurrent);
+        Assert.Null(v2.DurationSeconds);
+        Assert.Null(v2.FileSizeBytes);
+        Assert.Null(v2.LinkedFile);
+
+        var assets = await client.GetFromJsonAsync<List<AudioAssetResponse>>(
+            $"/api/songs/{song.Id}/audio-assets");
+        Assert.NotNull(assets);
+        Assert.False(assets.Single(asset => asset.Id == v1.Id).IsCurrent);
+    }
+
+    [Fact]
+    public async Task CreateAudioAssetVersion_UsesMaxHistoricalVersionAndDoesNotReuseDeletedVersion()
+    {
+        await using var factory = new ArtistOsApiFactory();
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var v1 = await CreateAudioAsset(client, song.Id, "Mix", "mix_v1.wav");
+        var v2 = (await (await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{v1.Id}/versions",
+            null)).Content.ReadFromJsonAsync<AudioAssetResponse>())!;
+        var v3 = (await (await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{v2.Id}/versions",
+            null)).Content.ReadFromJsonAsync<AudioAssetResponse>())!;
+
+        var deleteV2 = await client.DeleteAsync($"/api/songs/{song.Id}/audio-assets/{v2.Id}");
+        var createAfterDelete = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{v3.Id}/versions",
+            null);
+
+        deleteV2.EnsureSuccessStatusCode();
+        var v4 = await createAfterDelete.Content.ReadFromJsonAsync<AudioAssetResponse>();
+        Assert.NotNull(v4);
+        Assert.Equal(4, v4.Version);
+    }
+
+    [Fact]
+    public async Task CreateAudioAssetVersion_ForMissingAsset_ReturnsNotFound()
+    {
+        await using var factory = new ArtistOsApiFactory();
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+
+        var response = await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/999999/versions",
+            null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateAudioAssetVersion_ForCrossUserAsset_ReturnsNotFound()
+    {
+        await using var factory = new ArtistOsApiFactory();
+        using var userA = await factory.CreateAuthenticatedClientAsync("a@example.com");
+        using var userB = await factory.CreateAuthenticatedClientAsync("b@example.com");
+        var song = await CreateSong(userA);
+        var asset = await CreateAudioAsset(userA, song.Id);
+
+        var response = await userB.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{asset.Id}/versions",
+            null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteCurrentAudioAsset_PromotesHighestRemainingVersion()
+    {
+        await using var factory = new ArtistOsApiFactory();
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var v1 = await CreateAudioAsset(client, song.Id, "Mix", "mix_v1.wav");
+        var v2 = (await (await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{v1.Id}/versions",
+            null)).Content.ReadFromJsonAsync<AudioAssetResponse>())!;
+        var v3 = (await (await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{v2.Id}/versions",
+            null)).Content.ReadFromJsonAsync<AudioAssetResponse>())!;
+
+        var response = await client.DeleteAsync($"/api/songs/{song.Id}/audio-assets/{v3.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var assets = await client.GetFromJsonAsync<List<AudioAssetResponse>>(
+            $"/api/songs/{song.Id}/audio-assets");
+        Assert.NotNull(assets);
+        Assert.True(assets.Single(asset => asset.Id == v2.Id).IsCurrent);
+        Assert.False(assets.Single(asset => asset.Id == v1.Id).IsCurrent);
+    }
+
+    [Fact]
+    public async Task DeleteHistoricalAudioAsset_DoesNotAlterCurrentVersion()
+    {
+        await using var factory = new ArtistOsApiFactory();
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var v1 = await CreateAudioAsset(client, song.Id, "Mix", "mix_v1.wav");
+        var v2 = (await (await client.PostAsync(
+            $"/api/songs/{song.Id}/audio-assets/{v1.Id}/versions",
+            null)).Content.ReadFromJsonAsync<AudioAssetResponse>())!;
+
+        var response = await client.DeleteAsync($"/api/songs/{song.Id}/audio-assets/{v1.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var current = await client.GetFromJsonAsync<AudioAssetResponse>(
+            $"/api/songs/{song.Id}/audio-assets/{v2.Id}");
+        Assert.NotNull(current);
+        Assert.True(current.IsCurrent);
+    }
+
+    [Fact]
+    public async Task DeleteOnlyAudioAssetVersion_RemovesFamilyRows()
+    {
+        await using var factory = new ArtistOsApiFactory();
+        using var client = await factory.CreateAuthenticatedClientAsync();
+        var song = await CreateSong(client);
+        var asset = await CreateAudioAsset(client, song.Id, "Mix", "mix_v1.wav");
+
+        var response = await client.DeleteAsync($"/api/songs/{song.Id}/audio-assets/{asset.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var assets = await client.GetFromJsonAsync<List<AudioAssetResponse>>(
+            $"/api/songs/{song.Id}/audio-assets");
+        Assert.NotNull(assets);
+        Assert.Empty(assets);
     }
 
     private static async Task<SongResponse> CreateSong(HttpClient client)

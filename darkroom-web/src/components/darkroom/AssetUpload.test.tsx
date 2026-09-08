@@ -15,11 +15,15 @@ const {
   updateAudioAssetMock,
   deleteAudioAssetMock,
   uploadAudioAssetFileMock,
+  createAudioAssetVersionMock,
+  replaceAudioAssetFileMock,
   getVisualAssetsMock,
   createVisualAssetMock,
   updateVisualAssetMock,
   deleteVisualAssetMock,
   uploadVisualAssetFileMock,
+  createVisualAssetVersionMock,
+  replaceVisualAssetFileMock,
   getWorkspaceMock,
   provisionWorkspaceMock,
   getReleaseMock,
@@ -37,11 +41,15 @@ const {
   updateAudioAssetMock: vi.fn(),
   deleteAudioAssetMock: vi.fn(),
   uploadAudioAssetFileMock: vi.fn(),
+  createAudioAssetVersionMock: vi.fn(),
+  replaceAudioAssetFileMock: vi.fn(),
   getVisualAssetsMock: vi.fn(),
   createVisualAssetMock: vi.fn(),
   updateVisualAssetMock: vi.fn(),
   deleteVisualAssetMock: vi.fn(),
   uploadVisualAssetFileMock: vi.fn(),
+  createVisualAssetVersionMock: vi.fn(),
+  replaceVisualAssetFileMock: vi.fn(),
   getWorkspaceMock: vi.fn(),
   provisionWorkspaceMock: vi.fn(),
   getReleaseMock: vi.fn(),
@@ -98,6 +106,8 @@ vi.mock("@/services/api/audioAssets", () => ({
     updateAudioAsset: updateAudioAssetMock,
     deleteAudioAsset: deleteAudioAssetMock,
     uploadAudioAssetFile: uploadAudioAssetFileMock,
+    createAudioAssetVersion: createAudioAssetVersionMock,
+    replaceAudioAssetFile: replaceAudioAssetFileMock,
   },
 }));
 
@@ -108,6 +118,8 @@ vi.mock("@/services/api/visualAssets", () => ({
     updateVisualAsset: updateVisualAssetMock,
     deleteVisualAsset: deleteVisualAssetMock,
     uploadVisualAssetFile: uploadVisualAssetFileMock,
+    createVisualAssetVersion: createVisualAssetVersionMock,
+    replaceVisualAssetFile: replaceVisualAssetFileMock,
     getVisualMediaAccess: vi.fn(),
   },
 }));
@@ -186,6 +198,7 @@ const song: Song = {
 const metadataOnlyAudio: AudioAsset = {
   id: 11,
   songId: 1,
+  assetFamilyId: "audio-family-1",
   type: "Demo",
   fileName: "metadata.wav",
   version: 1,
@@ -218,6 +231,7 @@ const linkedAudio: AudioAsset = {
 const metadataOnlyVisual: VisualAsset = {
   id: 21,
   songId: 1,
+  assetFamilyId: "visual-family-1",
   type: "CoverArt",
   fileName: "cover.png",
   version: 1,
@@ -288,11 +302,15 @@ describe("Song workspace asset file upload", () => {
     updateAudioAssetMock.mockReset();
     deleteAudioAssetMock.mockReset();
     uploadAudioAssetFileMock.mockReset();
+    createAudioAssetVersionMock.mockReset();
+    replaceAudioAssetFileMock.mockReset();
     getVisualAssetsMock.mockReset();
     createVisualAssetMock.mockReset();
     updateVisualAssetMock.mockReset();
     deleteVisualAssetMock.mockReset();
     uploadVisualAssetFileMock.mockReset();
+    createVisualAssetVersionMock.mockReset();
+    replaceVisualAssetFileMock.mockReset();
     getWorkspaceMock.mockReset();
     provisionWorkspaceMock.mockReset();
     getReleaseMock.mockReset();
@@ -312,10 +330,47 @@ describe("Song workspace asset file upload", () => {
     createAudioAssetMock.mockResolvedValue(metadataOnlyAudio);
     updateAudioAssetMock.mockResolvedValue(metadataOnlyAudio);
     deleteAudioAssetMock.mockResolvedValue(undefined);
+    createAudioAssetVersionMock.mockResolvedValue({
+      ...metadataOnlyAudio,
+      id: 12,
+      fileName: "",
+      version: 2,
+      status: "Draft",
+      durationSeconds: null,
+      fileSizeBytes: null,
+      linkedFile: null,
+    });
+    replaceAudioAssetFileMock.mockResolvedValue({
+      ...linkedAudio,
+      fileName: "master-fixed.wav",
+      status: "Review",
+      linkedFile: linkedAudio.linkedFile
+        ? { ...linkedAudio.linkedFile, id: 94, displayName: "master-fixed.wav" }
+        : null,
+    });
     getVisualAssetsMock.mockResolvedValue([]);
     createVisualAssetMock.mockResolvedValue(metadataOnlyVisual);
     updateVisualAssetMock.mockResolvedValue(metadataOnlyVisual);
     deleteVisualAssetMock.mockResolvedValue(undefined);
+    createVisualAssetVersionMock.mockResolvedValue({
+      ...metadataOnlyVisual,
+      id: 24,
+      fileName: "",
+      version: 2,
+      status: "Draft",
+      width: null,
+      height: null,
+      fileSizeBytes: null,
+      linkedFile: null,
+    });
+    replaceVisualAssetFileMock.mockResolvedValue({
+      ...linkedVisual,
+      fileName: "cover-fixed.png",
+      status: "Review",
+      linkedFile: linkedVisual.linkedFile
+        ? { ...linkedVisual.linkedFile, id: 95, displayName: "cover-fixed.png" }
+        : null,
+    });
     getWorkspaceMock.mockResolvedValue({
       isProvisioned: true,
       googleDriveStatus: "Connected",
@@ -367,7 +422,54 @@ describe("Song workspace asset file upload", () => {
       "https://drive.google.test/file/91",
     );
     expect(screen.queryByRole("button", { name: /upload file/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /replace file/i })).toBeInTheDocument();
     expect(screen.queryByText(/access-token/i)).not.toBeInTheDocument();
+  });
+
+  it("creates a new audio version from the selected asset family", async () => {
+    getAudioAssetsMock.mockResolvedValue([
+      { ...linkedAudio, version: 1, isCurrent: true, assetFamilyId: "audio-family-mix" },
+    ]);
+    const user = userEvent.setup();
+
+    renderWithQueryClient(<SongWorkspacePage songId="1" />);
+
+    await user.click(await screen.findByRole("tab", { name: "audio" }));
+    await user.click(await screen.findByRole("button", { name: /create new version/i }));
+    expect(
+      screen.getByText(
+        "Preserve v1 and start a new creative revision. The new version becomes current, starts as Draft, and will need its own uploaded file.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /create version/i }));
+
+    await waitFor(() => {
+      expect(createAudioAssetVersionMock).toHaveBeenCalledWith("1", "11");
+    });
+  });
+
+  it("replaces a linked audio file without using the normal upload endpoint", async () => {
+    getAudioAssetsMock.mockResolvedValue([linkedAudio]);
+    const user = userEvent.setup();
+
+    const { container } = renderWithQueryClient(<SongWorkspacePage songId="1" />);
+
+    await user.click(await screen.findByRole("tab", { name: "audio" }));
+    await user.click(await screen.findByRole("button", { name: /replace file/i }));
+    expect(
+      screen.getByText(
+        "Keep v1, but replace its uploaded file. Approved or Final versions may return to Review, and the old Drive file is not deleted.",
+      ),
+    ).toBeInTheDocument();
+    const file = new File(["fixed"], "master-fixed.wav", { type: "audio/wav" });
+    const inputs = document.querySelectorAll('input[type="file"]');
+    await user.upload(inputs[inputs.length - 1] as HTMLInputElement, file);
+    await user.click(screen.getByRole("button", { name: /^replace file$/i }));
+
+    await waitFor(() => {
+      expect(replaceAudioAssetFileMock).toHaveBeenCalledWith("1", "11", file);
+    });
+    expect(uploadAudioAssetFileMock).not.toHaveBeenCalled();
   });
 
   it("shows product upload guidance for backend failures without raw trace details", async () => {
@@ -453,7 +555,7 @@ describe("Song workspace asset file upload", () => {
         status: "Draft",
         durationSeconds: null,
         fileSizeBytes: null,
-        isCurrent: false,
+        isCurrent: true,
       });
     });
     expect(screen.queryByText(/storage is not implemented/i)).not.toBeInTheDocument();
@@ -485,7 +587,10 @@ describe("Song workspace asset file upload", () => {
   });
 
   it("explains delete behavior for linked and metadata-only audio assets", async () => {
-    getAudioAssetsMock.mockResolvedValue([metadataOnlyAudio, { ...linkedAudio, id: 12 }]);
+    getAudioAssetsMock.mockResolvedValue([
+      { ...metadataOnlyAudio, isCurrent: false },
+      { ...linkedAudio, id: 12 },
+    ]);
     const user = userEvent.setup();
 
     renderWithQueryClient(<SongWorkspacePage songId="1" />);
@@ -493,14 +598,14 @@ describe("Song workspace asset file upload", () => {
     await user.click(await screen.findByRole("tab", { name: "audio" }));
     const deleteButtons = await screen.findAllByRole("button", { name: /delete/i });
 
-    await user.click(deleteButtons[0]);
+    await user.click(deleteButtons[1]);
     expect(screen.getByText("This removes the asset from DARKROOM SYSTEM.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /cancel/i }));
 
-    await user.click(deleteButtons[1]);
+    await user.click(deleteButtons[0]);
     expect(
       screen.getByText(
-        "This removes the asset from DARKROOM SYSTEM. The linked Google Drive file will remain.",
+        "Deleting the current version will make the previous highest version current. The Google Drive file is not deleted.",
       ),
     ).toBeInTheDocument();
   });
@@ -681,8 +786,89 @@ describe("Song workspace asset file upload", () => {
       "https://drive.google.test/file/92",
     );
     expect(screen.queryByRole("button", { name: /upload file/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /replace file/i }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/access-token/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/refresh-token/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps same-type visual families visually separate", async () => {
+    getVisualAssetsMock.mockResolvedValue([
+      {
+        ...metadataOnlyVisual,
+        id: 30,
+        type: "PromoAsset",
+        fileName: "release-poster-v1.png",
+        assetFamilyId: "visual-family-release-poster",
+      },
+      {
+        ...metadataOnlyVisual,
+        id: 31,
+        type: "PromoAsset",
+        fileName: "tour-poster-v1.png",
+        assetFamilyId: "visual-family-tour-poster",
+      },
+    ]);
+
+    renderWithQueryClient(<SongWorkspacePage songId="1" />);
+
+    await userEvent.click(await screen.findByRole("tab", { name: "visuals" }));
+
+    expect(await screen.findByRole("heading", { name: "Promo Asset" })).toBeInTheDocument();
+    expect(screen.getByText("VERSION FAMILY 1")).toBeInTheDocument();
+    expect(screen.getByText("VERSION FAMILY 2")).toBeInTheDocument();
+    expect(screen.getByText("release-poster-v1.png")).toBeInTheDocument();
+    expect(screen.getByText("tour-poster-v1.png")).toBeInTheDocument();
+  });
+
+  it("groups visual versions only when assetFamilyId matches", async () => {
+    getVisualAssetsMock.mockResolvedValue([
+      {
+        ...linkedVisual,
+        id: 40,
+        version: 2,
+        isCurrent: true,
+        assetFamilyId: "visual-family-cover-chain",
+      },
+      {
+        ...metadataOnlyVisual,
+        id: 39,
+        version: 1,
+        isCurrent: false,
+        assetFamilyId: "visual-family-cover-chain",
+      },
+    ]);
+
+    renderWithQueryClient(<SongWorkspacePage songId="1" />);
+
+    await userEvent.click(await screen.findByRole("tab", { name: "visuals" }));
+
+    expect(await screen.findByText("2 versions")).toBeInTheDocument();
+    expect(screen.getByText("Cover Art / V2")).toBeInTheDocument();
+    expect(screen.getByText("Cover Art / V1")).toBeInTheDocument();
+  });
+
+  it("creates a new visual version and sends visual replacement files", async () => {
+    getVisualAssetsMock.mockResolvedValue([linkedVisual]);
+    const user = userEvent.setup();
+    const { container } = renderWithQueryClient(<SongWorkspacePage songId="1" />);
+
+    await user.click(await screen.findByRole("tab", { name: "visuals" }));
+    await user.click(await screen.findByRole("button", { name: /create new version/i }));
+    await user.click(screen.getByRole("button", { name: /create version/i }));
+
+    await waitFor(() => {
+      expect(createVisualAssetVersionMock).toHaveBeenCalledWith("1", "22");
+    });
+
+    await user.click(screen.getByRole("button", { name: /replace file/i }));
+    const file = new File(["png"], "cover-fixed.png", { type: "image/png" });
+    const inputs = document.querySelectorAll('input[type="file"]');
+    await user.upload(inputs[inputs.length - 1] as HTMLInputElement, file);
+    await user.click(screen.getByRole("button", { name: /^replace file$/i }));
+
+    await waitFor(() => {
+      expect(replaceVisualAssetFileMock).toHaveBeenCalledWith("1", "22", file);
+    });
   });
 
   it("shows product visual upload guidance for backend failures without raw trace details", async () => {
@@ -723,7 +909,9 @@ describe("Song workspace asset file upload", () => {
     await userEvent.click(screen.getByRole("button", { name: /upload file/i }));
 
     expect(
-      await screen.findByText("File already linked. Replacing files is not available yet."),
+      await screen.findByText(
+        "File already linked. Use Replace File to swap the Drive file for this version.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -752,7 +940,7 @@ describe("Song workspace asset file upload", () => {
         width: 3000,
         height: 3000,
         fileSizeBytes: null,
-        isCurrent: false,
+        isCurrent: true,
       });
     });
     expect(screen.queryByText(/storage is not implemented/i)).not.toBeInTheDocument();
@@ -786,7 +974,10 @@ describe("Song workspace asset file upload", () => {
   });
 
   it("explains delete behavior for linked and metadata-only visual assets", async () => {
-    getVisualAssetsMock.mockResolvedValue([metadataOnlyVisual, linkedVisual]);
+    getVisualAssetsMock.mockResolvedValue([
+      { ...metadataOnlyVisual, isCurrent: false },
+      linkedVisual,
+    ]);
     const user = userEvent.setup();
 
     renderWithQueryClient(<SongWorkspacePage songId="1" />);
@@ -794,14 +985,14 @@ describe("Song workspace asset file upload", () => {
     await user.click(await screen.findByRole("tab", { name: "visuals" }));
     const deleteButtons = await screen.findAllByRole("button", { name: /delete/i });
 
-    await user.click(deleteButtons[0]);
+    await user.click(deleteButtons[1]);
     expect(screen.getByText("This removes the asset from DARKROOM SYSTEM.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /cancel/i }));
 
-    await user.click(deleteButtons[1]);
+    await user.click(deleteButtons[0]);
     expect(
       screen.getByText(
-        "This removes the asset from DARKROOM SYSTEM. The linked Google Drive file will remain.",
+        "Deleting the current version will make the previous highest version current. The Google Drive file is not deleted.",
       ),
     ).toBeInTheDocument();
   });
