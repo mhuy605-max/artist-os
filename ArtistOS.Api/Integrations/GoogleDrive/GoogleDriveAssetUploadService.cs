@@ -515,7 +515,7 @@ public class GoogleDriveAssetUploadService
         {
             return await _driveClient.UploadFileAsync(
                 uploadContext.AccessToken,
-                Path.GetFileName(file.FileName),
+                GetSafeFileName(file.FileName),
                 uploadContext.TargetFolderId,
                 file.ContentType,
                 stream,
@@ -713,7 +713,7 @@ public class GoogleDriveAssetUploadService
                 "The selected file is empty.");
         }
 
-        var fileName = Path.GetFileName(file.FileName);
+        var fileName = GetSafeFileName(file.FileName);
         if (string.IsNullOrWhiteSpace(fileName))
         {
             return GoogleDriveAssetUploadResult.Failure(
@@ -770,6 +770,11 @@ public class GoogleDriveAssetUploadService
             !string.IsNullOrWhiteSpace(mimeType) &&
             allowedMimeTypesByExtension.TryGetValue(extension, out var allowedMimeTypes) &&
             allowedMimeTypes.Contains(mimeType, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string GetSafeFileName(string fileName)
+    {
+        return Path.GetFileName(fileName.Replace('\\', '/'));
     }
 
     private static bool IsVideoExtension(string extension)
