@@ -4,9 +4,9 @@ Last updated: 2026-09-09
 
 ## Current Phase
 
-Product V1 Feature Freeze Complete. Application Security Hardening S2 completed.
+Product V1 Feature Freeze Complete. Security S4A local application verification completed.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, and app-owned Security S2 hardening. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. Collaboration, generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security hardening, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. S4A found no remaining application-owned P0/P1 security findings. Collaboration, generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
@@ -289,6 +289,10 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - API security headers are applied, including `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, and production `Strict-Transport-Security` plus API CSP.
 - Data Protection now has a stable application-name configuration and a production key-ring path hook; non-Development startup fails when the key-ring path is missing.
 - Focused backend security-hardening tests were added for auth/API/media/upload limits, password bounds, trusted public URL behavior, production CORS/security headers, callback redirects, and production Data Protection startup validation.
+- Security S4A local attack-oriented application verification completed without runtime application code changes, schema changes, migrations, product features, deployment work, cloud resources, provider selection, commits, or pushes.
+- S4A added focused backend attack-verification tests for JWT tampering variants, hostile CORS origin behavior, malicious Host safety for media URLs, Data Protection restart persistence, Data Protection purpose isolation, double-extension/path-segment upload filenames, malformed/multi-range media requests, intentional short-lived media-token replay behavior, and production-like security headers.
+- S4A frontend inspection found no user-controlled raw HTML or Markdown rendering path. The existing `dangerouslySetInnerHTML` usage is limited to chart CSS variable style generation from chart configuration.
+- S4A local server probe found no running frontend on `http://localhost:8080` and no running backend on `http://localhost:5178`, so optional browser smoke was not performed in this verification pass.
 - Focused Dashboard frontend tests were updated for the polished command-center labels and still cover success, empty, loading, error/retry, metrics, upcoming, readiness, analytics, recent activity, and navigation behavior.
 - Focused Songs frontend tests were updated for polished portfolio labels, empty/loading/error/retry states, search/lifecycle filtering, workspace row links, create validation, create failure display, and long-title rendering.
 - Song Workspace Overview Product Polish Sprint #3 completed as a frontend-only refinement with no backend API contract, endpoint, schema, migration, auth, ownership, or Google Drive architecture changes.
@@ -1761,6 +1765,33 @@ Automated tests:
 - Google Drive workspace behavior has automated backend coverage for unauthenticated access, owned Song provisioning, cross-user `404`, missing Google connection, `ReauthRequired` connection, root provisioning, idempotent repeated provisioning, Song folder creation, persisted external reference reuse, deleted root recovery, deleted Song folder recovery, connection ownership isolation, refresh failure reauth marking, and no-token API responses.
 - Google Drive Settings behavior has automated frontend coverage for disconnected, connected, reconnect-needed, connect navigation, disconnect mutation, API error, and no-token-rendering states.
 - Security hardening behavior has automated backend coverage for auth rate limiting, normal API rate limiting, aggregate rate limiting, media stream rate limiting, upload concurrency limiting, password length bounds, trusted public URL generation, production CORS/security headers, callback redirect URL trust, and production Data Protection startup validation.
+- Security S4A attack-verification behavior has automated backend coverage for JWT tampering variants, hostile CORS origin behavior, malicious Host safety for media URLs, Data Protection restart persistence, Data Protection purpose isolation, double-extension/path-segment upload filenames, malformed/multi-range media requests, accepted short-lived media-token replay, and production-like security headers.
+
+Verification run during the Security S4A Local Attack-Oriented Application Security Verification milestone:
+
+```text
+dotnet build ArtistOS.slnx
+dotnet test ArtistOS.slnx
+npm run lint
+npm run test
+npm run build
+frontend/backend localhost availability probe
+frontend unsafe-rendering scan
+backend sensitive-logging scan
+```
+
+Results:
+
+```text
+dotnet build ArtistOS.slnx: succeeded, 0 warnings, 0 errors.
+dotnet test ArtistOS.slnx: succeeded, 336 passed, 0 failed, 0 skipped.
+npm run lint: completed with 0 errors and 8 existing Fast Refresh warnings.
+npm run test: succeeded, 195 passed, 0 failed, 0 skipped.
+npm run build: succeeded with existing Vite/Nitro advisories.
+localhost probe: frontend and backend were not running, so optional browser smoke was not performed.
+frontend unsafe-rendering scan: no user-controlled raw HTML/Markdown rendering path found.
+backend sensitive-logging scan: no intentional logging of JWTs, Google tokens, OAuth codes/state, PKCE verifier, signed media tokens, JWT signing key, Google ClientSecret, or DB password found.
+```
 
 Verification run during the Application Security Hardening S2 milestone:
 
@@ -2588,10 +2619,10 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-Security S3 - Infrastructure / DDoS Security Requirements.
+Deployment Architecture - Provider Evaluation Against S3 Security Contract.
 
 Suggested scope:
 
-- Define infrastructure-level controls for CDN/WAF/rate limiting, reverse-proxy query redaction, trusted ingress, production secrets, Data Protection key storage, PostgreSQL hosting/TLS/private networking, backup/restore, monitoring, and deployment security.
-- Keep product scope frozen while security risks are identified and prioritized.
-- Preserve the connected-Google-Drive Replace File checkpoint as verification debt; do not reopen product scope for new features.
+- Compare hosting options against the S3 vendor-neutral security contract.
+- Do not deploy, create cloud resources, or choose providers until the architecture comparison is explicitly approved.
+- Preserve S4B infrastructure security verification as a staging-only follow-up after a deployment target exists.
