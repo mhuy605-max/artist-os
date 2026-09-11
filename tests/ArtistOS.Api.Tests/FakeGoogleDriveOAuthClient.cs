@@ -21,6 +21,8 @@ public class FakeGoogleDriveOAuthClient : IGoogleDriveOAuthClient
 
     public List<string> RevokedTokens { get; } = [];
 
+    public List<(string UserId, string RefreshToken)> RefreshRequests { get; } = [];
+
     public string LastCodeVerifier { get; private set; } = string.Empty;
 
     public string LastExchangedCodeVerifier { get; private set; } = string.Empty;
@@ -69,6 +71,8 @@ public class FakeGoogleDriveOAuthClient : IGoogleDriveOAuthClient
         string refreshToken,
         CancellationToken cancellationToken)
     {
+        RefreshRequests.Add((userId, refreshToken));
+
         if (FailRefresh)
         {
             throw new InvalidOperationException("Fake Google refresh failed.");

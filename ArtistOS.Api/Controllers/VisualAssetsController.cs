@@ -441,6 +441,7 @@ public class VisualAssetsController : ControllerBase
         {
             GoogleDriveAssetUploadStatus.Success => result.VisualAsset!,
             GoogleDriveAssetUploadStatus.AssetNotFound => NotFound(),
+            GoogleDriveAssetUploadStatus.Forbidden => Forbid(),
             GoogleDriveAssetUploadStatus.InvalidFile => BadRequest(new { error = result.Detail }),
             GoogleDriveAssetUploadStatus.UnsupportedFileType => BadRequest(new { error = result.Detail }),
             GoogleDriveAssetUploadStatus.FileTooLarge => BadRequest(new { error = result.Detail }),

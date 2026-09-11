@@ -1,6 +1,7 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
+using ArtistOS.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtistOS.Api.Integrations.GoogleDrive;
@@ -11,11 +12,16 @@ public class MediaAccessService
 
     private readonly AppDbContext _context;
     private readonly MediaTokenService _tokenService;
+    private readonly SongAccessService _songAccessService;
 
-    public MediaAccessService(AppDbContext context, MediaTokenService tokenService)
+    public MediaAccessService(
+        AppDbContext context,
+        MediaTokenService tokenService,
+        SongAccessService songAccessService)
     {
         _context = context;
         _tokenService = tokenService;
+        _songAccessService = songAccessService;
     }
 
     public async Task<MediaAccessResult> CreateAccessAsync(
@@ -92,6 +98,20 @@ public class MediaAccessService
         int? externalFileReferenceId,
         CancellationToken cancellationToken)
     {
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, userId, cancellationToken);
+        if (!capabilities.CanRead)
+        {
+            return MediaAccessResult.Failure(MediaAccessStatus.NotFound);
+        }
+
+        var storageOwnerUserId = await _songAccessService.GetStorageOwnerUserIdAsync(
+            songId,
+            cancellationToken);
+        if (storageOwnerUserId is null)
+        {
+            return MediaAccessResult.Failure(MediaAccessStatus.NotFound);
+        }
+
         ExternalFileReference? reference;
 
         if (assetKind == MediaAssetKinds.Audio)
@@ -101,8 +121,7 @@ public class MediaAccessService
                 .Include(audioAsset => audioAsset.ExternalFileReference)
                 .FirstOrDefaultAsync(audioAsset =>
                     audioAsset.Id == assetId &&
-                    audioAsset.SongId == songId &&
-                    audioAsset.Song.OwnerUserId == userId,
+                    audioAsset.SongId == songId,
                     cancellationToken);
 
             if (asset is null)
@@ -130,8 +149,7 @@ public class MediaAccessService
                 .Include(visualAsset => visualAsset.ExternalFileReference)
                 .FirstOrDefaultAsync(visualAsset =>
                     visualAsset.Id == assetId &&
-                    visualAsset.SongId == songId &&
-                    visualAsset.Song.OwnerUserId == userId,
+                    visualAsset.SongId == songId,
                     cancellationToken);
 
             if (asset is null)
@@ -157,7 +175,7 @@ public class MediaAccessService
             return MediaAccessResult.Failure(MediaAccessStatus.NotFound);
         }
 
-        if (reference.OwnerUserId != userId ||
+        if (reference.OwnerUserId != storageOwnerUserId ||
             reference.SongId != songId ||
             reference.IsFolder ||
             (assetKind == MediaAssetKinds.Audio &&
@@ -177,7 +195,7 @@ public class MediaAccessService
             .AsNoTracking()
             .FirstOrDefaultAsync(connection =>
                 connection.Id == reference.GoogleDriveConnectionId &&
-                connection.UserId == userId,
+                connection.UserId == storageOwnerUserId,
                 cancellationToken);
 
         if (connection is null)
@@ -193,6 +211,7 @@ public class MediaAccessService
         return MediaAccessResult.Authorized(new AuthorizedMediaResource
         {
             UserId = userId,
+            StorageOwnerUserId = storageOwnerUserId.Value,
             SongId = songId,
             AssetKind = assetKind,
             AssetId = assetId,

@@ -4,6 +4,7 @@ public enum GoogleDriveAssetUploadStatus
 {
     Success,
     AssetNotFound,
+    Forbidden,
     GoogleDriveNotConnected,
     GoogleDriveReauthRequired,
     WorkspaceUnavailable,

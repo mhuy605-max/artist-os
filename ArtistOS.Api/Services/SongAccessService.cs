@@ -106,6 +106,16 @@ public class SongAccessService
         return GetCapabilities(accessLevel);
     }
 
+    public async Task<int?> GetStorageOwnerUserIdAsync(
+        int songId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.Songs
+            .Where(song => song.Id == songId)
+            .Select(song => song.OwnerUserId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<bool> CanEditAsync(
         int songId,
         int userId,

@@ -6,6 +6,8 @@ public class AuthorizedMediaResource
 {
     public int UserId { get; set; }
 
+    public int StorageOwnerUserId { get; set; }
+
     public int SongId { get; set; }
 
     public string AssetKind { get; set; } = string.Empty;

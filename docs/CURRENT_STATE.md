@@ -6,7 +6,7 @@ Last updated: 2026-09-11
 
 Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is underway.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, and C4 converted normal nested Song-domain metadata authorization. Media collaboration, Google Drive collaboration, frontend collaboration types, and frontend collaboration UI are not implemented yet. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, and C5 converted media plus Google Drive provider operations to the collaboration model. Frontend collaboration types and frontend collaboration UI are not implemented yet. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
@@ -185,7 +185,13 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - OWNER and EDITOR users can mutate normal nested Song workspace metadata; VIEWER users can read and receive `403 Forbidden` for nested metadata mutation attempts.
 - Authenticated users with no Song access receive `404 Not Found` for nested Song metadata endpoints, preserving anti-enumeration semantics.
 - Nested child resources remain bound to the route Song id; cross-Song child/resource mismatches return `404 Not Found`.
-- Audio/Visual upload, media-access, media streaming, Replace File, and Google Drive workspace/provider operations remain deferred to C5.
+- Audio/Visual upload, media-access, media streaming, Replace File, and Google Drive workspace/provider operations now use the collaboration role matrix.
+- Requesting users determine DARKROOM authorization for media and Drive operations, while `Song.OwnerUserId` remains the canonical Google Drive storage/provider owner.
+- OWNER and EDITOR users can upload and replace AudioAsset/VisualAsset files into the owner's Google Drive workspace, even when the editor has no personal Google Drive connection.
+- VIEWER users can request media access and stream linked media, but receive `403 Forbidden` for upload, Replace File, and Drive workspace provisioning.
+- Accepted OWNER, EDITOR, and VIEWER users can read safe Drive workspace metadata; provisioning remains OWNER-only.
+- Media tokens remain bound to the requesting DARKROOM user and are revalidated against current Song membership/access on every stream request, so removed members lose access even if an old token has not expired.
+- Media streaming resolves Google Drive refresh and file reads through the Song owner's Google Drive connection while preserving existing GET, HEAD, Range, and media security-header behavior.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 - Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
@@ -2546,7 +2552,7 @@ Latest browser Release Workspace Product Polish checks confirmed:
 - Drive upload API responses return safe asset and external reference metadata only; Google token material is not returned.
 - Media access API responses return a short-lived Artist OS signed media URL plus safe metadata only; they do not return Google access tokens, refresh tokens, protected refresh tokens, or the main Artist OS JWT.
 - Media signed tokens are protected with ASP.NET Core time-limited Data Protection and expire after 5 minutes.
-- Media stream endpoints validate the signed media token and then re-check the current database ownership/link chain before contacting Google Drive.
+- Media stream endpoints validate the signed media token and then re-check the current database collaboration access and owner-backed link chain before contacting Google Drive.
 - Media stream endpoints authenticate with the short-lived media token only; the main Artist OS JWT is intentionally not placed in the media URL.
 - Resumable upload session URIs are not logged or returned.
 - Google OAuth state is protected and expiring, and callback handling does not depend on the browser supplying an Artist OS Bearer header.
@@ -2622,7 +2628,6 @@ Remote GitHub Actions status:
 ## Not Yet Implemented
 
 - Frontend collaboration UI and team-facing permission management.
-- Media and Google Drive collaboration authorization for upload, media-access, streaming, Replace File, and Drive workspace/provider operations.
 - Password reset, email verification, social login, MFA, account management, production refresh-token/session hardening, and server-side JWT revocation.
 - Google Drive download-original, Drive browsing, Picker, synchronization, external file deletion, and replacement audit/history views.
 - YouTube integration and automated analytics ingestion.
@@ -2646,8 +2651,9 @@ Expected future shape:
 ```text
 JWT authenticated DARKROOM user
   -> User.Id
-  -> owned Songs
-  -> GoogleDriveConnection
+  -> owned or accepted-member Songs
+  -> Song.OwnerUserId as canonical storage owner
+  -> owner's GoogleDriveConnection
   -> backend-managed Google Drive OAuth tokens
 ```
 
@@ -2659,18 +2665,19 @@ Media delivery now follows the same separation:
 JWT authenticated DARKROOM user
   -> short-lived Artist OS media access URL
   -> signed media token validation
-  -> owned Song/asset/file reference re-check
-  -> backend-managed Google Drive stream/range request
+  -> current Song collaboration access re-check
+  -> owner-backed Song/asset/file reference re-check
+  -> backend-managed Google Drive stream/range request through the owner's connection
 ```
 
 Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-C5 - Media + Google Drive Collaboration.
+C6 - Backend Collaboration Security & Regression Pass.
 
 Suggested scope:
 
-- Convert media-access, streaming, upload, Replace File, and Google Drive workspace/provider operations to the collaboration model where safe.
-- Preserve owner/provider identity and token-safety boundaries.
+- Re-run and harden backend collaboration authorization regressions end to end.
+- Review anti-enumeration behavior, role downgrade/removal behavior, and cross-Song IDOR coverage across C1-C5 surfaces.
 - Do not begin frontend collaboration types or frontend collaboration UI until their later milestones.

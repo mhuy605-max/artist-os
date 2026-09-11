@@ -42,7 +42,7 @@ public class GoogleDriveMediaService
         try
         {
             accessToken = await _googleOAuthClient.RefreshAccessTokenAsync(
-                resource.UserId.ToString(),
+                resource.StorageOwnerUserId.ToString(),
                 refreshToken,
                 cancellationToken);
         }
@@ -54,8 +54,9 @@ public class GoogleDriveMediaService
         {
             _logger.LogWarning(
                 exception,
-                "Google Drive access-token refresh failed before media stream for user {UserId}, song {SongId}, asset kind {AssetKind}, asset {AssetId}.",
+                "Google Drive access-token refresh failed before media stream for requesting user {UserId} using owner {StorageOwnerUserId}, song {SongId}, asset kind {AssetKind}, asset {AssetId}.",
                 resource.UserId,
+                resource.StorageOwnerUserId,
                 resource.SongId,
                 resource.AssetKind,
                 resource.AssetId);

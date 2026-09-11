@@ -1,5 +1,6 @@
 using ArtistOS.Api.Data;
 using ArtistOS.Api.Models;
+using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,6 +32,7 @@ public class GoogleDriveAssetUploadService
     private readonly AppDbContext _context;
     private readonly GoogleDriveWorkspaceService _workspaceService;
     private readonly GoogleDriveConnectionService _connectionService;
+    private readonly SongAccessService _songAccessService;
     private readonly IGoogleDriveOAuthClient _googleOAuthClient;
     private readonly IGoogleDriveApiClient _driveClient;
     private readonly ILogger<GoogleDriveAssetUploadService> _logger;
@@ -39,6 +41,7 @@ public class GoogleDriveAssetUploadService
         AppDbContext context,
         GoogleDriveWorkspaceService workspaceService,
         GoogleDriveConnectionService connectionService,
+        SongAccessService songAccessService,
         IGoogleDriveOAuthClient googleOAuthClient,
         IGoogleDriveApiClient driveClient,
         ILogger<GoogleDriveAssetUploadService> logger)
@@ -46,6 +49,7 @@ public class GoogleDriveAssetUploadService
         _context = context;
         _workspaceService = workspaceService;
         _connectionService = connectionService;
+        _songAccessService = songAccessService;
         _googleOAuthClient = googleOAuthClient;
         _driveClient = driveClient;
         _logger = logger;
@@ -58,12 +62,17 @@ public class GoogleDriveAssetUploadService
         IFormFile? file,
         CancellationToken cancellationToken)
     {
+        var authorization = await AuthorizeUploadAsync(userId, songId, cancellationToken);
+        if (authorization.Status != GoogleDriveAssetUploadStatus.Success)
+        {
+            return GoogleDriveAssetUploadResult.Failure(authorization.Status);
+        }
+
         var audioAsset = await _context.AudioAssets
             .Include(asset => asset.ExternalFileReference)
             .FirstOrDefaultAsync(asset =>
                 asset.Id == audioAssetId &&
-                asset.SongId == songId &&
-                asset.Song.OwnerUserId == userId,
+                asset.SongId == songId,
                 cancellationToken);
 
         if (audioAsset is null)
@@ -86,6 +95,7 @@ public class GoogleDriveAssetUploadService
 
         var uploadContext = await PrepareUploadAsync(
             userId,
+            authorization.StorageOwnerUserId,
             songId,
             GoogleDriveAssetKind.Audio,
             cancellationToken);
@@ -97,6 +107,7 @@ public class GoogleDriveAssetUploadService
 
         return await UploadAndAssociateAudioAsync(
             userId,
+            authorization.StorageOwnerUserId,
             songId,
             audioAsset,
             file!,
@@ -111,12 +122,17 @@ public class GoogleDriveAssetUploadService
         IFormFile? file,
         CancellationToken cancellationToken)
     {
+        var authorization = await AuthorizeUploadAsync(userId, songId, cancellationToken);
+        if (authorization.Status != GoogleDriveAssetUploadStatus.Success)
+        {
+            return GoogleDriveAssetUploadResult.Failure(authorization.Status);
+        }
+
         var visualAsset = await _context.VisualAssets
             .Include(asset => asset.ExternalFileReference)
             .FirstOrDefaultAsync(asset =>
                 asset.Id == visualAssetId &&
-                asset.SongId == songId &&
-                asset.Song.OwnerUserId == userId,
+                asset.SongId == songId,
                 cancellationToken);
 
         if (visualAsset is null)
@@ -139,6 +155,7 @@ public class GoogleDriveAssetUploadService
 
         var uploadContext = await PrepareUploadAsync(
             userId,
+            authorization.StorageOwnerUserId,
             songId,
             GoogleDriveAssetKind.Visual,
             cancellationToken);
@@ -150,6 +167,7 @@ public class GoogleDriveAssetUploadService
 
         return await UploadAndAssociateVisualAsync(
             userId,
+            authorization.StorageOwnerUserId,
             songId,
             visualAsset,
             file!,
@@ -164,12 +182,17 @@ public class GoogleDriveAssetUploadService
         IFormFile? file,
         CancellationToken cancellationToken)
     {
+        var authorization = await AuthorizeUploadAsync(userId, songId, cancellationToken);
+        if (authorization.Status != GoogleDriveAssetUploadStatus.Success)
+        {
+            return GoogleDriveAssetUploadResult.Failure(authorization.Status);
+        }
+
         var audioAsset = await _context.AudioAssets
             .Include(asset => asset.ExternalFileReference)
             .FirstOrDefaultAsync(asset =>
                 asset.Id == audioAssetId &&
-                asset.SongId == songId &&
-                asset.Song.OwnerUserId == userId,
+                asset.SongId == songId,
                 cancellationToken);
 
         if (audioAsset is null)
@@ -192,6 +215,7 @@ public class GoogleDriveAssetUploadService
 
         var uploadContext = await PrepareUploadAsync(
             userId,
+            authorization.StorageOwnerUserId,
             songId,
             GoogleDriveAssetKind.Audio,
             cancellationToken);
@@ -203,6 +227,7 @@ public class GoogleDriveAssetUploadService
 
         return await UploadAndReplaceAudioAsync(
             userId,
+            authorization.StorageOwnerUserId,
             songId,
             audioAsset,
             file!,
@@ -217,12 +242,17 @@ public class GoogleDriveAssetUploadService
         IFormFile? file,
         CancellationToken cancellationToken)
     {
+        var authorization = await AuthorizeUploadAsync(userId, songId, cancellationToken);
+        if (authorization.Status != GoogleDriveAssetUploadStatus.Success)
+        {
+            return GoogleDriveAssetUploadResult.Failure(authorization.Status);
+        }
+
         var visualAsset = await _context.VisualAssets
             .Include(asset => asset.ExternalFileReference)
             .FirstOrDefaultAsync(asset =>
                 asset.Id == visualAssetId &&
-                asset.SongId == songId &&
-                asset.Song.OwnerUserId == userId,
+                asset.SongId == songId,
                 cancellationToken);
 
         if (visualAsset is null)
@@ -245,6 +275,7 @@ public class GoogleDriveAssetUploadService
 
         var uploadContext = await PrepareUploadAsync(
             userId,
+            authorization.StorageOwnerUserId,
             songId,
             GoogleDriveAssetKind.Visual,
             cancellationToken);
@@ -256,6 +287,7 @@ public class GoogleDriveAssetUploadService
 
         return await UploadAndReplaceVisualAsync(
             userId,
+            authorization.StorageOwnerUserId,
             songId,
             visualAsset,
             file!,
@@ -265,6 +297,7 @@ public class GoogleDriveAssetUploadService
 
     private async Task<GoogleDriveAssetUploadResult> UploadAndAssociateAudioAsync(
         int userId,
+        int storageOwnerUserId,
         int songId,
         AudioAsset audioAsset,
         IFormFile file,
@@ -284,7 +317,7 @@ public class GoogleDriveAssetUploadService
         {
             var now = DateTime.UtcNow;
             var reference = CreateFileReference(
-                userId,
+                storageOwnerUserId,
                 songId,
                 uploadContext.ConnectionId,
                 uploadedFile,
@@ -324,6 +357,7 @@ public class GoogleDriveAssetUploadService
 
     private async Task<GoogleDriveAssetUploadResult> UploadAndAssociateVisualAsync(
         int userId,
+        int storageOwnerUserId,
         int songId,
         VisualAsset visualAsset,
         IFormFile file,
@@ -343,7 +377,7 @@ public class GoogleDriveAssetUploadService
         {
             var now = DateTime.UtcNow;
             var reference = CreateFileReference(
-                userId,
+                storageOwnerUserId,
                 songId,
                 uploadContext.ConnectionId,
                 uploadedFile,
@@ -383,6 +417,7 @@ public class GoogleDriveAssetUploadService
 
     private async Task<GoogleDriveAssetUploadResult> UploadAndReplaceAudioAsync(
         int userId,
+        int storageOwnerUserId,
         int songId,
         AudioAsset audioAsset,
         IFormFile file,
@@ -403,7 +438,7 @@ public class GoogleDriveAssetUploadService
             var now = DateTime.UtcNow;
             var oldReference = audioAsset.ExternalFileReference;
             var reference = CreateFileReference(
-                userId,
+                storageOwnerUserId,
                 songId,
                 uploadContext.ConnectionId,
                 uploadedFile,
@@ -445,6 +480,7 @@ public class GoogleDriveAssetUploadService
 
     private async Task<GoogleDriveAssetUploadResult> UploadAndReplaceVisualAsync(
         int userId,
+        int storageOwnerUserId,
         int songId,
         VisualAsset visualAsset,
         IFormFile file,
@@ -465,7 +501,7 @@ public class GoogleDriveAssetUploadService
             var now = DateTime.UtcNow;
             var oldReference = visualAsset.ExternalFileReference;
             var reference = CreateFileReference(
-                userId,
+                storageOwnerUserId,
                 songId,
                 uploadContext.ConnectionId,
                 uploadedFile,
@@ -552,13 +588,14 @@ public class GoogleDriveAssetUploadService
     }
 
     private async Task<PreparedUpload> PrepareUploadAsync(
-        int userId,
+        int requestingUserId,
+        int storageOwnerUserId,
         int songId,
         GoogleDriveAssetKind assetKind,
         CancellationToken cancellationToken)
     {
         var workspaceResult = await _workspaceService.ProvisionWorkspaceAsync(
-            userId,
+            storageOwnerUserId,
             songId,
             cancellationToken);
 
@@ -587,7 +624,7 @@ public class GoogleDriveAssetUploadService
         }
 
         var connection = await _context.GoogleDriveConnections
-            .FirstOrDefaultAsync(connection => connection.UserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(connection => connection.UserId == storageOwnerUserId, cancellationToken);
 
         if (connection is null)
         {
@@ -609,7 +646,7 @@ public class GoogleDriveAssetUploadService
         try
         {
             var accessToken = await _googleOAuthClient.RefreshAccessTokenAsync(
-                userId.ToString(),
+                storageOwnerUserId.ToString(),
                 refreshToken,
                 cancellationToken);
 
@@ -618,7 +655,8 @@ public class GoogleDriveAssetUploadService
             await _context.SaveChangesAsync(cancellationToken);
 
             return PreparedUpload.Success(
-                userId,
+                requestingUserId,
+                storageOwnerUserId,
                 songId,
                 assetKind,
                 connection.Id,
@@ -629,11 +667,34 @@ public class GoogleDriveAssetUploadService
         {
             _logger.LogWarning(
                 exception,
-                "Google Drive access-token refresh failed before media upload for user {UserId}.",
-                userId);
+                "Google Drive access-token refresh failed before media upload for requesting user {UserId} using owner {StorageOwnerUserId}.",
+                requestingUserId,
+                storageOwnerUserId);
             await MarkReauthRequiredAsync(connection, cancellationToken);
             return PreparedUpload.Failure(GoogleDriveAssetUploadStatus.GoogleDriveReauthRequired);
         }
+    }
+
+    private async Task<UploadAuthorization> AuthorizeUploadAsync(
+        int userId,
+        int songId,
+        CancellationToken cancellationToken)
+    {
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, userId, cancellationToken);
+        if (!capabilities.CanRead)
+        {
+            return UploadAuthorization.Failure(GoogleDriveAssetUploadStatus.AssetNotFound);
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return UploadAuthorization.Failure(GoogleDriveAssetUploadStatus.Forbidden);
+        }
+
+        var storageOwnerUserId = await _songAccessService.GetStorageOwnerUserIdAsync(songId, cancellationToken);
+        return storageOwnerUserId is null
+            ? UploadAuthorization.Failure(GoogleDriveAssetUploadStatus.AssetNotFound)
+            : UploadAuthorization.Success(storageOwnerUserId.Value);
     }
 
     private async Task MarkReauthRequiredAsync(
@@ -792,6 +853,8 @@ public class GoogleDriveAssetUploadService
 
         public int UserId { get; set; }
 
+        public int StorageOwnerUserId { get; set; }
+
         public int SongId { get; set; }
 
         public GoogleDriveAssetKind AssetKind { get; set; }
@@ -804,6 +867,7 @@ public class GoogleDriveAssetUploadService
 
         public static PreparedUpload Success(
             int userId,
+            int storageOwnerUserId,
             int songId,
             GoogleDriveAssetKind assetKind,
             int connectionId,
@@ -814,6 +878,7 @@ public class GoogleDriveAssetUploadService
             {
                 Status = GoogleDriveAssetUploadStatus.Success,
                 UserId = userId,
+                StorageOwnerUserId = storageOwnerUserId,
                 SongId = songId,
                 AssetKind = assetKind,
                 ConnectionId = connectionId,
@@ -830,6 +895,30 @@ public class GoogleDriveAssetUploadService
             {
                 Status = status,
                 Detail = detail
+            };
+        }
+    }
+
+    private class UploadAuthorization
+    {
+        public GoogleDriveAssetUploadStatus Status { get; set; }
+
+        public int StorageOwnerUserId { get; set; }
+
+        public static UploadAuthorization Success(int storageOwnerUserId)
+        {
+            return new UploadAuthorization
+            {
+                Status = GoogleDriveAssetUploadStatus.Success,
+                StorageOwnerUserId = storageOwnerUserId
+            };
+        }
+
+        public static UploadAuthorization Failure(GoogleDriveAssetUploadStatus status)
+        {
+            return new UploadAuthorization
+            {
+                Status = status
             };
         }
     }

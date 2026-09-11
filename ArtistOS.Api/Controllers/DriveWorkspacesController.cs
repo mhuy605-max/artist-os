@@ -1,6 +1,7 @@
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Integrations.GoogleDrive;
 using ArtistOS.Api.Security;
+using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -14,10 +15,14 @@ namespace ArtistOS.Api.Controllers;
 public class DriveWorkspacesController : ControllerBase
 {
     private readonly GoogleDriveWorkspaceService _workspaceService;
+    private readonly SongAccessService _songAccessService;
 
-    public DriveWorkspacesController(GoogleDriveWorkspaceService workspaceService)
+    public DriveWorkspacesController(
+        GoogleDriveWorkspaceService workspaceService,
+        SongAccessService songAccessService)
     {
         _workspaceService = workspaceService;
+        _songAccessService = songAccessService;
     }
 
     [HttpGet]
@@ -31,8 +36,25 @@ public class DriveWorkspacesController : ControllerBase
             return Unauthorized();
         }
 
-        return ToActionResult(await _workspaceService.GetWorkspaceAsync(
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(
+            songId,
             currentUserId.Value,
+            cancellationToken);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        var storageOwnerUserId = await _songAccessService.GetStorageOwnerUserIdAsync(
+            songId,
+            cancellationToken);
+        if (storageOwnerUserId is null)
+        {
+            return NotFound();
+        }
+
+        return ToActionResult(await _workspaceService.GetWorkspaceAsync(
+            storageOwnerUserId.Value,
             songId,
             cancellationToken));
     }
@@ -46,6 +68,20 @@ public class DriveWorkspacesController : ControllerBase
         if (currentUserId is null)
         {
             return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(
+            songId,
+            currentUserId.Value,
+            cancellationToken);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (capabilities.AccessLevel != SongAccessLevel.OWNER)
+        {
+            return Forbid();
         }
 
         return ToActionResult(await _workspaceService.ProvisionWorkspaceAsync(
