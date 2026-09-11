@@ -6,7 +6,7 @@ Last updated: 2026-09-11
 
 Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is underway.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed and C1 added the backend collaboration foundation only. Collaboration APIs, accessible shared queries, frontend role-aware UI, media collaboration, and Google Drive collaboration are not implemented yet. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, and C2 added member/invitation lifecycle APIs. Shared Song visibility across main Song queries, nested domain collaboration, media collaboration, Google Drive collaboration, frontend collaboration types, and frontend collaboration UI are not implemented yet. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
@@ -174,8 +174,10 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - `SongInvitation` model created for in-app invitations between existing DARKROOM users with `PENDING`, `ACCEPTED`, `DECLINED`, and `REVOKED` statuses.
 - `AddSongWorkspaceCollaboration` EF Core migration created for `SongMembers`, `SongInvitations`, collaboration check constraints, relationship constraints, membership uniqueness, and one-pending-invitation uniqueness.
 - `SongAccessService` added to resolve OWNER, EDITOR, VIEWER, and NO_ACCESS and expose the canonical read/edit/member-management capability matrix.
-- Existing production endpoints intentionally remain owner-only until later collaboration authorization milestones convert them.
-- Collaboration member APIs, invitation APIs, accessible shared Song queries, frontend collaboration UI, media collaboration, and Google Drive collaboration are not implemented yet.
+- `SongCollaborationService` added for member/invitation lifecycle rules.
+- Collaboration API endpoints added for member listing, inviting existing DARKROOM users, current-user pending invitation inbox, accepting invitations, declining invitations, revoking pending invitations, member role changes, and member removal.
+- Existing production Song/domain endpoints intentionally remain owner-only until later collaboration authorization milestones convert them.
+- Shared Song visibility across main Song queries, nested domain collaboration, media collaboration, Google Drive collaboration, frontend collaboration types, and frontend collaboration UI are not implemented yet.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 - Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
@@ -1758,6 +1760,7 @@ Automated tests:
 - Song owner assignment has automated integration-style coverage for authenticated creates and spoofed owner rejection.
 - Resource ownership has automated integration-style coverage for unauthenticated `401`, cross-user `404`, nested Song resource scoping, Calendar/Dashboard scoping, and legacy unowned Song invisibility.
 - Song collaboration foundation has automated coverage for `SongMember`, `SongInvitation`, collaboration constraints, song delete cascade cleanup, `SongAccessService` role resolution, capability evaluation, owner precedence, legacy unowned Song no-access behavior, and existing endpoint owner-only regression during C1.
+- Song collaboration APIs have automated coverage for member list access, owner response representation, owner-only invite/revoke/role-change/removal, editor/viewer member-list access, current-user invitation inbox scoping, accept/decline lifecycle, cross-song member/invitation IDOR protection, invitation ownership IDOR protection, server-controlled-field overposting resistance, and existing endpoint owner-only regression during C2.
 - Song API behavior has both automated test coverage and earlier pragmatic manual HTTP verification.
 - AudioAsset API behavior has both automated test coverage and earlier pragmatic manual HTTP/browser verification.
 - VisualAsset API behavior has both automated test coverage and pragmatic manual HTTP/browser verification.
@@ -1813,6 +1816,20 @@ Results:
 ```text
 dotnet build ArtistOS.slnx: succeeded, 0 warnings, 0 errors.
 dotnet test ArtistOS.slnx: succeeded, 351 passed, 0 failed, 0 skipped.
+```
+
+Verification run during the V1.1 Song Workspace Collaboration C2 member and invitation backend API milestone:
+
+```text
+dotnet build ArtistOS.slnx
+dotnet test ArtistOS.slnx
+```
+
+Results:
+
+```text
+dotnet build ArtistOS.slnx: succeeded, 0 warnings, 0 errors.
+dotnet test ArtistOS.slnx: succeeded, 364 passed, 0 failed, 0 skipped.
 ```
 
 Verification run during the Application Security Hardening S2 milestone:
