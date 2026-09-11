@@ -99,6 +99,21 @@ describe("JWT auth API client", () => {
     window.removeEventListener(unauthorizedEventName, unauthorized);
   });
 
+  it("403 responses do not clear auth state or emit unauthorized events", async () => {
+    setAccessToken("valid-editor-token");
+    const unauthorized = vi.fn();
+    window.addEventListener(unauthorizedEventName, unauthorized);
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("Forbidden", { status: 403 }));
+
+    await expect(http.post("/api/songs/1/drive-workspace/provision", {})).rejects.toMatchObject({
+      status: 403,
+    });
+
+    expect(getAccessToken()).toBe("valid-editor-token");
+    expect(unauthorized).not.toHaveBeenCalled();
+    window.removeEventListener(unauthorizedEventName, unauthorized);
+  });
+
   it("logout clears the frontend token", async () => {
     setAccessToken("jwt-logout-token");
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(null, { status: 204 }));

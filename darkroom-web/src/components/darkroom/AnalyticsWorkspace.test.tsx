@@ -190,6 +190,9 @@ const song: Song = {
   title: "Performance Log Test Song",
   status: "Analytics",
   createdAt: "2026-09-01T10:00:00Z",
+  currentUserRole: "OWNER",
+  canEdit: true,
+  canManageMembers: true,
 };
 
 const snapshots: AnalyticsSnapshot[] = [
@@ -452,6 +455,23 @@ describe("Analytics workspace polish", () => {
       await screen.findByText("We couldn't load recorded performance snapshots from Artist OS."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("keeps viewer performance snapshots readable without analytics mutation controls", async () => {
+    getSongMock.mockResolvedValueOnce({
+      ...song,
+      currentUserRole: "VIEWER",
+      canEdit: false,
+      canManageMembers: false,
+    });
+
+    await renderAnalyticsWorkspace();
+
+    expect(await screen.findByText("Latest performance")).toBeInTheDocument();
+    expect(screen.getAllByText("YouTube").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /add snapshot/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
   });
 
   it("does not render unsupported live, synced, import, or API-status controls", async () => {

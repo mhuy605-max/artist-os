@@ -40,12 +40,19 @@ export const SONG_LIFECYCLE: SongStatus[] = [
 ];
 
 /** Song as returned by the real ASP.NET Core API. */
+export const SONG_ROLES = ["OWNER", "EDITOR", "VIEWER"] as const;
+
+export type SongRole = (typeof SONG_ROLES)[number];
+
 export interface Song {
   id: string | number;
   title: string;
   status: string;
   createdAt: string;
   ownerUserId?: string | number | null;
+  currentUserRole?: SongRole | string | null;
+  canEdit?: boolean | null;
+  canManageMembers?: boolean | null;
 }
 
 export interface SongPayload {

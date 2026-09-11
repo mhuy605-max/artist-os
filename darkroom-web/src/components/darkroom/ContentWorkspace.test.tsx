@@ -190,6 +190,9 @@ const song: Song = {
   title: "Content Control Test Song",
   status: "ContentCampaign",
   createdAt: "2026-09-01T10:00:00Z",
+  currentUserRole: "OWNER",
+  canEdit: true,
+  canManageMembers: true,
 };
 
 const contentItems: ContentItem[] = [
@@ -439,6 +442,23 @@ describe("Content workspace polish", () => {
       await screen.findByText("We couldn't load content production from Artist OS."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("keeps viewer content planning readable without content mutation controls", async () => {
+    getSongMock.mockResolvedValueOnce({
+      ...song,
+      currentUserRole: "VIEWER",
+      canEdit: false,
+      canManageMembers: false,
+    });
+
+    await renderContentWorkspace();
+
+    expect(await screen.findByText(contentItems[0].title)).toBeInTheDocument();
+    expect(screen.getByText("Content pipeline")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add content/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
   });
 
   it("does not render unsupported publishing or sync language", async () => {

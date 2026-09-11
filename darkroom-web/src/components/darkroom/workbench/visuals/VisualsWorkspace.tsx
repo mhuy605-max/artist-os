@@ -156,7 +156,9 @@ import {
   normalizeId,
   numberOrNull,
   parseApiProblemTitle,
+  READ_ONLY_SONG_ACCESS,
   releaseReadinessQueryKey,
+  type SongAccess,
   visualAssetsQueryKey,
 } from "../shared";
 import { VisualImagePreview } from "./VisualImagePreview";
@@ -678,6 +680,7 @@ function VisualFileAssociationPanel({
   driveStatusError,
   upload,
   replaceFile,
+  access,
   activeVideoAssetId,
   onVideoActivate,
   onVideoDeactivate,
@@ -696,6 +699,7 @@ function VisualFileAssociationPanel({
     error: unknown;
     mutate: (input: { visualAssetId: string; file: File }) => void;
   };
+  access: SongAccess;
   activeVideoAssetId: string | null;
   onVideoActivate: (visualAssetId: string) => void;
   onVideoDeactivate: (visualAssetId: string) => void;
@@ -742,22 +746,37 @@ function VisualFileAssociationPanel({
               </a>
             </Button>
           ) : null}
-          <ReplaceVisualFileDialog
-            asset={asset}
-            replaceFile={replaceFile}
-            trigger={
-              <Button variant="outline" size="sm">
-                <Upload className="h-4 w-4" />
-                Replace File
-              </Button>
-            }
-          />
+          {access.canEdit ? (
+            <ReplaceVisualFileDialog
+              asset={asset}
+              replaceFile={replaceFile}
+              trigger={
+                <Button variant="outline" size="sm">
+                  <Upload className="h-4 w-4" />
+                  Replace File
+                </Button>
+              }
+            />
+          ) : null}
         </div>
       </div>
     );
   }
 
-  if (driveStatus?.connected === false) {
+  if (!access.canEdit) {
+    return (
+      <div className="border border-dashed border-border bg-panel p-3">
+        <p className="label-tech">VIEW ONLY</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          This version has no linked visual file yet.
+        </p>
+      </div>
+    );
+  }
+
+  const shouldUseOwnerDriveStatus = access.isOwner;
+
+  if (shouldUseOwnerDriveStatus && driveStatus?.connected === false) {
     return (
       <div className="border border-dashed border-border bg-panel p-3">
         <p className="label-tech">CONNECT STORAGE TO UPLOAD</p>
@@ -771,7 +790,7 @@ function VisualFileAssociationPanel({
     );
   }
 
-  if (driveStatus?.status === "ReauthRequired") {
+  if (shouldUseOwnerDriveStatus && driveStatus?.status === "ReauthRequired") {
     return (
       <div className="border border-dashed border-border bg-panel p-3">
         <p className="label-tech">STORAGE CONNECTION NEEDS ATTENTION</p>
@@ -785,7 +804,7 @@ function VisualFileAssociationPanel({
     );
   }
 
-  if (!driveStatus && !driveStatusError) {
+  if (shouldUseOwnerDriveStatus && !driveStatus && !driveStatusError) {
     return (
       <div className="border border-dashed border-border bg-panel p-3">
         <p className="label-tech">CHECKING STORAGE</p>
@@ -860,6 +879,7 @@ function VisualAssetRow({
   activeVideoAssetId,
   onVideoActivate,
   onVideoDeactivate,
+  access,
 }: {
   songId: string;
   asset: VisualAsset;
@@ -868,6 +888,7 @@ function VisualAssetRow({
   activeVideoAssetId: string | null;
   onVideoActivate: (visualAssetId: string) => void;
   onVideoDeactivate: (visualAssetId: string) => void;
+  access: SongAccess;
 }) {
   const mutations = useVisualAssetMutations(songId);
   const removeCopy = asset.isCurrent
@@ -909,47 +930,49 @@ function VisualAssetRow({
               {formatDate(asset.uploadedAt)}
             </p>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <VisualAssetFormDialog
-              songId={songId}
-              asset={asset}
-              trigger={
-                <Button variant="outline" size="sm">
-                  Edit
-                </Button>
-              }
-            />
-            <CreateVisualVersionDialog
-              asset={asset}
-              createVersion={mutations.createVersion}
-              trigger={
-                <Button variant="outline" size="sm">
-                  <Plus className="h-4 w-4" />
-                  Create New Version
-                </Button>
-              }
-            />
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remove visual asset?</AlertDialogTitle>
-                  <AlertDialogDescription>{removeCopy}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => mutations.remove.mutate(String(asset.id))}>
-                    Remove asset
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+          {access.canEdit ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <VisualAssetFormDialog
+                songId={songId}
+                asset={asset}
+                trigger={
+                  <Button variant="outline" size="sm">
+                    Edit
+                  </Button>
+                }
+              />
+              <CreateVisualVersionDialog
+                asset={asset}
+                createVersion={mutations.createVersion}
+                trigger={
+                  <Button variant="outline" size="sm">
+                    <Plus className="h-4 w-4" />
+                    Create New Version
+                  </Button>
+                }
+              />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove visual asset?</AlertDialogTitle>
+                    <AlertDialogDescription>{removeCopy}</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => mutations.remove.mutate(String(asset.id))}>
+                      Remove asset
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          ) : null}
         </div>
         <VisualFileAssociationPanel
           songId={songId}
@@ -961,13 +984,20 @@ function VisualAssetRow({
           onVideoDeactivate={onVideoDeactivate}
           upload={mutations.upload}
           replaceFile={mutations.replaceFile}
+          access={access}
         />
       </div>
     </article>
   );
 }
 
-export function VisualsWorkspace({ songId }: { songId: string }) {
+export function VisualsWorkspace({
+  songId,
+  access = READ_ONLY_SONG_ACCESS,
+}: {
+  songId: string;
+  access?: SongAccess;
+}) {
   const [activeVideoAssetId, setActiveVideoAssetId] = useState<string | null>(null);
   const visualAssets = useQuery({
     queryKey: visualAssetsQueryKey(songId),
@@ -976,6 +1006,7 @@ export function VisualsWorkspace({ songId }: { songId: string }) {
   const driveConnection = useQuery({
     queryKey: googleDriveConnectionQueryKey,
     queryFn: googleDriveApi.getStatus,
+    enabled: access.isOwner,
   });
 
   if (visualAssets.isLoading) {
@@ -1011,15 +1042,17 @@ export function VisualsWorkspace({ songId }: { songId: string }) {
               Artwork, video, campaign, and social assets for this song.
             </p>
           </div>
-          <VisualAssetFormDialog
-            songId={songId}
-            trigger={
-              <Button>
-                <Plus className="h-4 w-4" />
-                Add Visual Asset
-              </Button>
-            }
-          />
+          {access.canEdit ? (
+            <VisualAssetFormDialog
+              songId={songId}
+              trigger={
+                <Button>
+                  <Plus className="h-4 w-4" />
+                  Add Visual Asset
+                </Button>
+              }
+            />
+          ) : null}
         </div>
         {assets.length ? (
           <div className="mt-4">
@@ -1033,15 +1066,17 @@ export function VisualsWorkspace({ songId }: { songId: string }) {
           title="NO VISUAL ASSETS"
           detail="Start with cover art, video, canvas, or campaign assets."
           action={
-            <VisualAssetFormDialog
-              songId={songId}
-              trigger={
-                <Button>
-                  <Plus className="h-4 w-4" />
-                  Add Visual Asset
-                </Button>
-              }
-            />
+            access.canEdit ? (
+              <VisualAssetFormDialog
+                songId={songId}
+                trigger={
+                  <Button>
+                    <Plus className="h-4 w-4" />
+                    Add Visual Asset
+                  </Button>
+                }
+              />
+            ) : undefined
           }
         />
       ) : (
@@ -1074,6 +1109,7 @@ export function VisualsWorkspace({ songId }: { songId: string }) {
                         driveStatusError={driveConnection.isError}
                         activeVideoAssetId={activeVideoAssetId}
                         onVideoActivate={setActiveVideoAssetId}
+                        access={access}
                         onVideoDeactivate={(visualAssetId) =>
                           setActiveVideoAssetId((current) =>
                             current === visualAssetId ? null : current,

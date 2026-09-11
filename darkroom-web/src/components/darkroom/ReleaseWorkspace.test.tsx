@@ -199,6 +199,9 @@ const song: Song = {
   title: "Release Control Test Song",
   status: "ReleasePreparation",
   createdAt: "2026-09-01T10:00:00Z",
+  currentUserRole: "OWNER",
+  canEdit: true,
+  canManageMembers: true,
 };
 
 const release: Release = {
@@ -658,6 +661,25 @@ describe("Release workspace polish", () => {
     expect(await screen.findByText("DistroKid")).toBeInTheDocument();
     expect(screen.getAllByText("Release checklist could not be loaded.").length).toBeGreaterThan(0);
     expect(screen.getByText("Release readiness could not be loaded.")).toBeInTheDocument();
+  });
+
+  it("keeps viewer release planning readable without release or checklist mutation controls", async () => {
+    getSongMock.mockResolvedValueOnce({
+      ...song,
+      currentUserRole: "VIEWER",
+      canEdit: false,
+      canManageMembers: false,
+    });
+
+    await renderReleaseWorkspace();
+
+    expect(await screen.findByText("Release state")).toBeInTheDocument();
+    expect(screen.getByText("Preparation checklist")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit Release" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add note" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit note" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Metadata checklist item")).not.toBeInTheDocument();
   });
 
   it("shows loading and release query error states", async () => {

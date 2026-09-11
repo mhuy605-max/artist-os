@@ -69,18 +69,27 @@ const songsFixture: Song[] = [
     title: "Midnight Signal",
     status: "Demo",
     createdAt: "2026-08-28T10:00:00Z",
+    currentUserRole: "OWNER",
+    canEdit: true,
+    canManageMembers: true,
   },
   {
     id: 2,
     title: "Glass Radio",
     status: "ReleasePreparation",
     createdAt: "2026-08-29T10:00:00Z",
+    currentUserRole: "EDITOR",
+    canEdit: true,
+    canManageMembers: false,
   },
   {
     id: 4,
     title: "A Very Long Working Title For A Late Night Master Session That Still Needs Room",
     status: "Released",
     createdAt: "2026-08-27T10:00:00Z",
+    currentUserRole: "VIEWER",
+    canEdit: false,
+    canManageMembers: false,
   },
 ];
 
@@ -124,6 +133,39 @@ describe("SongsPage", () => {
     expect(screen.getByText("Aug 29, 2026")).toBeInTheDocument();
     expect(screen.queryByText(/BPM/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/people/i)).not.toBeInTheDocument();
+  });
+
+  it("renders shared Song role context without duplicating catalog rows", async () => {
+    getSongsMock.mockResolvedValueOnce(songsFixture);
+
+    renderWithQueryClient(<SongsPage />);
+
+    expect(await screen.findAllByText("Glass Radio")).toHaveLength(1);
+    expect(screen.getAllByText("Midnight Signal")).toHaveLength(1);
+    expect(screen.getByText("Editor")).toBeInTheDocument();
+    expect(screen.getByText("Viewer access")).toBeInTheDocument();
+    expect(screen.queryByText("Shared")).not.toBeInTheDocument();
+  });
+
+  it("uses backend access metadata for Song edit and owner-only delete controls", async () => {
+    getSongsMock.mockResolvedValueOnce(songsFixture);
+
+    renderWithQueryClient(<SongsPage />);
+
+    const ownerRow = (await screen.findByText("Midnight Signal")).closest(
+      "[data-song-row]",
+    ) as HTMLElement;
+    const editorRow = screen.getByText("Glass Radio").closest("[data-song-row]") as HTMLElement;
+    const viewerRow = screen
+      .getByText("A Very Long Working Title For A Late Night Master Session That Still Needs Room")
+      .closest("[data-song-row]") as HTMLElement;
+
+    expect(within(ownerRow).getByRole("button", { name: /^edit$/i })).toBeInTheDocument();
+    expect(within(ownerRow).getByRole("button", { name: /^delete$/i })).toBeInTheDocument();
+    expect(within(editorRow).getByRole("button", { name: /^edit$/i })).toBeInTheDocument();
+    expect(within(editorRow).queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
+    expect(within(viewerRow).queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(within(viewerRow).queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
   });
 
   it("renders an intentional empty state when there are no Songs", async () => {
@@ -209,6 +251,9 @@ describe("SongsPage", () => {
       title: "North Room",
       status: "Recording",
       createdAt: "2026-08-30T10:00:00Z",
+      currentUserRole: "OWNER",
+      canEdit: true,
+      canManageMembers: true,
     };
     getSongsMock.mockResolvedValue([]);
     createSongMock.mockResolvedValueOnce(createdSong);

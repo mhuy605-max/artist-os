@@ -157,7 +157,7 @@ import { CreditsWorkspace } from "./credits/CreditsWorkspace";
 import { OverviewWorkspace } from "./overview/OverviewWorkspace";
 import { ReleaseWorkspace } from "./release/ReleaseWorkspace";
 import { VisualsWorkspace } from "./visuals/VisualsWorkspace";
-import { normalizeId } from "./shared";
+import { deriveSongAccess, normalizeId, songRoleLabel } from "./shared";
 
 function FallbackNotice() {
   return isUsingFallbackData() ? (
@@ -244,6 +244,7 @@ export function SongWorkspacePage({ songId }: { songId: string }) {
 
 function Workspace({ song }: { song: Song }) {
   const id = normalizeId(song.id);
+  const access = deriveSongAccess(song);
   const tabs = ["overview", "audio", "visuals", "release", "content", "credits", "analytics"];
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -266,6 +267,14 @@ function Workspace({ song }: { song: Song }) {
             </h1>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <StatusBadge status={song.status} size="md" />
+              <span className="border border-border px-2 py-1 text-xs uppercase text-muted-foreground">
+                {songRoleLabel(access)}
+              </span>
+              {access.isReadOnly ? (
+                <span className="border border-border px-2 py-1 text-xs uppercase text-muted-foreground">
+                  View only
+                </span>
+              ) : null}
               <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 Created {formatDate(song.createdAt)}
               </span>
@@ -287,25 +296,25 @@ function Workspace({ song }: { song: Song }) {
           ))}
         </TabsList>
         <TabsContent value="overview">
-          <OverviewWorkspace song={song} onNavigateTab={setActiveTab} />
+          <OverviewWorkspace song={song} access={access} onNavigateTab={setActiveTab} />
         </TabsContent>
         <TabsContent value="audio">
-          <AudioWorkspace songId={id} />
+          <AudioWorkspace songId={id} access={access} />
         </TabsContent>
         <TabsContent value="visuals">
-          <VisualsWorkspace songId={id} />
+          <VisualsWorkspace songId={id} access={access} />
         </TabsContent>
         <TabsContent value="release">
-          <ReleaseWorkspace songId={id} />
+          <ReleaseWorkspace songId={id} access={access} />
         </TabsContent>
         <TabsContent value="content">
-          <ContentWorkspace songId={id} />
+          <ContentWorkspace songId={id} access={access} />
         </TabsContent>
         <TabsContent value="credits">
-          <CreditsWorkspace songId={id} />
+          <CreditsWorkspace songId={id} access={access} />
         </TabsContent>
         <TabsContent value="analytics">
-          <AnalyticsWorkspace songId={id} />
+          <AnalyticsWorkspace songId={id} access={access} />
         </TabsContent>
       </Tabs>
     </>

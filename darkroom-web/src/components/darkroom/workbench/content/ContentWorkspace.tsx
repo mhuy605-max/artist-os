@@ -150,7 +150,13 @@ import {
 } from "@/types";
 import { cn } from "@/lib/utils";
 
-import { contentItemsQueryKey, normalizeId, releaseReadinessQueryKey } from "../shared";
+import {
+  contentItemsQueryKey,
+  normalizeId,
+  READ_ONLY_SONG_ACCESS,
+  releaseReadinessQueryKey,
+  type SongAccess,
+} from "../shared";
 
 function useContentItemMutations(songId: string) {
   const queryClient = useQueryClient();
@@ -549,7 +555,15 @@ function ContentItemFormDialog({
   );
 }
 
-function ContentItemRow({ songId, item }: { songId: string; item: ContentItem }) {
+function ContentItemRow({
+  songId,
+  item,
+  access,
+}: {
+  songId: string;
+  item: ContentItem;
+  access: SongAccess;
+}) {
   const mutations = useContentItemMutations(songId);
   const notesPreview =
     item.notes && item.notes.length > 180 ? `${item.notes.slice(0, 177)}...` : item.notes;
@@ -596,40 +610,42 @@ function ContentItemRow({ songId, item }: { songId: string; item: ContentItem })
       ) : null}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">Updated {formatDate(item.updatedAt)}</p>
-        <div className="flex gap-2">
-          <ContentItemFormDialog
-            songId={songId}
-            item={item}
-            trigger={
-              <Button variant="outline" size="sm">
-                Edit
-              </Button>
-            }
-          />
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove content item?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This removes this ContentItem's planning metadata from DARKROOM SYSTEM. External
-                  social posts are not affected.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => mutations.remove.mutate(String(item.id))}>
+        {access.canEdit ? (
+          <div className="flex gap-2">
+            <ContentItemFormDialog
+              songId={songId}
+              item={item}
+              trigger={
+                <Button variant="outline" size="sm">
+                  Edit
+                </Button>
+              }
+            />
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Trash2 className="h-4 w-4" />
                   Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove content item?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes this ContentItem's planning metadata from DARKROOM SYSTEM. External
+                    social posts are not affected.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => mutations.remove.mutate(String(item.id))}>
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -673,7 +689,13 @@ function ContentLoadingState() {
   );
 }
 
-export function ContentWorkspace({ songId }: { songId: string }) {
+export function ContentWorkspace({
+  songId,
+  access = READ_ONLY_SONG_ACCESS,
+}: {
+  songId: string;
+  access?: SongAccess;
+}) {
   const contentItems = useQuery({
     queryKey: contentItemsQueryKey(songId),
     queryFn: () => contentItemsApi.getContentItems(songId),
@@ -706,15 +728,17 @@ export function ContentWorkspace({ songId }: { songId: string }) {
           <p className="max-w-2xl text-sm text-muted-foreground">
             Plan teasers, clips, visuals, and campaign posts for this Song.
           </p>
-          <ContentItemFormDialog
-            songId={songId}
-            trigger={
-              <Button>
-                <Plus className="h-4 w-4" />
-                Add Content
-              </Button>
-            }
-          />
+          {access.canEdit ? (
+            <ContentItemFormDialog
+              songId={songId}
+              trigger={
+                <Button>
+                  <Plus className="h-4 w-4" />
+                  Add Content
+                </Button>
+              }
+            />
+          ) : null}
         </div>
       </Panel>
 
@@ -739,19 +763,21 @@ export function ContentWorkspace({ songId }: { songId: string }) {
       </Panel>
 
       <Panel title="Content items" label="CONTENT ITEMS">
-        <ContentItemFormDialog
-          songId={songId}
-          trigger={
-            <Button variant="outline" size="sm" className="mb-4">
-              <Plus className="h-4 w-4" />
-              Add Content
-            </Button>
-          }
-        />
+        {access.canEdit ? (
+          <ContentItemFormDialog
+            songId={songId}
+            trigger={
+              <Button variant="outline" size="sm" className="mb-4">
+                <Plus className="h-4 w-4" />
+                Add Content
+              </Button>
+            }
+          />
+        ) : null}
         {sortedItems.length ? (
           <div className="grid gap-3">
             {sortedItems.map((item) => (
-              <ContentItemRow key={item.id} songId={songId} item={item} />
+              <ContentItemRow key={item.id} songId={songId} item={item} access={access} />
             ))}
           </div>
         ) : (

@@ -190,6 +190,9 @@ const song: Song = {
   title: "Credits Sheet Test Song",
   status: "ReleasePreparation",
   createdAt: "2026-09-01T10:00:00Z",
+  currentUserRole: "OWNER",
+  canEdit: true,
+  canManageMembers: true,
 };
 
 const credits: Credit[] = [
@@ -455,6 +458,23 @@ describe("Credits workspace polish", () => {
       await screen.findByText("We couldn't load contributor credits from Artist OS."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("keeps viewer contributor credits readable without credit mutation controls", async () => {
+    getSongMock.mockResolvedValueOnce({
+      ...song,
+      currentUserRole: "VIEWER",
+      canEdit: false,
+      canManageMembers: false,
+    });
+
+    await renderCreditsWorkspace();
+
+    expect(await screen.findAllByText("Jane Doe")).toHaveLength(2);
+    expect(screen.getByText("Producer")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add credit/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
   });
 
   it("does not render unsupported invite, account, payment, royalty, or legal workflow language", async () => {

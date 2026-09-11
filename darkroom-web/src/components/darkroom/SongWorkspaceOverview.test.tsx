@@ -176,6 +176,9 @@ const song: Song = {
   title: "Night Protocol",
   status: "Mixing",
   createdAt: "2026-09-01T10:00:00Z",
+  currentUserRole: "OWNER",
+  canEdit: true,
+  canManageMembers: true,
 };
 
 const longTitleSong: Song = {
@@ -346,6 +349,42 @@ describe("Song workspace Overview", () => {
     expect(screen.getAllByText("Not set up").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("No credits")).toBeInTheDocument();
     expect(screen.getByText("No snapshots")).toBeInTheDocument();
+  });
+
+  it("renders viewer role context and keeps the workspace readable", async () => {
+    getSongMock.mockResolvedValue({
+      ...song,
+      currentUserRole: "VIEWER",
+      canEdit: false,
+      canManageMembers: false,
+    });
+
+    renderWithQueryClient(<SongWorkspacePage songId="7" />);
+
+    expect(await screen.findByRole("heading", { name: "Night Protocol" })).toBeInTheDocument();
+    expect(screen.getByText("Viewer access")).toBeInTheDocument();
+    expect(screen.getByText("View only")).toBeInTheDocument();
+    expect((await screen.findAllByText("No assets")).length).toBeGreaterThan(0);
+  });
+
+  it("hides Drive provisioning for editors while still reading workspace metadata", async () => {
+    getSongMock.mockResolvedValue({
+      ...song,
+      currentUserRole: "EDITOR",
+      canEdit: true,
+      canManageMembers: false,
+    });
+    getGoogleDriveStatusMock.mockResolvedValue({ connected: true, status: "Connected" });
+    getWorkspaceMock.mockResolvedValue({ isProvisioned: false, folders: {} });
+
+    renderWithQueryClient(<SongWorkspacePage songId="7" />);
+
+    expect(await screen.findByText("Storage is connected")).toBeInTheDocument();
+    expect(screen.getByText("Editor")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Set up project storage" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Settings" })).not.toBeInTheDocument();
   });
 
   it("renders long Song titles without falling back to fake project metadata", async () => {

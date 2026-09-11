@@ -150,7 +150,12 @@ import {
 } from "@/types";
 import { cn } from "@/lib/utils";
 
-import { analyticsSnapshotsQueryKey, normalizeId } from "../shared";
+import {
+  analyticsSnapshotsQueryKey,
+  normalizeId,
+  READ_ONLY_SONG_ACCESS,
+  type SongAccess,
+} from "../shared";
 
 function useAnalyticsSnapshotMutations(songId: string) {
   const queryClient = useQueryClient();
@@ -556,10 +561,12 @@ function AnalyticsSnapshotRow({
   songId,
   snapshot,
   previousSnapshot,
+  access,
 }: {
   songId: string;
   snapshot: AnalyticsSnapshot;
   previousSnapshot: AnalyticsSnapshot | null;
+  access: SongAccess;
 }) {
   const mutations = useAnalyticsSnapshotMutations(songId);
 
@@ -593,45 +600,53 @@ function AnalyticsSnapshotRow({
           <p>Recorded in DARKROOM SYSTEM {formatDate(snapshot.createdAt)}</p>
         </div>
       </div>
-      <div className="flex items-start gap-2 xl:justify-end">
-        <AnalyticsSnapshotFormDialog
-          songId={songId}
-          snapshot={snapshot}
-          trigger={
-            <Button variant="outline" size="sm">
-              Edit
-            </Button>
-          }
-        />
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remove performance snapshot?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This removes the recorded performance data from DARKROOM SYSTEM. External platform
-                analytics are not affected.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => mutations.remove.mutate(String(snapshot.id))}>
+      {access.canEdit ? (
+        <div className="flex items-start gap-2 xl:justify-end">
+          <AnalyticsSnapshotFormDialog
+            songId={songId}
+            snapshot={snapshot}
+            trigger={
+              <Button variant="outline" size="sm">
+                Edit
+              </Button>
+            }
+          />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Trash2 className="h-4 w-4" />
                 Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove performance snapshot?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes the recorded performance data from DARKROOM SYSTEM. External platform
+                  analytics are not affected.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => mutations.remove.mutate(String(snapshot.id))}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      ) : null}
     </article>
   );
 }
 
-export function AnalyticsWorkspace({ songId }: { songId: string }) {
+export function AnalyticsWorkspace({
+  songId,
+  access = READ_ONLY_SONG_ACCESS,
+}: {
+  songId: string;
+  access?: SongAccess;
+}) {
   const [platformFilter, setPlatformFilter] = useState<AnalyticsPlatform | "All">("All");
   const snapshots = useQuery({
     queryKey: analyticsSnapshotsQueryKey(songId),
@@ -669,15 +684,17 @@ export function AnalyticsWorkspace({ songId }: { songId: string }) {
             Record platform performance at specific measurement dates and compare each platform
             against its previous stored snapshot.
           </p>
-          <AnalyticsSnapshotFormDialog
-            songId={songId}
-            trigger={
-              <Button>
-                <Plus className="h-4 w-4" />
-                Add Snapshot
-              </Button>
-            }
-          />
+          {access.canEdit ? (
+            <AnalyticsSnapshotFormDialog
+              songId={songId}
+              trigger={
+                <Button>
+                  <Plus className="h-4 w-4" />
+                  Add Snapshot
+                </Button>
+              }
+            />
+          ) : null}
         </div>
       </Panel>
 
@@ -687,17 +704,19 @@ export function AnalyticsWorkspace({ songId }: { songId: string }) {
             title="NO PERFORMANCE SNAPSHOTS"
             detail="Start recording performance data for this song."
           />
-          <div className="mt-4 flex justify-center">
-            <AnalyticsSnapshotFormDialog
-              songId={songId}
-              trigger={
-                <Button variant="outline">
-                  <Plus className="h-4 w-4" />
-                  Add Snapshot
-                </Button>
-              }
-            />
-          </div>
+          {access.canEdit ? (
+            <div className="mt-4 flex justify-center">
+              <AnalyticsSnapshotFormDialog
+                songId={songId}
+                trigger={
+                  <Button variant="outline">
+                    <Plus className="h-4 w-4" />
+                    Add Snapshot
+                  </Button>
+                }
+              />
+            </div>
+          ) : null}
         </Panel>
       ) : (
         <>
@@ -772,6 +791,7 @@ export function AnalyticsWorkspace({ songId }: { songId: string }) {
                     songId={songId}
                     snapshot={snapshot}
                     previousSnapshot={previousSnapshotForPlatform(snapshot, items)}
+                    access={access}
                   />
                 ))}
               </div>

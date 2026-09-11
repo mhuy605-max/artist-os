@@ -156,9 +156,11 @@ import { cn } from "@/lib/utils";
 
 import {
   normalizeId,
+  READ_ONLY_SONG_ACCESS,
   releaseChecklistQueryKey,
   releaseQueryKey,
   releaseReadinessQueryKey,
+  type SongAccess,
 } from "../shared";
 import { Info } from "../shared-ui";
 
@@ -434,7 +436,13 @@ function ReleaseFormDialog({
   );
 }
 
-export function ReleaseWorkspace({ songId }: { songId: string }) {
+export function ReleaseWorkspace({
+  songId,
+  access = READ_ONLY_SONG_ACCESS,
+}: {
+  songId: string;
+  access?: SongAccess;
+}) {
   const release = useQuery({
     queryKey: releaseQueryKey(songId),
     queryFn: () => releasesApi.getRelease(songId),
@@ -481,15 +489,17 @@ export function ReleaseWorkspace({ songId }: { songId: string }) {
               Release planning, metadata, and preparation readiness.
             </p>
           </div>
-          <ReleaseFormDialog
-            songId={songId}
-            trigger={
-              <Button>
-                <Plus className="h-4 w-4" />
-                Set Up Release
-              </Button>
-            }
-          />
+          {access.canEdit ? (
+            <ReleaseFormDialog
+              songId={songId}
+              trigger={
+                <Button>
+                  <Plus className="h-4 w-4" />
+                  Set Up Release
+                </Button>
+              }
+            />
+          ) : null}
         </div>
         <div className="mt-5 border border-dashed border-border bg-background p-6">
           <p className="label-tech">NO RELEASE SET UP</p>
@@ -513,36 +523,38 @@ export function ReleaseWorkspace({ songId }: { songId: string }) {
               Release planning, metadata, and preparation readiness.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <ReleaseFormDialog
-              songId={songId}
-              release={releasePlan}
-              trigger={<Button variant="outline">Edit Release</Button>}
-            />
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline">
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remove release setup?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This removes the release metadata and preparation checklist from DARKROOM
-                    SYSTEM. The Song remains.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => mutations.remove.mutate()}>
-                    Remove Release
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+          {access.canEdit ? (
+            <div className="flex flex-wrap gap-2">
+              <ReleaseFormDialog
+                songId={songId}
+                release={releasePlan}
+                trigger={<Button variant="outline">Edit Release</Button>}
+              />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove release setup?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This removes the release metadata and preparation checklist from DARKROOM
+                      SYSTEM. The Song remains.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => mutations.remove.mutate()}>
+                      Remove Release
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          ) : null}
         </div>
       </Panel>
 
@@ -608,6 +620,7 @@ export function ReleaseWorkspace({ songId }: { songId: string }) {
             isLoading={checklist.isLoading}
             isError={checklist.isError}
             onRetry={() => checklist.refetch()}
+            canEdit={access.canEdit}
           />
         </div>
       </div>
@@ -689,6 +702,7 @@ function ReleaseChecklistPanel({
   isLoading,
   isError,
   onRetry,
+  canEdit,
 }: {
   songId: string;
   items: ReleaseChecklistItem[];
@@ -696,6 +710,7 @@ function ReleaseChecklistPanel({
   isLoading: boolean;
   isError: boolean;
   onRetry: () => void;
+  canEdit: boolean;
 }) {
   const mutations = useReleaseChecklistMutations(songId);
 
@@ -713,6 +728,7 @@ function ReleaseChecklistPanel({
               item={item}
               readinessItem={readinessItemsByKey.get(item.key)}
               isPending={mutations.update.isPending}
+              canEdit={canEdit}
               onUpdate={(payload) =>
                 mutations.update.mutateAsync({
                   checklistItemId: String(item.id),
@@ -731,11 +747,13 @@ function ReleaseChecklistItemRow({
   item,
   readinessItem,
   isPending,
+  canEdit,
   onUpdate,
 }: {
   item: ReleaseChecklistItem;
   readinessItem?: ReleaseReadinessItem;
   isPending: boolean;
+  canEdit: boolean;
   onUpdate: (payload: ReleaseChecklistItemPayload) => Promise<unknown>;
 }) {
   const [notes, setNotes] = useState(item.notes ?? "");
@@ -780,7 +798,7 @@ function ReleaseChecklistItemRow({
     <div className="border border-border bg-background p-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          {canToggle ? (
+          {canToggle && canEdit ? (
             <Checkbox
               aria-label={`${item.label} checklist item`}
               checked={item.isCompleted}
@@ -823,40 +841,42 @@ function ReleaseChecklistItemRow({
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {isPending ? <span className="text-xs text-muted-foreground">Saving</span> : null}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline">
-                {savedNotes ? "Edit note" : "Add note"}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="border-border bg-background">
-              <DialogHeader>
-                <DialogTitle className="uppercase">{item.label} note</DialogTitle>
-                <DialogDescription>
-                  Save manual preparation notes for this checklist item.
-                </DialogDescription>
-              </DialogHeader>
-              <Textarea
-                aria-label={`${item.label} note`}
-                value={notes}
-                maxLength={1000}
-                onChange={(event) => setNotes(event.target.value)}
-                placeholder="Optional checklist notes"
-                className="min-h-28"
-              />
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">{notes.length} / 1000</p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!noteChanged || isPending}
-                  onClick={saveNotes}
-                >
-                  Save note
+          {canEdit ? (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                  {savedNotes ? "Edit note" : "Add note"}
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="border-border bg-background">
+                <DialogHeader>
+                  <DialogTitle className="uppercase">{item.label} note</DialogTitle>
+                  <DialogDescription>
+                    Save manual preparation notes for this checklist item.
+                  </DialogDescription>
+                </DialogHeader>
+                <Textarea
+                  aria-label={`${item.label} note`}
+                  value={notes}
+                  maxLength={1000}
+                  onChange={(event) => setNotes(event.target.value)}
+                  placeholder="Optional checklist notes"
+                  className="min-h-28"
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">{notes.length} / 1000</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!noteChanged || isPending}
+                    onClick={saveNotes}
+                  >
+                    Save note
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          ) : null}
         </div>
       </div>
       {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}

@@ -1,8 +1,66 @@
 import { ApiError } from "@/services/api/client";
-import type { Song } from "@/types";
+import { SONG_ROLES, type Song, type SongRole } from "@/types";
 
 export function normalizeId(id: Song["id"]) {
   return String(id);
+}
+
+export type SongAccess = {
+  role: SongRole | null;
+  canEdit: boolean;
+  canManageMembers: boolean;
+  isOwner: boolean;
+  isEditor: boolean;
+  isViewer: boolean;
+  canDeleteSong: boolean;
+  canProvisionDrive: boolean;
+  isReadOnly: boolean;
+};
+
+export const READ_ONLY_SONG_ACCESS: SongAccess = {
+  role: null,
+  canEdit: false,
+  canManageMembers: false,
+  isOwner: false,
+  isEditor: false,
+  isViewer: false,
+  canDeleteSong: false,
+  canProvisionDrive: false,
+  isReadOnly: true,
+};
+
+function isSongRole(value: unknown): value is SongRole {
+  return typeof value === "string" && SONG_ROLES.includes(value as SongRole);
+}
+
+export function deriveSongAccess(song: Song): SongAccess {
+  const role = isSongRole(song.currentUserRole) ? song.currentUserRole : null;
+  const isOwner = role === "OWNER";
+  const isEditor = role === "EDITOR";
+  const isViewer = role === "VIEWER";
+  const canEdit = Boolean(role && song.canEdit === true);
+  const canManageMembers = Boolean(role && song.canManageMembers === true);
+
+  if (!role) return READ_ONLY_SONG_ACCESS;
+
+  return {
+    role,
+    canEdit,
+    canManageMembers,
+    isOwner,
+    isEditor,
+    isViewer,
+    canDeleteSong: isOwner,
+    canProvisionDrive: isOwner,
+    isReadOnly: !canEdit,
+  };
+}
+
+export function songRoleLabel(access: SongAccess) {
+  if (access.isOwner) return "Owner";
+  if (access.isEditor) return "Editor";
+  if (access.isViewer) return "Viewer access";
+  return "View only";
 }
 
 export function audioAssetsQueryKey(songId: string) {

@@ -149,6 +149,7 @@ import {
   type VisualAssetType,
 } from "@/types";
 import { cn } from "@/lib/utils";
+import { deriveSongAccess, songRoleLabel } from "./workbench/shared";
 
 const songsQueryKey = ["songs"];
 
@@ -389,6 +390,8 @@ function SongFormDialog({
 }
 
 function SongCard({ song }: { song: Song }) {
+  const access = deriveSongAccess(song);
+
   return (
     <article className="group border border-border bg-panel transition-colors hover:border-border-strong">
       <Link
@@ -401,7 +404,14 @@ function SongCard({ song }: { song: Song }) {
           <h2 className="mt-2 break-words text-xl font-semibold leading-tight tracking-normal">
             {song.title}
           </h2>
-          <p className="mt-3 text-xs uppercase text-muted-foreground">Open workspace</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <p className="text-xs uppercase text-muted-foreground">Open workspace</p>
+            {!access.isOwner ? (
+              <span className="border border-border px-2 py-1 text-xs uppercase text-muted-foreground">
+                {songRoleLabel(access)}
+              </span>
+            ) : null}
+          </div>
         </div>
         <div>
           <p className="label-tech">Lifecycle</p>
@@ -931,44 +941,57 @@ export function SongsPage() {
             {filtered.map((song) => (
               <div
                 key={normalizeId(song.id)}
+                data-song-row
                 className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto]"
               >
                 <SongCard song={song} />
-                <div className="flex gap-2 xl:flex-col">
-                  <SongFormDialog
-                    mode="edit"
-                    song={song}
-                    trigger={
-                      <Button variant="outline" size="sm" className="min-w-24">
-                        Edit
-                      </Button>
-                    }
-                  />
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="min-w-24">
-                        <Trash2 className="h-4 w-4" />
-                        Delete
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete song</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This removes the project and its workspace metadata from Artist OS.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => mutations.remove.mutate(normalizeId(song.id))}
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
+                {(() => {
+                  const access = deriveSongAccess(song);
+
+                  if (!access.canEdit && !access.canDeleteSong) return null;
+
+                  return (
+                    <div className="flex gap-2 xl:flex-col">
+                      {access.canEdit ? (
+                        <SongFormDialog
+                          mode="edit"
+                          song={song}
+                          trigger={
+                            <Button variant="outline" size="sm" className="min-w-24">
+                              Edit
+                            </Button>
+                          }
+                        />
+                      ) : null}
+                      {access.canDeleteSong ? (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="min-w-24">
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete song</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This removes the project and its workspace metadata from Artist OS.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => mutations.remove.mutate(normalizeId(song.id))}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      ) : null}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/services/api/client";
 import { renderWithQueryClient } from "@/test/render";
 import type { AudioAsset, MediaAccessResponse } from "@/types";
+import type { SongAccess } from "./workbench/shared";
 
 const {
   getAudioAssetsMock,
@@ -102,6 +103,18 @@ const secondLinkedAudio: AudioAsset = {
     : null,
 };
 
+const ownerAccess: SongAccess = {
+  role: "OWNER",
+  canEdit: true,
+  canManageMembers: true,
+  isOwner: true,
+  isEditor: false,
+  isViewer: false,
+  canDeleteSong: true,
+  canProvisionDrive: true,
+  isReadOnly: false,
+};
+
 function access(overrides: Partial<MediaAccessResponse> = {}): MediaAccessResponse {
   return {
     mediaUrl: "http://localhost:5178/api/songs/1/audio-assets/11/media?token=signed-media-token",
@@ -115,7 +128,7 @@ function access(overrides: Partial<MediaAccessResponse> = {}): MediaAccessRespon
 
 function renderAudioWorkspace(assets: AudioAsset[] = [linkedAudio]) {
   getAudioAssetsMock.mockResolvedValue(assets);
-  return renderWithQueryClient(<AudioWorkspace songId="1" />);
+  return renderWithQueryClient(<AudioWorkspace songId="1" access={ownerAccess} />);
 }
 
 function audioElements(container: HTMLElement) {

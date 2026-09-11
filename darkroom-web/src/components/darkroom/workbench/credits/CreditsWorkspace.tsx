@@ -150,7 +150,14 @@ import {
 } from "@/types";
 import { cn } from "@/lib/utils";
 
-import { creditsQueryKey, normalizeId, numberOrNull, releaseReadinessQueryKey } from "../shared";
+import {
+  creditsQueryKey,
+  normalizeId,
+  numberOrNull,
+  READ_ONLY_SONG_ACCESS,
+  releaseReadinessQueryKey,
+  type SongAccess,
+} from "../shared";
 
 function useCreditMutations(songId: string) {
   const queryClient = useQueryClient();
@@ -442,7 +449,15 @@ function CreditFormDialog({
   );
 }
 
-function CreditRow({ songId, credit }: { songId: string; credit: Credit }) {
+function CreditRow({
+  songId,
+  credit,
+  access,
+}: {
+  songId: string;
+  credit: Credit;
+  access: SongAccess;
+}) {
   const mutations = useCreditMutations(songId);
   const contact = optionalCreditText(credit.contact);
   const notesPreview = creditNotesPreview(credit.notes);
@@ -492,40 +507,42 @@ function CreditRow({ songId, credit }: { songId: string; credit: Credit }) {
       ) : null}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">Created {formatDate(credit.createdAt)}</p>
-        <div className="flex gap-2">
-          <CreditFormDialog
-            songId={songId}
-            credit={credit}
-            trigger={
-              <Button variant="outline" size="sm">
-                Edit
-              </Button>
-            }
-          />
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove credit?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This removes only this contributor credit metadata from this Song. Artist OS
-                  users, team access, and external distributor records are not affected.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => mutations.remove.mutate(String(credit.id))}>
+        {access.canEdit ? (
+          <div className="flex gap-2">
+            <CreditFormDialog
+              songId={songId}
+              credit={credit}
+              trigger={
+                <Button variant="outline" size="sm">
+                  Edit
+                </Button>
+              }
+            />
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Trash2 className="h-4 w-4" />
                   Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove credit?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes only this contributor credit metadata from this Song. Artist OS
+                    users, team access, and external distributor records are not affected.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => mutations.remove.mutate(String(credit.id))}>
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -569,7 +586,13 @@ function CreditsLoadingState() {
   );
 }
 
-export function CreditsWorkspace({ songId }: { songId: string }) {
+export function CreditsWorkspace({
+  songId,
+  access = READ_ONLY_SONG_ACCESS,
+}: {
+  songId: string;
+  access?: SongAccess;
+}) {
   const credits = useQuery({
     queryKey: creditsQueryKey(songId),
     queryFn: () => creditsApi.getCredits(songId),
@@ -601,15 +624,17 @@ export function CreditsWorkspace({ songId }: { songId: string }) {
           <p className="max-w-2xl text-sm text-muted-foreground">
             Track who contributed, what they did, and which credits still need confirmation.
           </p>
-          <CreditFormDialog
-            songId={songId}
-            trigger={
-              <Button>
-                <Plus className="h-4 w-4" />
-                Add Credit
-              </Button>
-            }
-          />
+          {access.canEdit ? (
+            <CreditFormDialog
+              songId={songId}
+              trigger={
+                <Button>
+                  <Plus className="h-4 w-4" />
+                  Add Credit
+                </Button>
+              }
+            />
+          ) : null}
         </div>
       </Panel>
 
@@ -642,19 +667,21 @@ export function CreditsWorkspace({ songId }: { songId: string }) {
       ) : null}
 
       <Panel title="Contributors" label="CONTRIBUTORS">
-        <CreditFormDialog
-          songId={songId}
-          trigger={
-            <Button variant="outline" size="sm" className="mb-4">
-              <Plus className="h-4 w-4" />
-              Add Credit
-            </Button>
-          }
-        />
+        {access.canEdit ? (
+          <CreditFormDialog
+            songId={songId}
+            trigger={
+              <Button variant="outline" size="sm" className="mb-4">
+                <Plus className="h-4 w-4" />
+                Add Credit
+              </Button>
+            }
+          />
+        ) : null}
         {sortedItems.length ? (
           <div className="grid gap-3">
             {sortedItems.map((credit) => (
-              <CreditRow key={credit.id} songId={songId} credit={credit} />
+              <CreditRow key={credit.id} songId={songId} credit={credit} access={access} />
             ))}
           </div>
         ) : (

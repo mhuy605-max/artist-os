@@ -193,6 +193,9 @@ const song: Song = {
   title: "Night Protocol",
   status: "Demo",
   createdAt: "2026-08-31T10:00:00Z",
+  currentUserRole: "OWNER",
+  canEdit: true,
+  canManageMembers: true,
 };
 
 const metadataOnlyAudio: AudioAsset = {
@@ -405,6 +408,48 @@ describe("Song workspace asset file upload", () => {
     await waitFor(() => {
       expect(uploadAudioAssetFileMock).toHaveBeenCalledWith("1", "11", file);
     });
+  });
+
+  it("keeps viewer audio playback readable but hides audio mutation and upload controls", async () => {
+    getSongMock.mockResolvedValue({
+      ...song,
+      currentUserRole: "VIEWER",
+      canEdit: false,
+      canManageMembers: false,
+    });
+    getAudioAssetsMock.mockResolvedValue([linkedAudio]);
+
+    renderWithQueryClient(<SongWorkspacePage songId="1" />);
+
+    await userEvent.click(await screen.findByRole("tab", { name: "audio" }));
+
+    expect(await screen.findByRole("button", { name: /play master.wav/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add audio asset/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /create new version/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /replace file/i })).not.toBeInTheDocument();
+  });
+
+  it("lets editors upload to shared audio without requiring their personal Drive connection", async () => {
+    getSongMock.mockResolvedValue({
+      ...song,
+      currentUserRole: "EDITOR",
+      canEdit: true,
+      canManageMembers: false,
+    });
+    getGoogleDriveStatusMock.mockResolvedValue({
+      connected: false,
+      status: null,
+    });
+
+    renderWithQueryClient(<SongWorkspacePage songId="1" />);
+
+    await userEvent.click(await screen.findByRole("tab", { name: "audio" }));
+
+    expect(await screen.findByText("ATTACH AUDIO FILE")).toBeInTheDocument();
+    expect(screen.queryByText("CONNECT STORAGE TO UPLOAD")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /open settings/i })).not.toBeInTheDocument();
   });
 
   it("renders linked file state and does not show overwrite upload button", async () => {
@@ -735,6 +780,27 @@ describe("Song workspace asset file upload", () => {
     await waitFor(() => {
       expect(uploadVisualAssetFileMock).toHaveBeenCalledWith("1", "21", file);
     });
+  });
+
+  it("keeps viewer visual preview readable but hides visual mutation and upload controls", async () => {
+    getSongMock.mockResolvedValue({
+      ...song,
+      currentUserRole: "VIEWER",
+      canEdit: false,
+      canManageMembers: false,
+    });
+    getVisualAssetsMock.mockResolvedValue([linkedVisual]);
+
+    renderWithQueryClient(<SongWorkspacePage songId="1" />);
+
+    await userEvent.click(await screen.findByRole("tab", { name: "visuals" }));
+
+    expect(await screen.findByLabelText(/open preview for cover-final.png/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add visual asset/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /create new version/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /replace file/i })).not.toBeInTheDocument();
   });
 
   it("calls visual upload API for supported video files", async () => {

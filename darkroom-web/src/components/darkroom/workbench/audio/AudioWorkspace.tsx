@@ -150,7 +150,13 @@ import {
 } from "@/types";
 import { cn } from "@/lib/utils";
 
-import { audioAssetsQueryKey, normalizeId, releaseReadinessQueryKey } from "../shared";
+import {
+  audioAssetsQueryKey,
+  normalizeId,
+  READ_ONLY_SONG_ACCESS,
+  releaseReadinessQueryKey,
+  type SongAccess,
+} from "../shared";
 import { AudioPlayer } from "./AudioPlayer";
 
 function useAudioAssetMutations(songId: string) {
@@ -645,6 +651,7 @@ function AudioFileAssociationPanel({
   driveStatusError,
   upload,
   replaceFile,
+  access,
   isActive,
   onActivate,
   onDeactivate,
@@ -663,6 +670,7 @@ function AudioFileAssociationPanel({
     error: unknown;
     mutate: (input: { audioAssetId: string; file: File }) => void;
   };
+  access: SongAccess;
   isActive: boolean;
   onActivate: () => void;
   onDeactivate: () => void;
@@ -695,16 +703,18 @@ function AudioFileAssociationPanel({
               </a>
             </Button>
           ) : null}
-          <ReplaceAudioFileDialog
-            asset={asset}
-            replaceFile={replaceFile}
-            trigger={
-              <Button variant="outline" size="sm">
-                <Upload className="h-4 w-4" />
-                Replace File
-              </Button>
-            }
-          />
+          {access.canEdit ? (
+            <ReplaceAudioFileDialog
+              asset={asset}
+              replaceFile={replaceFile}
+              trigger={
+                <Button variant="outline" size="sm">
+                  <Upload className="h-4 w-4" />
+                  Replace File
+                </Button>
+              }
+            />
+          ) : null}
         </div>
         <AudioPlayer
           songId={songId}
@@ -717,7 +727,20 @@ function AudioFileAssociationPanel({
     );
   }
 
-  if (driveStatus?.connected === false) {
+  if (!access.canEdit) {
+    return (
+      <div className="border border-dashed border-border bg-panel p-3">
+        <p className="label-tech">VIEW ONLY</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          This version has no linked audio file yet.
+        </p>
+      </div>
+    );
+  }
+
+  const shouldUseOwnerDriveStatus = access.isOwner;
+
+  if (shouldUseOwnerDriveStatus && driveStatus?.connected === false) {
     return (
       <div className="border border-dashed border-border bg-panel p-3">
         <p className="label-tech">CONNECT STORAGE TO UPLOAD</p>
@@ -731,7 +754,7 @@ function AudioFileAssociationPanel({
     );
   }
 
-  if (driveStatus?.status === "ReauthRequired") {
+  if (shouldUseOwnerDriveStatus && driveStatus?.status === "ReauthRequired") {
     return (
       <div className="border border-dashed border-border bg-panel p-3">
         <p className="label-tech">STORAGE CONNECTION NEEDS ATTENTION</p>
@@ -745,7 +768,7 @@ function AudioFileAssociationPanel({
     );
   }
 
-  if (!driveStatus && !driveStatusError) {
+  if (shouldUseOwnerDriveStatus && !driveStatus && !driveStatusError) {
     return (
       <div className="border border-dashed border-border bg-panel p-3">
         <p className="label-tech">CHECKING STORAGE</p>
@@ -817,6 +840,7 @@ function AudioAssetRow({
   activeAudioAssetId,
   onActivateAudio,
   onDeactivateAudio,
+  access,
 }: {
   songId: string;
   asset: AudioAsset;
@@ -825,6 +849,7 @@ function AudioAssetRow({
   activeAudioAssetId: string | null;
   onActivateAudio: (audioAssetId: string) => void;
   onDeactivateAudio: (audioAssetId: string) => void;
+  access: SongAccess;
 }) {
   const mutations = useAudioAssetMutations(songId);
   const removeCopy = asset.isCurrent
@@ -863,47 +888,49 @@ function AudioAssetRow({
               {formatDate(asset.uploadedAt)}
             </p>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <AudioAssetFormDialog
-              songId={songId}
-              asset={asset}
-              trigger={
-                <Button variant="outline" size="sm">
-                  Edit
-                </Button>
-              }
-            />
-            <CreateAudioVersionDialog
-              asset={asset}
-              createVersion={mutations.createVersion}
-              trigger={
-                <Button variant="outline" size="sm">
-                  <Plus className="h-4 w-4" />
-                  Create New Version
-                </Button>
-              }
-            />
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remove audio asset?</AlertDialogTitle>
-                  <AlertDialogDescription>{removeCopy}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => mutations.remove.mutate(String(asset.id))}>
-                    Remove asset
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+          {access.canEdit ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <AudioAssetFormDialog
+                songId={songId}
+                asset={asset}
+                trigger={
+                  <Button variant="outline" size="sm">
+                    Edit
+                  </Button>
+                }
+              />
+              <CreateAudioVersionDialog
+                asset={asset}
+                createVersion={mutations.createVersion}
+                trigger={
+                  <Button variant="outline" size="sm">
+                    <Plus className="h-4 w-4" />
+                    Create New Version
+                  </Button>
+                }
+              />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove audio asset?</AlertDialogTitle>
+                    <AlertDialogDescription>{removeCopy}</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => mutations.remove.mutate(String(asset.id))}>
+                      Remove asset
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          ) : null}
         </div>
         <AudioFileAssociationPanel
           songId={songId}
@@ -911,6 +938,7 @@ function AudioAssetRow({
           driveStatus={driveStatus}
           driveStatusError={driveStatusError}
           upload={mutations.upload}
+          access={access}
           isActive={activeAudioAssetId === String(asset.id)}
           onActivate={() => onActivateAudio(String(asset.id))}
           onDeactivate={() => onDeactivateAudio(String(asset.id))}
@@ -921,7 +949,13 @@ function AudioAssetRow({
   );
 }
 
-export function AudioWorkspace({ songId }: { songId: string }) {
+export function AudioWorkspace({
+  songId,
+  access = READ_ONLY_SONG_ACCESS,
+}: {
+  songId: string;
+  access?: SongAccess;
+}) {
   const [activeAudioAssetId, setActiveAudioAssetId] = useState<string | null>(null);
   const audioAssets = useQuery({
     queryKey: audioAssetsQueryKey(songId),
@@ -930,6 +964,7 @@ export function AudioWorkspace({ songId }: { songId: string }) {
   const driveConnection = useQuery({
     queryKey: googleDriveConnectionQueryKey,
     queryFn: googleDriveApi.getStatus,
+    enabled: access.isOwner,
   });
 
   if (audioAssets.isLoading) {
@@ -965,15 +1000,17 @@ export function AudioWorkspace({ songId }: { songId: string }) {
               Recordings, mixes, masters, and delivery files for this song.
             </p>
           </div>
-          <AudioAssetFormDialog
-            songId={songId}
-            trigger={
-              <Button>
-                <Plus className="h-4 w-4" />
-                Add Audio Asset
-              </Button>
-            }
-          />
+          {access.canEdit ? (
+            <AudioAssetFormDialog
+              songId={songId}
+              trigger={
+                <Button>
+                  <Plus className="h-4 w-4" />
+                  Add Audio Asset
+                </Button>
+              }
+            />
+          ) : null}
         </div>
         {assets.length ? (
           <div className="mt-4">
@@ -987,15 +1024,17 @@ export function AudioWorkspace({ songId }: { songId: string }) {
           title="NO AUDIO ASSETS"
           detail="Start with a demo, recording, mix, or master."
           action={
-            <AudioAssetFormDialog
-              songId={songId}
-              trigger={
-                <Button>
-                  <Plus className="h-4 w-4" />
-                  Add Audio Asset
-                </Button>
-              }
-            />
+            access.canEdit ? (
+              <AudioAssetFormDialog
+                songId={songId}
+                trigger={
+                  <Button>
+                    <Plus className="h-4 w-4" />
+                    Add Audio Asset
+                  </Button>
+                }
+              />
+            ) : undefined
           }
         />
       ) : (
@@ -1028,6 +1067,7 @@ export function AudioWorkspace({ songId }: { songId: string }) {
                         driveStatusError={driveConnection.isError}
                         activeAudioAssetId={activeAudioAssetId}
                         onActivateAudio={setActiveAudioAssetId}
+                        access={access}
                         onDeactivateAudio={(audioAssetId) => {
                           setActiveAudioAssetId((current) =>
                             current === audioAssetId ? null : current,

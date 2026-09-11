@@ -158,6 +158,7 @@ import {
   normalizeId,
   releaseQueryKey,
   releaseReadinessQueryKey,
+  type SongAccess,
   visualAssetsQueryKey,
 } from "../shared";
 import { Info } from "../shared-ui";
@@ -180,9 +181,11 @@ type AttentionItem = {
 
 export function OverviewWorkspace({
   song,
+  access,
   onNavigateTab,
 }: {
   song: Song;
+  access: SongAccess;
   onNavigateTab: (tab: string) => void;
 }) {
   const id = normalizeId(song.id);
@@ -288,7 +291,7 @@ export function OverviewWorkspace({
         </Panel>
       ) : null}
 
-      <DriveWorkspacePanel songId={id} />
+      <DriveWorkspacePanel songId={id} access={access} />
     </div>
   );
 }
@@ -533,19 +536,20 @@ function tabLabel(tab: string) {
   return tab.charAt(0).toUpperCase() + tab.slice(1);
 }
 
-function DriveWorkspacePanel({ songId }: { songId: string }) {
+function DriveWorkspacePanel({ songId, access }: { songId: string; access: SongAccess }) {
   const queryClient = useQueryClient();
   const connection = useQuery({
     queryKey: googleDriveConnectionQueryKey,
     queryFn: googleDriveApi.getStatus,
+    enabled: access.isOwner,
   });
-  const connected = connection.data?.connected === true;
-  const needsReconnect = connection.data?.status === "ReauthRequired";
+  const connected = access.isOwner ? connection.data?.connected === true : true;
+  const needsReconnect = access.isOwner && connection.data?.status === "ReauthRequired";
   const workspace = useQuery({
     queryKey: driveWorkspaceQueryKey(songId),
     queryFn: () => driveWorkspaceApi.getWorkspace(songId),
     retry: false,
-    enabled: connected,
+    enabled: connected || !access.isOwner,
   });
   const provision = useMutation({
     mutationFn: () => driveWorkspaceApi.provisionWorkspace(songId),
@@ -555,7 +559,8 @@ function DriveWorkspacePanel({ songId }: { songId: string }) {
     },
   });
   const disconnected =
-    !connected || isDriveWorkspaceDisconnectedError(workspace.error) || needsReconnect;
+    access.isOwner &&
+    (!connected || isDriveWorkspaceDisconnectedError(workspace.error) || needsReconnect);
   const provisioned = connected && workspace.data?.isProvisioned === true;
 
   return (
@@ -582,7 +587,7 @@ function DriveWorkspacePanel({ songId }: { songId: string }) {
         <FolderTree className="h-5 w-5 text-muted-foreground" />
       </div>
 
-      {workspace.isLoading || connection.isLoading ? (
+      {workspace.isLoading || (access.isOwner && connection.isLoading) ? (
         <div
           className="mt-4 h-16 animate-pulse border border-border bg-background"
           aria-label="Checking project storage"
@@ -616,7 +621,7 @@ function DriveWorkspacePanel({ songId }: { songId: string }) {
         </div>
       )}
 
-      {connected && !workspace.isLoading && !workspace.isError ? (
+      {access.canProvisionDrive && connected && !workspace.isLoading && !workspace.isError ? (
         <div className="mt-4">
           <Button
             onClick={() => provision.mutate()}

@@ -1,12 +1,12 @@
 # Artist OS Current State
 
-Last updated: 2026-09-11
+Last updated: 2026-09-12
 
 ## Current Phase
 
-Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is underway.
+Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration frontend access model is complete through C7.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, and C5 converted media plus Google Drive provider operations to the collaboration model. Frontend collaboration types and frontend collaboration UI are not implemented yet. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, and C7 added frontend role-aware workspace behavior using backend Song access metadata. Members UI, invitation inbox, invite/member management controls, generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
@@ -192,6 +192,15 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - Accepted OWNER, EDITOR, and VIEWER users can read safe Drive workspace metadata; provisioning remains OWNER-only.
 - Media tokens remain bound to the requesting DARKROOM user and are revalidated against current Song membership/access on every stream request, so removed members lose access even if an old token has not expired.
 - Media streaming resolves Google Drive refresh and file reads through the Song owner's Google Drive connection while preserving existing GET, HEAD, Range, and media security-header behavior.
+- V1.1 Song Workspace Collaboration C6 backend security/regression verification passed without code, schema, migration, frontend, deployment, commit, or push changes.
+- Frontend `Song` types now consume backend `currentUserRole`, `canEdit`, and `canManageMembers` metadata.
+- A small frontend Song access helper derives OWNER, EDITOR, VIEWER, read-only, owner-only delete, and owner-only Drive provisioning UI capabilities from the backend response.
+- Songs catalog rows now show shared role context and hide Song edit/delete controls according to backend access metadata; Song delete remains OWNER-only in the UI.
+- Song workspace header and Overview now show role/read-only context and keep direct shared-song routes readable.
+- Viewer users can read workspace tabs, media metadata, media playback/preview surfaces, release readiness/checklists, content, credits, and analytics without seeing mutation controls.
+- Editor users keep normal workspace edit/upload/replace controls, and shared media upload/replace UI no longer requires the editor's personal Google Drive connection.
+- Project storage setup/provisioning controls remain OWNER-only in the frontend; non-owner shared users can read safe workspace metadata without Settings prompts.
+- Frontend C7 coverage verifies fail-closed access derivation, catalog role controls, viewer read-only tab behavior, editor shared upload behavior, owner-only Drive provisioning UI, and `403` auth-token preservation.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 - Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
@@ -1769,7 +1778,7 @@ Automated tests:
 - Frontend tests use Vitest with jsdom and a shared setup file.
 - Frontend component tests use a fresh TanStack Query `QueryClient` per render with retries disabled.
 - Frontend tests mock API services such as `authApi`, `dashboardApi`, and `songsApi` instead of depending on ASP.NET, PostgreSQL, localhost, or network availability.
-- Frontend automated tests currently have 195 focused tests.
+- Frontend automated tests currently have 211 focused tests.
 - Auth API behavior has automated integration-style coverage for registration, duplicate email, login, invalid credentials, current JWT, logout semantics, password hash safety, malformed tokens, expired tokens, and unauthenticated access.
 - Song owner assignment has automated integration-style coverage for authenticated creates and spoofed owner rejection.
 - Resource ownership has automated integration-style coverage for unauthenticated `401`, cross-user `404`, nested Song resource scoping, Calendar/Dashboard scoping, and legacy unowned Song invisibility.
@@ -1791,6 +1800,7 @@ Automated tests:
 - Google Drive Settings behavior has automated frontend coverage for disconnected, connected, reconnect-needed, connect navigation, disconnect mutation, API error, and no-token-rendering states.
 - Security hardening behavior has automated backend coverage for auth rate limiting, normal API rate limiting, aggregate rate limiting, media stream rate limiting, upload concurrency limiting, password length bounds, trusted public URL generation, production CORS/security headers, callback redirect URL trust, and production Data Protection startup validation.
 - Security S4A attack-verification behavior has automated backend coverage for JWT tampering variants, hostile CORS origin behavior, malicious Host safety for media URLs, Data Protection restart persistence, Data Protection purpose isolation, double-extension/path-segment upload filenames, malformed/multi-range media requests, accepted short-lived media-token replay, and production-like security headers.
+- V1.1 Song Workspace Collaboration C6 backend security/regression verification covered C1-C5 collaboration authorization, owner precedence, invitation/member access separation, removal and role-change revocation, Song and nested-domain IDOR, Dashboard/Calendar scoping, media-token validation, Google Drive owner-backed storage, upload/replace authorization, safe API errors, token non-exposure, and V1 regression behavior.
 
 Verification run during the Security S4A Local Attack-Oriented Application Security Verification milestone:
 
@@ -2674,10 +2684,10 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-C6 - Backend Collaboration Security & Regression Pass.
+C8 - Members UI + Invitation Inbox.
 
 Suggested scope:
 
-- Re-run and harden backend collaboration authorization regressions end to end.
-- Review anti-enumeration behavior, role downgrade/removal behavior, and cross-Song IDOR coverage across C1-C5 surfaces.
-- Do not begin frontend collaboration types or frontend collaboration UI until their later milestones.
+- Build the minimal frontend surfaces for member visibility and invitation handling on top of the already verified backend C2 APIs.
+- Keep owner-only invite, role-change, revoke, and remove controls explicit and backend-authoritative.
+- Do not add new backend provider features or begin post-C8 collaboration work until explicitly requested.
