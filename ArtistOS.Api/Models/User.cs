@@ -26,4 +26,10 @@ public class User
     public GoogleDriveConnection? GoogleDriveConnection { get; set; }
 
     public ICollection<ExternalFileReference> ExternalFileReferences { get; set; } = [];
+
+    public ICollection<SongMember> SongMemberships { get; set; } = [];
+
+    public ICollection<SongInvitation> SongInvitationsReceived { get; set; } = [];
+
+    public ICollection<SongInvitation> SongInvitationsSent { get; set; } = [];
 }

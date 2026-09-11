@@ -31,4 +31,8 @@ public class Song
     public ICollection<AnalyticsSnapshot> AnalyticsSnapshots { get; set; } = [];
 
     public ICollection<ExternalFileReference> ExternalFileReferences { get; set; } = [];
+
+    public ICollection<SongMember> SongMembers { get; set; } = [];
+
+    public ICollection<SongInvitation> SongInvitations { get; set; } = [];
 }

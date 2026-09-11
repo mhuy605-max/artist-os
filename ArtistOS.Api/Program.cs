@@ -67,6 +67,7 @@ builder.Services.AddScoped<MediaTokenService>();
 builder.Services.AddScoped<MediaAccessService>();
 builder.Services.AddScoped<GoogleDriveMediaService>();
 builder.Services.AddScoped<ReleaseReadinessService>();
+builder.Services.AddScoped<SongAccessService>();
 builder.Services.AddHttpClient();
 builder.Services.Configure<FormOptions>(options =>
 {

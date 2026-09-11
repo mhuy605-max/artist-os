@@ -32,6 +32,10 @@ public class AppDbContext : DbContext
 
     public DbSet<ExternalFileReference> ExternalFileReferences { get; set; }
 
+    public DbSet<SongMember> SongMembers { get; set; }
+
+    public DbSet<SongInvitation> SongInvitations { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<User>(entity =>
@@ -48,6 +52,88 @@ public class AppDbContext : DbContext
                 .WithMany(user => user.Songs)
                 .HasForeignKey(song => song.OwnerUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SongMember>(entity =>
+        {
+            entity.ToTable("SongMembers", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_SongMembers_Role",
+                    "\"Role\" IN ('EDITOR', 'VIEWER')");
+            });
+
+            entity.Property(member => member.Role)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.HasIndex(member => member.SongId);
+            entity.HasIndex(member => member.UserId);
+            entity.HasIndex(member => new
+            {
+                member.SongId,
+                member.UserId
+            })
+                .IsUnique();
+
+            entity.HasOne(member => member.Song)
+                .WithMany(song => song.SongMembers)
+                .HasForeignKey(member => member.SongId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(member => member.User)
+                .WithMany(user => user.SongMemberships)
+                .HasForeignKey(member => member.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SongInvitation>(entity =>
+        {
+            entity.ToTable("SongInvitations", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_SongInvitations_Role",
+                    "\"Role\" IN ('EDITOR', 'VIEWER')");
+                table.HasCheckConstraint(
+                    "CK_SongInvitations_Status",
+                    "\"Status\" IN ('PENDING', 'ACCEPTED', 'DECLINED', 'REVOKED')");
+            });
+
+            entity.Property(invitation => invitation.Role)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.Property(invitation => invitation.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.HasIndex(invitation => invitation.SongId);
+            entity.HasIndex(invitation => invitation.InvitedUserId);
+            entity.HasIndex(invitation => invitation.InvitedByUserId);
+            entity.HasIndex(invitation => invitation.Status);
+            entity.HasIndex(invitation => new
+            {
+                invitation.SongId,
+                invitation.InvitedUserId
+            })
+                .IsUnique()
+                .HasDatabaseName("IX_SongInvitations_SongId_InvitedUserId_Pending")
+                .HasFilter("\"Status\" = 'PENDING'");
+
+            entity.HasOne(invitation => invitation.Song)
+                .WithMany(song => song.SongInvitations)
+                .HasForeignKey(invitation => invitation.SongId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(invitation => invitation.InvitedUser)
+                .WithMany(user => user.SongInvitationsReceived)
+                .HasForeignKey(invitation => invitation.InvitedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(invitation => invitation.InvitedByUser)
+                .WithMany(user => user.SongInvitationsSent)
+                .HasForeignKey(invitation => invitation.InvitedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<GoogleDriveConnection>(entity =>
