@@ -11,4 +11,10 @@ public class SongResponse
     public DateTime CreatedAt { get; set; }
 
     public int? OwnerUserId { get; set; }
+
+    public string CurrentUserRole { get; set; } = string.Empty;
+
+    public bool CanEdit { get; set; }
+
+    public bool CanManageMembers { get; set; }
 }

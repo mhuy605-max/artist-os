@@ -37,11 +37,16 @@ public class DashboardController : ControllerBase
 
     private readonly AppDbContext _context;
     private readonly ReleaseReadinessService _releaseReadinessService;
+    private readonly SongAccessService _songAccessService;
 
-    public DashboardController(AppDbContext context, ReleaseReadinessService releaseReadinessService)
+    public DashboardController(
+        AppDbContext context,
+        ReleaseReadinessService releaseReadinessService,
+        SongAccessService songAccessService)
     {
         _context = context;
         _releaseReadinessService = releaseReadinessService;
+        _songAccessService = songAccessService;
     }
 
     [HttpGet]
@@ -55,47 +60,57 @@ public class DashboardController : ControllerBase
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
+        var accessibleSongIds = await GetAccessibleSongIds(currentUserId.Value);
+
         var response = new DashboardResponse
         {
-            Summary = await GetSummary(today, currentUserId),
-            Pipeline = await GetPipeline(currentUserId),
-            Upcoming = await GetUpcoming(today, currentUserId),
-            ReleaseReadiness = await GetReleaseReadiness(today, currentUserId),
-            AnalyticsOverview = await GetAnalyticsOverview(currentUserId),
-            RecentActivity = await GetRecentActivity(currentUserId)
+            Summary = await GetSummary(today, accessibleSongIds),
+            Pipeline = await GetPipeline(accessibleSongIds),
+            Upcoming = await GetUpcoming(today, accessibleSongIds),
+            ReleaseReadiness = await GetReleaseReadiness(today, currentUserId.Value, accessibleSongIds),
+            AnalyticsOverview = await GetAnalyticsOverview(accessibleSongIds),
+            RecentActivity = await GetRecentActivity(accessibleSongIds)
         };
 
         return response;
     }
 
-    private async Task<DashboardSummaryResponse> GetSummary(DateOnly today, int? userId)
+    private async Task<List<int>> GetAccessibleSongIds(int userId)
+    {
+        return await _songAccessService
+            .WhereAccessibleTo(_context.Songs.AsNoTracking(), userId)
+            .Select(song => song.Id)
+            .ToListAsync();
+    }
+
+    private async Task<DashboardSummaryResponse> GetSummary(DateOnly today, List<int> accessibleSongIds)
     {
         return new DashboardSummaryResponse
         {
             TotalSongs = await _context.Songs
                 .AsNoTracking()
-                .CountAsync(song => song.OwnerUserId == userId),
+                .CountAsync(song => accessibleSongIds.Contains(song.Id)),
             ActiveSongs = await _context.Songs
                 .AsNoTracking()
-                .CountAsync(song => song.OwnerUserId == userId && song.Status != "Released"),
+                .CountAsync(song => accessibleSongIds.Contains(song.Id) && song.Status != "Released"),
             UpcomingReleases = await _context.Releases
                 .AsNoTracking()
                 .CountAsync(release =>
-                    release.Song.OwnerUserId == userId &&
+                    accessibleSongIds.Contains(release.SongId) &&
                     release.ReleaseDate >= today && release.Status != "Released"),
             ScheduledContent = await _context.ContentItems
                 .AsNoTracking()
                 .CountAsync(contentItem =>
-                    contentItem.Song.OwnerUserId == userId &&
+                    accessibleSongIds.Contains(contentItem.SongId) &&
                     contentItem.ScheduledAt >= today && contentItem.Status != "Published")
         };
     }
 
-    private async Task<List<DashboardPipelineItemResponse>> GetPipeline(int? userId)
+    private async Task<List<DashboardPipelineItemResponse>> GetPipeline(List<int> accessibleSongIds)
     {
         var counts = await _context.Songs
             .AsNoTracking()
-            .Where(song => song.OwnerUserId == userId)
+            .Where(song => accessibleSongIds.Contains(song.Id))
             .GroupBy(song => song.Status)
             .Select(group => new { Status = group.Key, Count = group.Count() })
             .ToDictionaryAsync(group => group.Status, group => group.Count);
@@ -110,12 +125,12 @@ public class DashboardController : ControllerBase
             .ToList();
     }
 
-    private async Task<List<DashboardUpcomingItemResponse>> GetUpcoming(DateOnly today, int? userId)
+    private async Task<List<DashboardUpcomingItemResponse>> GetUpcoming(DateOnly today, List<int> accessibleSongIds)
     {
         var releases = await _context.Releases
             .AsNoTracking()
             .Where(release =>
-                release.Song.OwnerUserId == userId &&
+                accessibleSongIds.Contains(release.SongId) &&
                 release.ReleaseDate >= today && release.Status != "Released")
             .Select(release => new DashboardUpcomingItemResponse
             {
@@ -139,7 +154,7 @@ public class DashboardController : ControllerBase
         var dueContent = await _context.ContentItems
             .AsNoTracking()
             .Where(contentItem =>
-                contentItem.Song.OwnerUserId == userId &&
+                accessibleSongIds.Contains(contentItem.SongId) &&
                 contentItem.DueDate >= today && contentItem.Status != "Published")
             .Select(contentItem => new DashboardUpcomingItemResponse
             {
@@ -163,7 +178,7 @@ public class DashboardController : ControllerBase
         var scheduledContent = await _context.ContentItems
             .AsNoTracking()
             .Where(contentItem =>
-                contentItem.Song.OwnerUserId == userId &&
+                accessibleSongIds.Contains(contentItem.SongId) &&
                 contentItem.ScheduledAt >= today && contentItem.Status != "Published")
             .Select(contentItem => new DashboardUpcomingItemResponse
             {
@@ -197,11 +212,12 @@ public class DashboardController : ControllerBase
 
     private async Task<List<DashboardReleaseReadinessResponse>> GetReleaseReadiness(
         DateOnly today,
-        int? userId)
+        int userId,
+        List<int> accessibleSongIds)
     {
         var releases = await _context.Releases
             .AsNoTracking()
-            .Where(release => release.Song.OwnerUserId == userId && release.Status != "Released")
+            .Where(release => accessibleSongIds.Contains(release.SongId) && release.Status != "Released")
             .Select(release => new
             {
                 release.Id,
@@ -221,7 +237,7 @@ public class DashboardController : ControllerBase
 
         foreach (var release in releases)
         {
-            var readiness = await _releaseReadinessService.GetForReleaseAsync(release.Id, userId!.Value);
+            var readiness = await _releaseReadinessService.GetForAccessibleReleaseAsync(release.Id, userId);
             if (readiness is null)
             {
                 continue;
@@ -244,11 +260,11 @@ public class DashboardController : ControllerBase
         return response;
     }
 
-    private async Task<List<DashboardAnalyticsItemResponse>> GetAnalyticsOverview(int? userId)
+    private async Task<List<DashboardAnalyticsItemResponse>> GetAnalyticsOverview(List<int> accessibleSongIds)
     {
         var snapshots = await _context.AnalyticsSnapshots
             .AsNoTracking()
-            .Where(snapshot => snapshot.Song.OwnerUserId == userId)
+            .Where(snapshot => accessibleSongIds.Contains(snapshot.SongId))
             .Select(snapshot => new
             {
                 snapshot.SongId,
@@ -294,17 +310,17 @@ public class DashboardController : ControllerBase
             .ToList();
     }
 
-    private async Task<List<DashboardActivityItemResponse>> GetRecentActivity(int? userId)
+    private async Task<List<DashboardActivityItemResponse>> GetRecentActivity(List<int> accessibleSongIds)
     {
         var activities = new List<DashboardActivityItemResponse>();
 
-        activities.AddRange(await GetSongActivity(userId));
-        activities.AddRange(await GetReleaseActivity(userId));
-        activities.AddRange(await GetContentActivity(userId));
-        activities.AddRange(await GetCreditActivity(userId));
-        activities.AddRange(await GetAnalyticsActivity(userId));
-        activities.AddRange(await GetAudioActivity(userId));
-        activities.AddRange(await GetVisualActivity(userId));
+        activities.AddRange(await GetSongActivity(accessibleSongIds));
+        activities.AddRange(await GetReleaseActivity(accessibleSongIds));
+        activities.AddRange(await GetContentActivity(accessibleSongIds));
+        activities.AddRange(await GetCreditActivity(accessibleSongIds));
+        activities.AddRange(await GetAnalyticsActivity(accessibleSongIds));
+        activities.AddRange(await GetAudioActivity(accessibleSongIds));
+        activities.AddRange(await GetVisualActivity(accessibleSongIds));
 
         return activities
             .OrderByDescending(activity => activity.OccurredAt)
@@ -314,11 +330,11 @@ public class DashboardController : ControllerBase
             .ToList();
     }
 
-    private async Task<List<DashboardActivityItemResponse>> GetSongActivity(int? userId)
+    private async Task<List<DashboardActivityItemResponse>> GetSongActivity(List<int> accessibleSongIds)
     {
         return await _context.Songs
             .AsNoTracking()
-            .Where(song => song.OwnerUserId == userId)
+            .Where(song => accessibleSongIds.Contains(song.Id))
             .OrderByDescending(song => song.CreatedAt)
             .Take(RecentActivityLimit)
             .Select(song => new DashboardActivityItemResponse
@@ -333,11 +349,11 @@ public class DashboardController : ControllerBase
             .ToListAsync();
     }
 
-    private async Task<List<DashboardActivityItemResponse>> GetReleaseActivity(int? userId)
+    private async Task<List<DashboardActivityItemResponse>> GetReleaseActivity(List<int> accessibleSongIds)
     {
         var releases = await _context.Releases
             .AsNoTracking()
-            .Where(release => release.Song.OwnerUserId == userId)
+            .Where(release => accessibleSongIds.Contains(release.SongId))
             .Select(release => new
             {
                 release.SongId,
@@ -377,11 +393,11 @@ public class DashboardController : ControllerBase
             .ToList();
     }
 
-    private async Task<List<DashboardActivityItemResponse>> GetContentActivity(int? userId)
+    private async Task<List<DashboardActivityItemResponse>> GetContentActivity(List<int> accessibleSongIds)
     {
         var contentItems = await _context.ContentItems
             .AsNoTracking()
-            .Where(contentItem => contentItem.Song.OwnerUserId == userId)
+            .Where(contentItem => accessibleSongIds.Contains(contentItem.SongId))
             .Select(contentItem => new
             {
                 contentItem.SongId,
@@ -421,11 +437,11 @@ public class DashboardController : ControllerBase
             .ToList();
     }
 
-    private async Task<List<DashboardActivityItemResponse>> GetCreditActivity(int? userId)
+    private async Task<List<DashboardActivityItemResponse>> GetCreditActivity(List<int> accessibleSongIds)
     {
         var credits = await _context.Credits
             .AsNoTracking()
-            .Where(credit => credit.Song.OwnerUserId == userId)
+            .Where(credit => accessibleSongIds.Contains(credit.SongId))
             .Select(credit => new
             {
                 credit.SongId,
@@ -465,11 +481,11 @@ public class DashboardController : ControllerBase
             .ToList();
     }
 
-    private async Task<List<DashboardActivityItemResponse>> GetAnalyticsActivity(int? userId)
+    private async Task<List<DashboardActivityItemResponse>> GetAnalyticsActivity(List<int> accessibleSongIds)
     {
         return await _context.AnalyticsSnapshots
             .AsNoTracking()
-            .Where(snapshot => snapshot.Song.OwnerUserId == userId)
+            .Where(snapshot => accessibleSongIds.Contains(snapshot.SongId))
             .OrderByDescending(snapshot => snapshot.CreatedAt)
             .Take(RecentActivityLimit)
             .Select(snapshot => new DashboardActivityItemResponse
@@ -484,11 +500,11 @@ public class DashboardController : ControllerBase
             .ToListAsync();
     }
 
-    private async Task<List<DashboardActivityItemResponse>> GetAudioActivity(int? userId)
+    private async Task<List<DashboardActivityItemResponse>> GetAudioActivity(List<int> accessibleSongIds)
     {
         return await _context.AudioAssets
             .AsNoTracking()
-            .Where(audioAsset => audioAsset.Song.OwnerUserId == userId)
+            .Where(audioAsset => accessibleSongIds.Contains(audioAsset.SongId))
             .OrderByDescending(audioAsset => audioAsset.UploadedAt)
             .Take(RecentActivityLimit)
             .Select(audioAsset => new DashboardActivityItemResponse
@@ -503,11 +519,11 @@ public class DashboardController : ControllerBase
             .ToListAsync();
     }
 
-    private async Task<List<DashboardActivityItemResponse>> GetVisualActivity(int? userId)
+    private async Task<List<DashboardActivityItemResponse>> GetVisualActivity(List<int> accessibleSongIds)
     {
         return await _context.VisualAssets
             .AsNoTracking()
-            .Where(visualAsset => visualAsset.Song.OwnerUserId == userId)
+            .Where(visualAsset => accessibleSongIds.Contains(visualAsset.SongId))
             .OrderByDescending(visualAsset => visualAsset.UploadedAt)
             .Take(RecentActivityLimit)
             .Select(visualAsset => new DashboardActivityItemResponse

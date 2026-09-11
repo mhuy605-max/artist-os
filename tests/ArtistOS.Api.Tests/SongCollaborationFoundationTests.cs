@@ -329,7 +329,7 @@ public class SongCollaborationFoundationTests
     }
 
     [Fact]
-    public async Task ExistingEndpointsRemainOwnerOnlyForEditorAndViewerMemberships()
+    public async Task TopLevelSongDetailAllowsMembersWhileNestedEndpointsRemainOwnerOnly()
     {
         await using var factory = new ArtistOsApiFactory();
         using var ownerClient = await factory.CreateAuthenticatedClientAsync("owner-route@example.com");
@@ -339,7 +339,7 @@ public class SongCollaborationFoundationTests
         var owner = await GetUserByEmailAsync(factory, "owner-route@example.com");
         var editor = await GetUserByEmailAsync(factory, "editor-route@example.com");
         var viewer = await GetUserByEmailAsync(factory, "viewer-route@example.com");
-        var songResponse = await CreateSongAsync(ownerClient, "Owner-only during C1");
+        var songResponse = await CreateSongAsync(ownerClient, "Top-level visible during C3");
 
         using (var scope = factory.Services.CreateScope())
         {
@@ -361,8 +361,9 @@ public class SongCollaborationFoundationTests
         }
 
         Assert.Equal(HttpStatusCode.OK, (await ownerClient.GetAsync($"/api/songs/{songResponse.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await editorClient.GetAsync($"/api/songs/{songResponse.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await viewerClient.GetAsync($"/api/songs/{songResponse.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await editorClient.GetAsync($"/api/songs/{songResponse.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await viewerClient.GetAsync($"/api/songs/{songResponse.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await editorClient.GetAsync($"/api/songs/{songResponse.Id}/audio-assets")).StatusCode);
     }
 
     private static SongInvitation PendingInvitation(int songId, int invitedUserId, int invitedByUserId) =>

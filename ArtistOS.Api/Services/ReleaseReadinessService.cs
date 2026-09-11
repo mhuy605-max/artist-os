@@ -42,6 +42,19 @@ public class ReleaseReadinessService
         return release is null ? null : await BuildReadiness(release);
     }
 
+    public async Task<ReleaseReadinessResponse?> GetForAccessibleReleaseAsync(int releaseId, int userId)
+    {
+        var release = await _context.Releases
+            .AsNoTracking()
+            .FirstOrDefaultAsync(release =>
+                release.Id == releaseId &&
+                release.Song.OwnerUserId != null &&
+                (release.Song.OwnerUserId == userId ||
+                    release.Song.SongMembers.Any(member => member.UserId == userId)));
+
+        return release is null ? null : await BuildReadiness(release);
+    }
+
     private async Task<ReleaseReadinessResponse> BuildReadiness(Release release)
     {
         var checklist = await _context.ReleaseChecklistItems

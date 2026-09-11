@@ -2,6 +2,7 @@ using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
+using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -16,10 +17,12 @@ namespace ArtistOS.Api.Controllers;
 public class CalendarController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly SongAccessService _songAccessService;
 
-    public CalendarController(AppDbContext context)
+    public CalendarController(AppDbContext context, SongAccessService songAccessService)
     {
         _context = context;
+        _songAccessService = songAccessService;
     }
 
     [HttpGet]
@@ -38,11 +41,16 @@ public class CalendarController : ControllerBase
             return Unauthorized();
         }
 
+        var accessibleSongIds = await _songAccessService
+            .WhereAccessibleTo(_context.Songs.AsNoTracking(), currentUserId.Value)
+            .Select(song => song.Id)
+            .ToListAsync();
+
         var releases = await _context.Releases
             .AsNoTracking()
             .Include(release => release.Song)
             .Where(release => release.ReleaseDate != null)
-            .Where(release => release.Song.OwnerUserId == currentUserId)
+            .Where(release => accessibleSongIds.Contains(release.SongId))
             .Where(release =>
                 (!from.HasValue || release.ReleaseDate >= from) &&
                 (!to.HasValue || release.ReleaseDate <= to))
@@ -51,7 +59,7 @@ public class CalendarController : ControllerBase
         var contentItems = await _context.ContentItems
             .AsNoTracking()
             .Include(contentItem => contentItem.Song)
-            .Where(contentItem => contentItem.Song.OwnerUserId == currentUserId)
+            .Where(contentItem => accessibleSongIds.Contains(contentItem.SongId))
             .Where(contentItem =>
                 (contentItem.DueDate != null &&
                     (!from.HasValue || contentItem.DueDate >= from) &&

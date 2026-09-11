@@ -6,7 +6,7 @@ Last updated: 2026-09-11
 
 Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is underway.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, and C2 added member/invitation lifecycle APIs. Shared Song visibility across main Song queries, nested domain collaboration, media collaboration, Google Drive collaboration, frontend collaboration types, and frontend collaboration UI are not implemented yet. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, and C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility. Nested domain collaboration, media collaboration, Google Drive collaboration, frontend collaboration types, and frontend collaboration UI are not implemented yet. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
@@ -176,8 +176,12 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - `SongAccessService` added to resolve OWNER, EDITOR, VIEWER, and NO_ACCESS and expose the canonical read/edit/member-management capability matrix.
 - `SongCollaborationService` added for member/invitation lifecycle rules.
 - Collaboration API endpoints added for member listing, inviting existing DARKROOM users, current-user pending invitation inbox, accepting invitations, declining invitations, revoking pending invitations, member role changes, and member removal.
-- Existing production Song/domain endpoints intentionally remain owner-only until later collaboration authorization milestones convert them.
-- Shared Song visibility across main Song queries, nested domain collaboration, media collaboration, Google Drive collaboration, frontend collaboration types, and frontend collaboration UI are not implemented yet.
+- Top-level Song list/detail queries now return owned and accepted-member Songs with `CurrentUserRole`, `CanEdit`, and `CanManageMembers` access metadata.
+- Top-level Song update now allows OWNER and EDITOR users while preserving server-controlled ownership; VIEWER receives `403 Forbidden` and unrelated users receive `404 Not Found`.
+- Top-level Song delete remains OWNER-only; accepted EDITOR/VIEWER users receive `403 Forbidden`.
+- Dashboard and Calendar aggregates now use accepted accessible Songs instead of owner-only Song filters.
+- Pending invitations, removed memberships, unrelated Songs, and legacy unowned Songs do not become visible through C3 accessible Song queries.
+- Existing nested Song domain endpoints intentionally remain owner-only until C4 converts nested authorization.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 - Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
@@ -2613,7 +2617,8 @@ Remote GitHub Actions status:
 
 ## Not Yet Implemented
 
-- Team collaboration or permissions.
+- Frontend collaboration UI and team-facing permission management.
+- Nested domain collaboration authorization for Audio, Visuals, Release, Content, Credits, Analytics, readiness, and related workspace resources.
 - Password reset, email verification, social login, MFA, account management, production refresh-token/session hardening, and server-side JWT revocation.
 - Google Drive download-original, Drive browsing, Picker, synchronization, external file deletion, and replacement audit/history views.
 - YouTube integration and automated analytics ingestion.
@@ -2658,10 +2663,10 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-Deployment Architecture - Provider Evaluation Against S3 Security Contract.
+C4 - Nested Domain Authorization Conversion.
 
 Suggested scope:
 
-- Compare hosting options against the S3 vendor-neutral security contract.
-- Do not deploy, create cloud resources, or choose providers until the architecture comparison is explicitly approved.
-- Preserve S4B infrastructure security verification as a staging-only follow-up after a deployment target exists.
+- Convert nested Song workspace APIs from owner-only authorization to the C1/C3 role matrix.
+- Preserve OWNER/EDITOR/VIEWER boundaries per resource operation.
+- Do not begin media collaboration, Google Drive collaboration, frontend collaboration types, or frontend collaboration UI until their later milestones.

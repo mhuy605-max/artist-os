@@ -283,7 +283,7 @@ public class SongCollaborationApiTests
     }
 
     [Fact]
-    public async Task ExistingSongWorkspaceEndpointsRemainOwnerOnlyForMembersDuringC2()
+    public async Task ExistingNestedWorkspaceEndpointsRemainOwnerOnlyForMembersAfterC3()
     {
         await using var factory = new ArtistOsApiFactory();
         var scenario = await CreateScenarioAsync(factory);
@@ -291,8 +291,8 @@ public class SongCollaborationApiTests
         await AddMemberAsync(factory, scenario.Song.Id, scenario.Viewer.Id, SongMemberRole.VIEWER);
 
         Assert.Equal(HttpStatusCode.OK, (await scenario.OwnerClient.GetAsync($"/api/songs/{scenario.Song.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await scenario.EditorClient.GetAsync($"/api/songs/{scenario.Song.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await scenario.ViewerClient.GetAsync($"/api/songs/{scenario.Song.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await scenario.EditorClient.GetAsync($"/api/songs/{scenario.Song.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await scenario.ViewerClient.GetAsync($"/api/songs/{scenario.Song.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await scenario.EditorClient.GetAsync($"/api/songs/{scenario.Song.Id}/audio-assets")).StatusCode);
     }
 

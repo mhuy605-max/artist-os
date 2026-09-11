@@ -37,6 +37,11 @@ public class SongAccessService
             .Select(song => song.OwnerUserId)
             .FirstOrDefaultAsync(cancellationToken);
 
+        if (songOwnerUserId is null)
+        {
+            return SongAccessLevel.NO_ACCESS;
+        }
+
         if (songOwnerUserId == userId)
         {
             return SongAccessLevel.OWNER;
@@ -55,8 +60,21 @@ public class SongAccessService
         };
     }
 
+    public IQueryable<Song> WhereAccessibleTo(IQueryable<Song> songs, int userId)
+    {
+        return songs.Where(song =>
+            song.OwnerUserId != null &&
+            (song.OwnerUserId == userId ||
+                song.SongMembers.Any(member => member.UserId == userId)));
+    }
+
     public SongAccessLevel GetAccessLevel(Song song, int userId, SongMemberRole? memberRole = null)
     {
+        if (song.OwnerUserId is null)
+        {
+            return SongAccessLevel.NO_ACCESS;
+        }
+
         if (song.OwnerUserId == userId)
         {
             return SongAccessLevel.OWNER;
