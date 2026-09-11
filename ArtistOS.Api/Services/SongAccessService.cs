@@ -97,6 +97,15 @@ public class SongAccessService
         return GetCapabilities(accessLevel).CanRead;
     }
 
+    public async Task<SongAccessCapabilities> GetCapabilitiesAsync(
+        int songId,
+        int userId,
+        CancellationToken cancellationToken = default)
+    {
+        var accessLevel = await GetAccessLevelAsync(songId, userId, cancellationToken);
+        return GetCapabilities(accessLevel);
+    }
+
     public async Task<bool> CanEditAsync(
         int songId,
         int userId,

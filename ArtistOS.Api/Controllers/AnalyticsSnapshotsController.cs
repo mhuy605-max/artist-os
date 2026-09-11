@@ -2,6 +2,7 @@ using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
+using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -16,10 +17,12 @@ namespace ArtistOS.Api.Controllers;
 public class AnalyticsSnapshotsController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly SongAccessService _songAccessService;
 
-    public AnalyticsSnapshotsController(AppDbContext context)
+    public AnalyticsSnapshotsController(AppDbContext context, SongAccessService songAccessService)
     {
         _context = context;
+        _songAccessService = songAccessService;
     }
 
     [HttpGet]
@@ -27,7 +30,13 @@ public class AnalyticsSnapshotsController : ControllerBase
         int songId)
     {
         var currentUserId = User.GetUserId();
-        if (!await UserOwnsSong(songId, currentUserId))
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
         {
             return NotFound();
         }
@@ -65,12 +74,17 @@ public class AnalyticsSnapshotsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
         var snapshot = await _context.AnalyticsSnapshots
             .AsNoTracking()
             .FirstOrDefaultAsync(snapshot =>
                 snapshot.SongId == songId &&
-                snapshot.Id == analyticsSnapshotId &&
-                snapshot.Song.OwnerUserId == currentUserId);
+                snapshot.Id == analyticsSnapshotId);
 
         if (snapshot is null)
         {
@@ -86,9 +100,20 @@ public class AnalyticsSnapshotsController : ControllerBase
         CreateAnalyticsSnapshotRequest request)
     {
         var currentUserId = User.GetUserId();
-        if (!await UserOwnsSong(songId, currentUserId))
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
         {
             return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
         }
 
         var platform = NormalizePlatform(request.Platform);
@@ -133,11 +158,21 @@ public class AnalyticsSnapshotsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var snapshot = await _context.AnalyticsSnapshots
             .FirstOrDefaultAsync(snapshot =>
                 snapshot.SongId == songId &&
-                snapshot.Id == analyticsSnapshotId &&
-                snapshot.Song.OwnerUserId == currentUserId);
+                snapshot.Id == analyticsSnapshotId);
 
         if (snapshot is null)
         {
@@ -150,7 +185,6 @@ public class AnalyticsSnapshotsController : ControllerBase
         var duplicateExists = await _context.AnalyticsSnapshots.AnyAsync(existing =>
             existing.SongId == songId &&
             existing.Id != analyticsSnapshotId &&
-            existing.Song.OwnerUserId == currentUserId &&
             existing.Platform == platform &&
             existing.SnapshotDate == snapshotDate);
 
@@ -183,11 +217,21 @@ public class AnalyticsSnapshotsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var snapshot = await _context.AnalyticsSnapshots
             .FirstOrDefaultAsync(snapshot =>
                 snapshot.SongId == songId &&
-                snapshot.Id == analyticsSnapshotId &&
-                snapshot.Song.OwnerUserId == currentUserId);
+                snapshot.Id == analyticsSnapshotId);
 
         if (snapshot is null)
         {
@@ -198,12 +242,6 @@ public class AnalyticsSnapshotsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
-    }
-
-    private async Task<bool> UserOwnsSong(int songId, int? userId)
-    {
-        return userId is not null &&
-            await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
     private async Task<bool> SnapshotExists(int songId, string platform, DateOnly snapshotDate)

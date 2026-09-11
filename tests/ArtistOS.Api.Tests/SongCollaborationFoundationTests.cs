@@ -329,7 +329,7 @@ public class SongCollaborationFoundationTests
     }
 
     [Fact]
-    public async Task TopLevelSongDetailAllowsMembersWhileNestedEndpointsRemainOwnerOnly()
+    public async Task TopLevelAndNestedSongReadsAllowMembersAfterC4()
     {
         await using var factory = new ArtistOsApiFactory();
         using var ownerClient = await factory.CreateAuthenticatedClientAsync("owner-route@example.com");
@@ -363,7 +363,8 @@ public class SongCollaborationFoundationTests
         Assert.Equal(HttpStatusCode.OK, (await ownerClient.GetAsync($"/api/songs/{songResponse.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await editorClient.GetAsync($"/api/songs/{songResponse.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await viewerClient.GetAsync($"/api/songs/{songResponse.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await editorClient.GetAsync($"/api/songs/{songResponse.Id}/audio-assets")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await editorClient.GetAsync($"/api/songs/{songResponse.Id}/audio-assets")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await viewerClient.GetAsync($"/api/songs/{songResponse.Id}/audio-assets")).StatusCode);
     }
 
     private static SongInvitation PendingInvitation(int songId, int invitedUserId, int invitedByUserId) =>

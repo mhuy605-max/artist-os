@@ -2,6 +2,7 @@ using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
+using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -16,17 +17,25 @@ namespace ArtistOS.Api.Controllers;
 public class ReleasesController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly SongAccessService _songAccessService;
 
-    public ReleasesController(AppDbContext context)
+    public ReleasesController(AppDbContext context, SongAccessService songAccessService)
     {
         _context = context;
+        _songAccessService = songAccessService;
     }
 
     [HttpGet]
     public async Task<ActionResult<ReleaseResponse>> GetRelease(int songId)
     {
         var currentUserId = User.GetUserId();
-        if (!await UserOwnsSong(songId, currentUserId))
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
         {
             return NotFound();
         }
@@ -49,9 +58,20 @@ public class ReleasesController : ControllerBase
         CreateReleaseRequest request)
     {
         var currentUserId = User.GetUserId();
-        if (!await UserOwnsSong(songId, currentUserId))
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
         {
             return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
         }
 
         if (await _context.Releases.AnyAsync(release => release.SongId == songId))
@@ -99,9 +119,20 @@ public class ReleasesController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var release = await _context.Releases
             .FirstOrDefaultAsync(release =>
-                release.SongId == songId && release.Song.OwnerUserId == currentUserId);
+                release.SongId == songId);
 
         if (release is null)
         {
@@ -131,9 +162,20 @@ public class ReleasesController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var release = await _context.Releases
             .FirstOrDefaultAsync(release =>
-                release.SongId == songId && release.Song.OwnerUserId == currentUserId);
+                release.SongId == songId);
 
         if (release is null)
         {
@@ -144,12 +186,6 @@ public class ReleasesController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
-    }
-
-    private async Task<bool> UserOwnsSong(int songId, int? userId)
-    {
-        return userId is not null &&
-            await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
     private static ReleaseResponse ToResponse(Release release)

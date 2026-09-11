@@ -3,6 +3,7 @@ using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Integrations.GoogleDrive;
 using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
+using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -21,26 +22,35 @@ public class VisualAssetsController : ControllerBase
     private readonly MediaAccessService _mediaAccessService;
     private readonly GoogleDriveMediaService _mediaService;
     private readonly PublicUrlService _publicUrlService;
+    private readonly SongAccessService _songAccessService;
 
     public VisualAssetsController(
         AppDbContext context,
         GoogleDriveAssetUploadService uploadService,
         MediaAccessService mediaAccessService,
         GoogleDriveMediaService mediaService,
-        PublicUrlService publicUrlService)
+        PublicUrlService publicUrlService,
+        SongAccessService songAccessService)
     {
         _context = context;
         _uploadService = uploadService;
         _mediaAccessService = mediaAccessService;
         _mediaService = mediaService;
         _publicUrlService = publicUrlService;
+        _songAccessService = songAccessService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<VisualAssetResponse>>> GetVisualAssets(int songId)
     {
         var currentUserId = User.GetUserId();
-        if (!await UserOwnsSong(songId, currentUserId))
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
         {
             return NotFound();
         }
@@ -71,13 +81,18 @@ public class VisualAssetsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
         var visualAsset = await _context.VisualAssets
             .AsNoTracking()
             .Include(visualAsset => visualAsset.ExternalFileReference)
             .FirstOrDefaultAsync(visualAsset =>
                 visualAsset.SongId == songId &&
-                visualAsset.Id == visualAssetId &&
-                visualAsset.Song.OwnerUserId == currentUserId);
+                visualAsset.Id == visualAssetId);
 
         if (visualAsset is null)
         {
@@ -93,9 +108,20 @@ public class VisualAssetsController : ControllerBase
         CreateVisualAssetRequest request)
     {
         var currentUserId = User.GetUserId();
-        if (!await UserOwnsSong(songId, currentUserId))
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
         {
             return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
         }
 
         var visualAsset = new VisualAsset
@@ -134,11 +160,21 @@ public class VisualAssetsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var existingVisualAsset = await _context.VisualAssets
             .FirstOrDefaultAsync(visualAsset =>
                 visualAsset.SongId == songId &&
-                visualAsset.Id == visualAssetId &&
-                visualAsset.Song.OwnerUserId == currentUserId);
+                visualAsset.Id == visualAssetId);
 
         if (existingVisualAsset is null)
         {
@@ -169,13 +205,23 @@ public class VisualAssetsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value, cancellationToken);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
         var sourceAsset = await _context.VisualAssets
             .FirstOrDefaultAsync(visualAsset =>
                 visualAsset.SongId == songId &&
-                visualAsset.Id == visualAssetId &&
-                visualAsset.Song.OwnerUserId == currentUserId,
+                visualAsset.Id == visualAssetId,
                 cancellationToken);
 
         if (sourceAsset is null)
@@ -334,11 +380,21 @@ public class VisualAssetsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var visualAsset = await _context.VisualAssets
             .FirstOrDefaultAsync(visualAsset =>
                 visualAsset.SongId == songId &&
-                visualAsset.Id == visualAssetId &&
-                visualAsset.Song.OwnerUserId == currentUserId);
+                visualAsset.Id == visualAssetId);
 
         if (visualAsset is null)
         {
@@ -376,12 +432,6 @@ public class VisualAssetsController : ControllerBase
         await transaction.CommitAsync();
 
         return NoContent();
-    }
-
-    private async Task<bool> UserOwnsSong(int songId, int? userId)
-    {
-        return userId is not null &&
-            await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
     private ActionResult<VisualAssetResponse> ToVisualUploadActionResult(

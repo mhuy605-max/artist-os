@@ -283,7 +283,7 @@ public class SongCollaborationApiTests
     }
 
     [Fact]
-    public async Task ExistingNestedWorkspaceEndpointsRemainOwnerOnlyForMembersAfterC3()
+    public async Task ExistingNestedWorkspaceEndpointsAllowMemberReadsAfterC4()
     {
         await using var factory = new ArtistOsApiFactory();
         var scenario = await CreateScenarioAsync(factory);
@@ -293,7 +293,8 @@ public class SongCollaborationApiTests
         Assert.Equal(HttpStatusCode.OK, (await scenario.OwnerClient.GetAsync($"/api/songs/{scenario.Song.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await scenario.EditorClient.GetAsync($"/api/songs/{scenario.Song.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await scenario.ViewerClient.GetAsync($"/api/songs/{scenario.Song.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await scenario.EditorClient.GetAsync($"/api/songs/{scenario.Song.Id}/audio-assets")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await scenario.EditorClient.GetAsync($"/api/songs/{scenario.Song.Id}/audio-assets")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await scenario.ViewerClient.GetAsync($"/api/songs/{scenario.Song.Id}/audio-assets")).StatusCode);
     }
 
     private static void AssertMembersResponse(List<SongMemberResponse>? members, Scenario scenario)

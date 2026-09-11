@@ -2,6 +2,7 @@ using ArtistOS.Api.Data;
 using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
+using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -16,17 +17,25 @@ namespace ArtistOS.Api.Controllers;
 public class ContentItemsController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly SongAccessService _songAccessService;
 
-    public ContentItemsController(AppDbContext context)
+    public ContentItemsController(AppDbContext context, SongAccessService songAccessService)
     {
         _context = context;
+        _songAccessService = songAccessService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ContentItemResponse>>> GetContentItems(int songId)
     {
         var currentUserId = User.GetUserId();
-        if (!await UserOwnsSong(songId, currentUserId))
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
         {
             return NotFound();
         }
@@ -68,12 +77,17 @@ public class ContentItemsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
         var contentItem = await _context.ContentItems
             .AsNoTracking()
             .FirstOrDefaultAsync(contentItem =>
                 contentItem.SongId == songId &&
-                contentItem.Id == contentItemId &&
-                contentItem.Song.OwnerUserId == currentUserId);
+                contentItem.Id == contentItemId);
 
         if (contentItem is null)
         {
@@ -89,9 +103,20 @@ public class ContentItemsController : ControllerBase
         CreateContentItemRequest request)
     {
         var currentUserId = User.GetUserId();
-        if (!await UserOwnsSong(songId, currentUserId))
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
         {
             return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
         }
 
         var now = DateTime.UtcNow;
@@ -132,11 +157,21 @@ public class ContentItemsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var contentItem = await _context.ContentItems
             .FirstOrDefaultAsync(contentItem =>
                 contentItem.SongId == songId &&
-                contentItem.Id == contentItemId &&
-                contentItem.Song.OwnerUserId == currentUserId);
+                contentItem.Id == contentItemId);
 
         if (contentItem is null)
         {
@@ -168,11 +203,21 @@ public class ContentItemsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var contentItem = await _context.ContentItems
             .FirstOrDefaultAsync(contentItem =>
                 contentItem.SongId == songId &&
-                contentItem.Id == contentItemId &&
-                contentItem.Song.OwnerUserId == currentUserId);
+                contentItem.Id == contentItemId);
 
         if (contentItem is null)
         {
@@ -183,12 +228,6 @@ public class ContentItemsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
-    }
-
-    private async Task<bool> UserOwnsSong(int songId, int? userId)
-    {
-        return userId is not null &&
-            await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
     private static ContentItemResponse ToResponse(ContentItem contentItem)

@@ -17,10 +17,12 @@ namespace ArtistOS.Api.Controllers;
 public class ReleaseChecklistController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly SongAccessService _songAccessService;
 
-    public ReleaseChecklistController(AppDbContext context)
+    public ReleaseChecklistController(AppDbContext context, SongAccessService songAccessService)
     {
         _context = context;
+        _songAccessService = songAccessService;
     }
 
     [HttpGet]
@@ -28,7 +30,18 @@ public class ReleaseChecklistController : ControllerBase
         int songId)
     {
         var currentUserId = User.GetUserId();
-        var release = await GetOwnedReleaseForSong(songId, currentUserId, asNoTracking: true);
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        var release = await GetReleaseForSong(songId, asNoTracking: true);
 
         if (release is null)
         {
@@ -67,13 +80,18 @@ public class ReleaseChecklistController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
         var item = await _context.ReleaseChecklistItems
             .AsNoTracking()
             .Include(item => item.Release)
             .FirstOrDefaultAsync(item =>
                 item.Id == checklistItemId &&
-                item.Release.SongId == songId &&
-                item.Release.Song.OwnerUserId == currentUserId);
+                item.Release.SongId == songId);
 
         if (item is null)
         {
@@ -95,12 +113,22 @@ public class ReleaseChecklistController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var item = await _context.ReleaseChecklistItems
             .Include(item => item.Release)
             .FirstOrDefaultAsync(item =>
                 item.Id == checklistItemId &&
-                item.Release.SongId == songId &&
-                item.Release.Song.OwnerUserId == currentUserId);
+                item.Release.SongId == songId);
 
         if (item is null)
         {
@@ -125,19 +153,13 @@ public class ReleaseChecklistController : ControllerBase
         return NoContent();
     }
 
-    private async Task<Release?> GetOwnedReleaseForSong(int songId, int? userId, bool asNoTracking)
+    private async Task<Release?> GetReleaseForSong(int songId, bool asNoTracking)
     {
-        if (userId is null)
-        {
-            return null;
-        }
-
         var query = asNoTracking
             ? _context.Releases.AsNoTracking()
             : _context.Releases;
 
-        return await query.FirstOrDefaultAsync(release =>
-            release.SongId == songId && release.Song.OwnerUserId == userId);
+        return await query.FirstOrDefaultAsync(release => release.SongId == songId);
     }
 
     private static ReleaseChecklistItemResponse ToResponse(ReleaseChecklistItem item)

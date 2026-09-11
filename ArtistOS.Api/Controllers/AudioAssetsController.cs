@@ -3,6 +3,7 @@ using ArtistOS.Api.Dtos;
 using ArtistOS.Api.Integrations.GoogleDrive;
 using ArtistOS.Api.Models;
 using ArtistOS.Api.Security;
+using ArtistOS.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -21,26 +22,35 @@ public class AudioAssetsController : ControllerBase
     private readonly MediaAccessService _mediaAccessService;
     private readonly GoogleDriveMediaService _mediaService;
     private readonly PublicUrlService _publicUrlService;
+    private readonly SongAccessService _songAccessService;
 
     public AudioAssetsController(
         AppDbContext context,
         GoogleDriveAssetUploadService uploadService,
         MediaAccessService mediaAccessService,
         GoogleDriveMediaService mediaService,
-        PublicUrlService publicUrlService)
+        PublicUrlService publicUrlService,
+        SongAccessService songAccessService)
     {
         _context = context;
         _uploadService = uploadService;
         _mediaAccessService = mediaAccessService;
         _mediaService = mediaService;
         _publicUrlService = publicUrlService;
+        _songAccessService = songAccessService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AudioAssetResponse>>> GetAudioAssets(int songId)
     {
         var currentUserId = User.GetUserId();
-        if (!await UserOwnsSong(songId, currentUserId))
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
         {
             return NotFound();
         }
@@ -69,13 +79,18 @@ public class AudioAssetsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
         var audioAsset = await _context.AudioAssets
             .AsNoTracking()
             .Include(audioAsset => audioAsset.ExternalFileReference)
             .FirstOrDefaultAsync(audioAsset =>
                 audioAsset.SongId == songId &&
-                audioAsset.Id == audioAssetId &&
-                audioAsset.Song.OwnerUserId == currentUserId);
+                audioAsset.Id == audioAssetId);
 
         if (audioAsset is null)
         {
@@ -91,9 +106,20 @@ public class AudioAssetsController : ControllerBase
         CreateAudioAssetRequest request)
     {
         var currentUserId = User.GetUserId();
-        if (!await UserOwnsSong(songId, currentUserId))
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
         {
             return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
         }
 
         var audioAsset = new AudioAsset
@@ -131,11 +157,21 @@ public class AudioAssetsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var existingAudioAsset = await _context.AudioAssets
             .FirstOrDefaultAsync(audioAsset =>
                 audioAsset.SongId == songId &&
-                audioAsset.Id == audioAssetId &&
-                audioAsset.Song.OwnerUserId == currentUserId);
+                audioAsset.Id == audioAssetId);
 
         if (existingAudioAsset is null)
         {
@@ -165,13 +201,23 @@ public class AudioAssetsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value, cancellationToken);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
         var sourceAsset = await _context.AudioAssets
             .FirstOrDefaultAsync(audioAsset =>
                 audioAsset.SongId == songId &&
-                audioAsset.Id == audioAssetId &&
-                audioAsset.Song.OwnerUserId == currentUserId,
+                audioAsset.Id == audioAssetId,
                 cancellationToken);
 
         if (sourceAsset is null)
@@ -234,11 +280,21 @@ public class AudioAssetsController : ControllerBase
             return Unauthorized();
         }
 
+        var capabilities = await _songAccessService.GetCapabilitiesAsync(songId, currentUserId.Value);
+        if (!capabilities.CanRead)
+        {
+            return NotFound();
+        }
+
+        if (!capabilities.CanEdit)
+        {
+            return Forbid();
+        }
+
         var audioAsset = await _context.AudioAssets
             .FirstOrDefaultAsync(audioAsset =>
                 audioAsset.SongId == songId &&
-                audioAsset.Id == audioAssetId &&
-                audioAsset.Song.OwnerUserId == currentUserId);
+                audioAsset.Id == audioAssetId);
 
         if (audioAsset is null)
         {
@@ -371,12 +427,6 @@ public class AudioAssetsController : ControllerBase
             MediaAssetKinds.Audio,
             token,
             cancellationToken);
-    }
-
-    private async Task<bool> UserOwnsSong(int songId, int? userId)
-    {
-        return userId is not null &&
-            await _context.Songs.AnyAsync(song => song.Id == songId && song.OwnerUserId == userId);
     }
 
     private ActionResult<AudioAssetResponse> ToAudioUploadActionResult(

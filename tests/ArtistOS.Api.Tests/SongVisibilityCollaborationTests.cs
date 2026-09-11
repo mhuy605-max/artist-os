@@ -263,7 +263,7 @@ public class SongVisibilityCollaborationTests
     }
 
     [Fact]
-    public async Task NestedWorkspaceEndpointsRemainOwnerOnlyDuringC3()
+    public async Task NestedWorkspaceReadEndpointsAllowCollaboratorsAfterC4()
     {
         await using var factory = new ArtistOsApiFactory();
         var scenario = await CreateScenarioAsync(factory);
@@ -271,7 +271,7 @@ public class SongVisibilityCollaborationTests
         await AddMemberAsync(factory, scenario.ViewerSong.Id, scenario.Collaborator.Id, SongMemberRole.VIEWER);
 
         Assert.Equal(HttpStatusCode.OK, (await scenario.CollaboratorClient.GetAsync($"/api/songs/{scenario.EditorSong.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await scenario.CollaboratorClient.GetAsync($"/api/songs/{scenario.EditorSong.Id}/audio-assets")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await scenario.CollaboratorClient.GetAsync($"/api/songs/{scenario.EditorSong.Id}/audio-assets")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await scenario.CollaboratorClient.GetAsync($"/api/songs/{scenario.ViewerSong.Id}/release/readiness")).StatusCode);
     }
 
