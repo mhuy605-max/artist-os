@@ -433,37 +433,6 @@ export interface ReleaseReadiness {
   items: ReleaseReadinessItem[];
 }
 
-export interface MockAudioAsset {
-  id: string;
-  songId: string;
-  stage: AudioAssetType;
-  filename: string;
-  version: string;
-  uploadedAt: string;
-  uploader: string;
-  status: "Draft" | "Review" | "Approved" | "Current";
-  sizeMb: number;
-  duration: string;
-  current: boolean;
-  note?: string;
-}
-
-export type VisualCategory =
-  "Cover Art" | "Music Video" | "Visualizer" | "Spotify Canvas" | "Promo Assets" | "Social Content";
-
-export type AssetState = "Missing" | "In Progress" | "Review" | "Approved" | "Final";
-
-export interface MockVisualAsset {
-  id: string;
-  songId: string;
-  category: VisualCategory;
-  filename: string;
-  state: AssetState;
-  version: string;
-  creator: string;
-  lastUpdated: string;
-}
-
 export const CONTENT_TYPES = [
   "Teaser",
   "Snippet",
@@ -562,31 +531,6 @@ export interface ContentItemPayload {
   notes?: string | null;
 }
 
-export type MockContentType =
-  | "Teaser"
-  | "Snippet"
-  | "Music Video"
-  | "Visualizer"
-  | "Behind The Scenes"
-  | "TikTok"
-  | "Instagram Reel"
-  | "YouTube Short"
-  | "Artwork Post";
-
-export type MockContentStage =
-  "Idea" | "Planned" | "In Production" | "Editing" | "Ready" | "Scheduled" | "Published";
-
-export interface MockContentItem {
-  id: string;
-  songId: string;
-  title: string;
-  type: MockContentType;
-  stage: MockContentStage;
-  owner: string;
-  scheduledFor?: string;
-  platform: string;
-}
-
 export const CREDIT_ROLES = [
   "Artist",
   "FeaturedArtist",
@@ -637,16 +581,6 @@ export interface CreditPayload {
   status: CreditStatus;
   splitPercentage?: number | null;
   notes?: string | null;
-}
-
-export interface MockCredit {
-  id: string;
-  songId: string;
-  name: string;
-  role: string;
-  contact: string;
-  status: "Confirmed" | "Pending" | "Invited";
-  plannedSplit?: number;
 }
 
 export const ANALYTICS_PLATFORMS = ["YouTube", "Spotify", "TikTok", "Instagram", "Other"] as const;

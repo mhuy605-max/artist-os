@@ -4,9 +4,9 @@ Last updated: 2026-09-12
 
 ## Current Phase
 
-Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is DONE. Architecture Stabilization A1 Lovable Independence is complete.
+Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is DONE. Architecture Stabilization A2 Dead Code & Dependency Cleanup is complete.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, C8 added song workspace Members UI plus the real invitation inbox, C9 hardened the C7/C8 frontend collaboration UX, stale-state handling, pending states, responsive edge cases, accessibility/copy, and regression coverage, C10 completed final end-to-end verification plus DONE documentation, A0 completed the whole-project architecture and Lovable trace audit, and A1 removed the active Lovable build/runtime dependency. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, C8 added song workspace Members UI plus the real invitation inbox, C9 hardened the C7/C8 frontend collaboration UX, stale-state handling, pending states, responsive edge cases, accessibility/copy, and regression coverage, C10 completed final end-to-end verification plus DONE documentation, A0 completed the whole-project architecture and Lovable trace audit, A1 removed the active Lovable build/runtime dependency, and A2 removed verified dead mocks, unused UI primitives, stale dependency entries, Bun artifacts, and passive Lovable metadata. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
@@ -225,6 +225,8 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - The frontend Vite config now directly wires TanStack Start, React, Tailwind, Vite native tsconfig path resolution, the `@` alias, React/TanStack dedupe, local dev port `8080`, the `src/server.ts` SSR error wrapper entry, and Nitro build output using a provider-neutral `node-server` preset until deployment hosting is selected.
 - Active Lovable runtime error reporting was removed from the root route error boundary while preserving the generic DARKROOM error page and console logging.
 - A1 verification passed after `npm ci`: frontend lint completed with the same 8 existing Fast Refresh warnings and 0 errors, frontend tests passed with 18 files and 234 tests, frontend production build succeeded, and dev-server/browser smoke confirmed route loading on `http://localhost:8080`.
+- Architecture Stabilization A2 Dead Code & Dependency Cleanup removed proven-unused mock service files, unused shadcn/Radix UI primitive files, their sole direct dependency entries, the tracked Bun lock/config artifacts, `.lovable/project.json`, and passive Lovable logo asset metadata while preserving the DARKROOM logo and Song API mock fallback.
+- A2 verification passed after `npm ci`: frontend lint completed with 0 errors and 5 remaining Fast Refresh warnings, frontend tests passed with 18 files and 234 tests, frontend production build succeeded, and dev-server/HTTP smoke confirmed route loading plus logo delivery on `http://localhost:8080`.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 - Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
@@ -2655,7 +2657,7 @@ Remote GitHub Actions status:
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - Frontend automated tests are intentionally focused and do not yet cover the entire app, all routes, all workspace tabs, or visual regression.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
-- Passive Lovable metadata and documentation traces remain for later cleanup, including `.lovable/project.json`, `darkroom-web/AGENTS.md`, `darkroom-web/README.md`, and Lovable asset metadata for the existing logo.
+- Passive Lovable documentation traces remain for later cleanup in `darkroom-web/AGENTS.md` and `darkroom-web/README.md`.
 - Production secret storage is still configuration-provider based; a cloud/provider secret vault is not wired in this repository.
 - Production Data Protection has a filesystem/key-ring configuration hook, but the actual shared durable key store must be selected and mounted by deployment infrastructure.
 - PostgreSQL TLS/private-networking, backup, restore, monitoring, and managed-provider security controls are still deployment responsibilities.
@@ -2709,11 +2711,11 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-A2 — Dead Code & Dependency Cleanup.
+A3 — Architecture Cleanup.
 
 Suggested scope:
 
-- Remove only proven unused frontend/backend code, template residue, stale mocks, and dependency entries after import/dependency verification.
+- Review current frontend structure after A0-A2 cleanup and remove architectural duplication only where it is proven safe.
 - Preserve product behavior, security-sensitive backend code, Google Drive/media/collaboration behavior, and the existing DARKROOM logo.
-- Keep passive branding/documentation cleanup separate unless it is directly tied to verified dead code or dependency removal.
-- Do not begin A2 until explicitly requested.
+- Keep broader documentation and branding cleanup separate unless it is directly required by architecture cleanup.
+- Do not begin A3 until explicitly requested.
