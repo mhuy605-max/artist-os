@@ -4,9 +4,9 @@ Last updated: 2026-09-12
 
 ## Current Phase
 
-Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration frontend UX hardening is complete through C9.
+Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is DONE. Architecture Stabilization A1 Lovable Independence is complete.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, C8 added song workspace Members UI plus the real invitation inbox, and C9 hardened the C7/C8 frontend collaboration UX, stale-state handling, pending states, responsive edge cases, accessibility/copy, and regression coverage. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, C8 added song workspace Members UI plus the real invitation inbox, C9 hardened the C7/C8 frontend collaboration UX, stale-state handling, pending states, responsive edge cases, accessibility/copy, and regression coverage, C10 completed final end-to-end verification plus DONE documentation, A0 completed the whole-project architecture and Lovable trace audit, and A1 removed the active Lovable build/runtime dependency. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
@@ -215,6 +215,16 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - Development and production CORS method allow-lists now include `PATCH`, fixing browser-based member role updates from the React frontend.
 - Frontend C9 coverage adds regression tests for authenticated-shell query timing, invite pending locks, invite error reset, owner role exclusion, stale remove/revoke failures, stale invitation conflicts, accept/decline mutual exclusion, long email/title handling, and large member rosters.
 - Backend C9 coverage verifies production CORS preflight support for `PATCH`, protecting browser role-update flows.
+- V1.1 Song Workspace Collaboration C10 final verification passed without product-feature, schema, migration, deployment, commit, or push changes.
+- C10 verified the OWNER / EDITOR / VIEWER collaboration model across automated frontend tests, automated backend tests, Release builds, local PostgreSQL migration state, live API probes, and real browser smoke checks.
+- C10 live checks covered pending invitation non-access, duplicate invite conflict handling, accepted Editor and Viewer access metadata, Dashboard and Calendar visibility for accepted collaborators, Viewer read-only media metadata access, Editor media metadata mutation, non-member anti-enumeration, role update propagation, invitation accept/decline/revoke behavior, member removal access revocation, local Google Drive disconnected handling, and mobile Team overflow.
+- V1.1 Song Workspace Collaboration checkpoint status: C0 PASS, C1 PASS, C2 PASS, C3 PASS, C4 PASS, C5 PASS, C6 PASS, C7 PASS, C8 PASS, C9 PASS, C10 PASS.
+- V1.1 SONG WORKSPACE COLLABORATION — DONE.
+- Architecture Stabilization A0 whole-project architecture and Lovable trace audit passed.
+- Architecture Stabilization A1 Lovable Independence removed the active `@lovable.dev/vite-tanstack-config` build dependency and replaced it with project-owned Vite configuration.
+- The frontend Vite config now directly wires TanStack Start, React, Tailwind, Vite native tsconfig path resolution, the `@` alias, React/TanStack dedupe, local dev port `8080`, the `src/server.ts` SSR error wrapper entry, and Nitro build output using a provider-neutral `node-server` preset until deployment hosting is selected.
+- Active Lovable runtime error reporting was removed from the root route error boundary while preserving the generic DARKROOM error page and console logging.
+- A1 verification passed after `npm ci`: frontend lint completed with the same 8 existing Fast Refresh warnings and 0 errors, frontend tests passed with 18 files and 234 tests, frontend production build succeeded, and dev-server/browser smoke confirmed route loading on `http://localhost:8080`.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 - Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
@@ -2645,6 +2655,7 @@ Remote GitHub Actions status:
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - Frontend automated tests are intentionally focused and do not yet cover the entire app, all routes, all workspace tabs, or visual regression.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
+- Passive Lovable metadata and documentation traces remain for later cleanup, including `.lovable/project.json`, `darkroom-web/AGENTS.md`, `darkroom-web/README.md`, and Lovable asset metadata for the existing logo.
 - Production secret storage is still configuration-provider based; a cloud/provider secret vault is not wired in this repository.
 - Production Data Protection has a filesystem/key-ring configuration hook, but the actual shared durable key store must be selected and mounted by deployment infrastructure.
 - PostgreSQL TLS/private-networking, backup, restore, monitoring, and managed-provider security controls are still deployment responsibilities.
@@ -2698,10 +2709,11 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-C10 - Final End-to-End Verification + DONE.
+A2 — Dead Code & Dependency Cleanup.
 
 Suggested scope:
 
-- Run final multi-role end-to-end verification for OWNER, EDITOR, and VIEWER collaboration flows before marking V1.1 Song Workspace Collaboration done.
-- Confirm frontend, backend, browser, documentation, git, and deployment-readiness status without expanding collaboration scope.
-- Do not add C11 or new collaboration capabilities unless explicitly requested after C10.
+- Remove only proven unused frontend/backend code, template residue, stale mocks, and dependency entries after import/dependency verification.
+- Preserve product behavior, security-sensitive backend code, Google Drive/media/collaboration behavior, and the existing DARKROOM logo.
+- Keep passive branding/documentation cleanup separate unless it is directly tied to verified dead code or dependency removal.
+- Do not begin A2 until explicitly requested.
