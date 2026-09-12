@@ -44,6 +44,10 @@ export const SONG_ROLES = ["OWNER", "EDITOR", "VIEWER"] as const;
 
 export type SongRole = (typeof SONG_ROLES)[number];
 
+export const COLLABORATOR_ROLES = ["EDITOR", "VIEWER"] as const;
+
+export type CollaboratorRole = (typeof COLLABORATOR_ROLES)[number];
+
 export interface Song {
   id: string | number;
   title: string;
@@ -71,6 +75,51 @@ export interface AuthResponse {
   tokenType: "Bearer";
   expiresAt: string;
   user: AuthUser;
+}
+
+export interface UserSummary {
+  id: string | number;
+  email: string;
+  displayName?: string | null;
+}
+
+export interface SongMember {
+  memberId?: string | number | null;
+  userId: string | number;
+  email: string;
+  displayName?: string | null;
+  role: SongRole | string;
+  joinedAt?: string | null;
+}
+
+export interface SongInvitation {
+  id: string | number;
+  songId: string | number;
+  invitedUser: UserSummary;
+  invitedByUser: UserSummary;
+  role: CollaboratorRole | string;
+  status: string;
+  createdAt: string;
+  respondedAt?: string | null;
+}
+
+export interface InvitationInboxItem {
+  invitationId: string | number;
+  songId: string | number;
+  songTitle: string;
+  invitedByUser: UserSummary;
+  role: CollaboratorRole | string;
+  status: string;
+  createdAt: string;
+}
+
+export interface InviteSongMemberPayload {
+  email: string;
+  role: CollaboratorRole;
+}
+
+export interface UpdateSongMemberRolePayload {
+  role: CollaboratorRole;
 }
 
 export interface DriveWorkspaceFolder {

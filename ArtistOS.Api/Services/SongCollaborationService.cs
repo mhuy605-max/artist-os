@@ -207,6 +207,42 @@ public class SongCollaborationService
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<SongCollaborationResult<List<SongInvitationResponse>>> GetPendingSongInvitationsAsync(
+        int songId,
+        int userId,
+        CancellationToken cancellationToken = default)
+    {
+        var manageResult = await CanManageSongAsync(songId, userId, cancellationToken);
+        if (manageResult != SongCollaborationResultStatus.Success)
+        {
+            return new SongCollaborationResult<List<SongInvitationResponse>>(manageResult);
+        }
+
+        var invitations = await _context.SongInvitations
+            .AsNoTracking()
+            .Where(invitation =>
+                invitation.SongId == songId &&
+                invitation.Status == SongInvitationStatus.PENDING)
+            .OrderBy(invitation => invitation.InvitedUser.DisplayName ?? invitation.InvitedUser.Email)
+            .ThenBy(invitation => invitation.Id)
+            .Select(invitation => new SongInvitationResponse
+            {
+                Id = invitation.Id,
+                SongId = invitation.SongId,
+                InvitedUser = ToUserSummary(invitation.InvitedUser),
+                InvitedByUser = ToUserSummary(invitation.InvitedByUser),
+                Role = invitation.Role.ToString(),
+                Status = invitation.Status.ToString(),
+                CreatedAt = invitation.CreatedAt,
+                RespondedAt = invitation.RespondedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return new SongCollaborationResult<List<SongInvitationResponse>>(
+            SongCollaborationResultStatus.Success,
+            invitations);
+    }
+
     public async Task<SongCollaborationResult<SongInvitationResponse>> AcceptInvitationAsync(
         int invitationId,
         int userId,

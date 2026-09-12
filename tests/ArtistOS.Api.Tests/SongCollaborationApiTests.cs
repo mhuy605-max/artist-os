@@ -130,6 +130,30 @@ public class SongCollaborationApiTests
     }
 
     [Fact]
+    public async Task SongInvitations_ReturnsOnlyPendingInvitationsForOwnerManagedSong()
+    {
+        await using var factory = new ArtistOsApiFactory();
+        var scenario = await CreateScenarioAsync(factory);
+        await AddMemberAsync(factory, scenario.Song.Id, scenario.Editor.Id, SongMemberRole.EDITOR);
+        await AddMemberAsync(factory, scenario.Song.Id, scenario.Viewer.Id, SongMemberRole.VIEWER);
+        var pending = await CreateInvitationAsync(factory, scenario.Song.Id, scenario.Unrelated.Id, scenario.Owner.Id, SongInvitationStatus.PENDING);
+        await CreateInvitationAsync(factory, scenario.Song.Id, scenario.Editor.Id, scenario.Owner.Id, SongInvitationStatus.ACCEPTED);
+        var otherSong = await CreateSongAsync(scenario.OwnerClient, "Other Invite Song");
+        await CreateInvitationAsync(factory, otherSong.Id, scenario.Viewer.Id, scenario.Owner.Id, SongInvitationStatus.PENDING);
+
+        var ownerInvitations = await scenario.OwnerClient.GetFromJsonAsync<List<SongInvitationResponse>>(
+            $"/api/songs/{scenario.Song.Id}/invitations");
+
+        Assert.Single(ownerInvitations!);
+        Assert.Equal(pending.Id, ownerInvitations![0].Id);
+        Assert.Equal(scenario.Unrelated.Id, ownerInvitations[0].InvitedUser.Id);
+        Assert.Equal(SongInvitationStatus.PENDING.ToString(), ownerInvitations[0].Status);
+        Assert.Equal(HttpStatusCode.Forbidden, (await scenario.EditorClient.GetAsync($"/api/songs/{scenario.Song.Id}/invitations")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await scenario.ViewerClient.GetAsync($"/api/songs/{scenario.Song.Id}/invitations")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await scenario.UnrelatedClient.GetAsync($"/api/songs/{scenario.Song.Id}/invitations")).StatusCode);
+    }
+
+    [Fact]
     public async Task AcceptInvitation_CreatesMemberAndAcceptsAtomically()
     {
         await using var factory = new ArtistOsApiFactory();

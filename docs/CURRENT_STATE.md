@@ -4,9 +4,9 @@ Last updated: 2026-09-12
 
 ## Current Phase
 
-Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration frontend access model is complete through C7.
+Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration member and invitation frontend UX is complete through C8.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration is not implemented for V1. Team now presents an honest personal-workspace planned-state page. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, and C7 added frontend role-aware workspace behavior using backend Song access metadata. Members UI, invitation inbox, invite/member management controls, generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, and C8 added song workspace Members UI plus the real invitation inbox. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
@@ -175,7 +175,7 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - `AddSongWorkspaceCollaboration` EF Core migration created for `SongMembers`, `SongInvitations`, collaboration check constraints, relationship constraints, membership uniqueness, and one-pending-invitation uniqueness.
 - `SongAccessService` added to resolve OWNER, EDITOR, VIEWER, and NO_ACCESS and expose the canonical read/edit/member-management capability matrix.
 - `SongCollaborationService` added for member/invitation lifecycle rules.
-- Collaboration API endpoints added for member listing, inviting existing DARKROOM users, current-user pending invitation inbox, accepting invitations, declining invitations, revoking pending invitations, member role changes, and member removal.
+- Collaboration API endpoints added for member listing, song-scoped pending invitation listing, inviting existing DARKROOM users, current-user pending invitation inbox, accepting invitations, declining invitations, revoking pending invitations, member role changes, and member removal.
 - Top-level Song list/detail queries now return owned and accepted-member Songs with `CurrentUserRole`, `CanEdit`, and `CanManageMembers` access metadata.
 - Top-level Song update now allows OWNER and EDITOR users while preserving server-controlled ownership; VIEWER receives `403 Forbidden` and unrelated users receive `404 Not Found`.
 - Top-level Song delete remains OWNER-only; accepted EDITOR/VIEWER users receive `403 Forbidden`.
@@ -201,6 +201,10 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - Editor users keep normal workspace edit/upload/replace controls, and shared media upload/replace UI no longer requires the editor's personal Google Drive connection.
 - Project storage setup/provisioning controls remain OWNER-only in the frontend; non-owner shared users can read safe workspace metadata without Settings prompts.
 - Frontend C7 coverage verifies fail-closed access derivation, catalog role controls, viewer read-only tab behavior, editor shared upload behavior, owner-only Drive provisioning UI, and `403` auth-token preservation.
+- Song workspace headers now expose a Members dialog that reads the backend member roster, shows the owner as a non-removable owner row, lists active collaborators, and gives OWNER users invite, role-change, member-remove, and pending-invitation revoke controls.
+- Members UI invite flow submits existing DARKROOM account email plus `EDITOR` or `VIEWER` role to the collaboration API and surfaces backend duplicate, unknown-email, self/owner invite, and stale-permission responses without inventing frontend-only permission rules.
+- The Team route now serves as the real current-user invitation inbox instead of a planned-state team page, with pending song invitations, Accept, Decline, song links, empty/loading/error states, and collaboration cache invalidation after responses.
+- Frontend C8 coverage verifies owner/member/pending invitation rendering, owner management controls, editor/viewer read-only member views, invite errors, role changes, member removal, invitation revocation, inbox accept/decline, stale invitation handling, Team route navigation, and narrow-width usability.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 - Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
@@ -2684,10 +2688,10 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-C8 - Members UI + Invitation Inbox.
+C9 - Frontend Tests + UX Hardening.
 
 Suggested scope:
 
-- Build the minimal frontend surfaces for member visibility and invitation handling on top of the already verified backend C2 APIs.
+- Expand high-value frontend regression coverage around the C7/C8 collaboration UX and harden awkward loading, stale-state, and responsive interaction edges.
 - Keep owner-only invite, role-change, revoke, and remove controls explicit and backend-authoritative.
 - Do not add new backend provider features or begin post-C8 collaboration work until explicitly requested.

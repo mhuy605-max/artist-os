@@ -154,6 +154,7 @@ import { AnalyticsWorkspace } from "./analytics/AnalyticsWorkspace";
 import { AudioWorkspace } from "./audio/AudioWorkspace";
 import { ContentWorkspace } from "./content/ContentWorkspace";
 import { CreditsWorkspace } from "./credits/CreditsWorkspace";
+import { SongMembersDialog } from "./members/SongMembersDialog";
 import { OverviewWorkspace } from "./overview/OverviewWorkspace";
 import { ReleaseWorkspace } from "./release/ReleaseWorkspace";
 import { VisualsWorkspace } from "./visuals/VisualsWorkspace";
@@ -279,6 +280,9 @@ function Workspace({ song }: { song: Song }) {
                 Created {formatDate(song.createdAt)}
               </span>
             </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <SongMembersDialog song={song} access={access} />
           </div>
         </div>
       </header>

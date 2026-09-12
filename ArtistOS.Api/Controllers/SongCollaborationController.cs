@@ -62,6 +62,25 @@ public class SongCollaborationController : ControllerBase
             : ToActionResult(result);
     }
 
+    [HttpGet("songs/{songId:int}/invitations")]
+    public async Task<ActionResult<List<SongInvitationResponse>>> GetSongInvitations(
+        int songId,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = User.GetUserId();
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await _collaborationService.GetPendingSongInvitationsAsync(
+            songId,
+            currentUserId.Value,
+            cancellationToken);
+
+        return ToActionResult(result);
+    }
+
     [HttpGet("invitations")]
     public async Task<ActionResult<List<InvitationInboxItemResponse>>> GetInvitations(
         CancellationToken cancellationToken)
