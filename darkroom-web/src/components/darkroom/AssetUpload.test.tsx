@@ -186,7 +186,7 @@ vi.mock("@/services/api/dashboard", () => ({
   },
 }));
 
-import { SongWorkspacePage } from "./Workbench";
+import { SongWorkspacePage } from "./workbench/Workbench";
 
 const song: Song = {
   id: 1,

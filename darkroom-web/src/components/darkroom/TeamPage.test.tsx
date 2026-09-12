@@ -67,7 +67,7 @@ vi.mock("@/services/api/collaboration", () => ({
   },
 }));
 
-import { TeamPage } from "./Workbench";
+import { TeamPage } from "./pages/TeamPage";
 
 const inboxInvitation = {
   invitationId: 44,

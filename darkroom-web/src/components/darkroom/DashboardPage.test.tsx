@@ -52,7 +52,7 @@ vi.mock("@/services/api/dashboard", () => ({
   },
 }));
 
-import { DashboardPage } from "./Workbench";
+import { DashboardPage } from "./pages/DashboardPage";
 
 function dashboardFixture(): DashboardResponse {
   return {

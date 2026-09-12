@@ -42,7 +42,7 @@ vi.mock("@/services/api/auth", () => ({
 }));
 
 import { AppShell } from "./AppShell";
-import { LoginPage } from "./Workbench";
+import { LoginPage } from "./pages/LoginPage";
 import { unauthorizedEventName } from "@/services/api/client";
 
 describe("auth flow", () => {

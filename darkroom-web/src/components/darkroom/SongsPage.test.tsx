@@ -61,7 +61,7 @@ vi.mock("@/services/api/songs", () => ({
   isUsingFallbackData: isUsingFallbackDataMock,
 }));
 
-import { SongsPage } from "./Workbench";
+import { SongsPage } from "./pages/SongsPage";
 
 const songsFixture: Song[] = [
   {

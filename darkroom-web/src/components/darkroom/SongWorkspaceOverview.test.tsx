@@ -169,7 +169,7 @@ vi.mock("@/services/api/calendar", () => ({
   },
 }));
 
-import { SongWorkspacePage } from "./Workbench";
+import { SongWorkspacePage } from "./workbench/Workbench";
 
 const song: Song = {
   id: 7,

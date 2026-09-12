@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { SongWorkspacePage } from "@/components/darkroom/Workbench";
+import { SongWorkspacePage } from "@/components/darkroom/workbench/Workbench";
 
 export const Route = createFileRoute("/songs_/$songId")({
   component: SongRoute,

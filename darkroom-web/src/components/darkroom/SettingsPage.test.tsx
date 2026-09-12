@@ -57,7 +57,7 @@ vi.mock("@/services/api/googleDrive", () => ({
   openGoogleAuthorizationUrl: openGoogleAuthorizationUrlMock,
 }));
 
-import { SettingsPage } from "./Workbench";
+import { SettingsPage } from "./pages/SettingsPage";
 
 describe("SettingsPage Google Drive connection", () => {
   beforeEach(() => {
