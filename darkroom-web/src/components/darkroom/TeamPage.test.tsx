@@ -27,17 +27,19 @@ vi.mock("@tanstack/react-router", () => ({
     params,
     children,
     className,
+    title,
     onClick,
   }: {
     to: string;
     params?: Record<string, string>;
     children: React.ReactNode;
     className?: string;
+    title?: string;
     onClick?: () => void;
   }) => {
     const href = params?.["songId"] ? to.replace("$songId", params["songId"]) : to;
     return (
-      <a href={href} className={className} onClick={onClick}>
+      <a href={href} className={className} title={title} onClick={onClick}>
         {children}
       </a>
     );
@@ -117,12 +119,21 @@ describe("TeamPage invitation inbox", () => {
 
     expect(await screen.findByRole("heading", { name: "Song invitations" })).toBeInTheDocument();
     expect(screen.getByText("Invitation inbox")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Night Protocol" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Night Protocol" })).toHaveAttribute(
       "href",
       "/songs/7",
     );
     expect(screen.getByText("Invited by Owner Artist as Editor.")).toBeInTheDocument();
     expect(screen.queryByText("Future teams")).not.toBeInTheDocument();
+  });
+
+  it("waits for the authenticated shell before loading invitations", async () => {
+    getMeMock.mockReturnValue(new Promise(() => {}));
+
+    renderWithQueryClient(<TeamPage />);
+
+    expect(await screen.findByText("Restoring session")).toBeInTheDocument();
+    expect(getInvitationsMock).not.toHaveBeenCalled();
   });
 
   it("accepts an invitation and refreshes collaboration state", async () => {
@@ -133,6 +144,18 @@ describe("TeamPage invitation inbox", () => {
 
     expect(acceptInvitationMock).toHaveBeenCalledWith("44");
     expect(await screen.findByText("Invitation accepted.")).toBeInTheDocument();
+  });
+
+  it("locks invitation actions while one response is pending", async () => {
+    const user = userEvent.setup();
+    acceptInvitationMock.mockReturnValue(new Promise(() => {}));
+    renderWithQueryClient(<TeamPage />);
+
+    await user.click(await screen.findByRole("button", { name: /accept/i }));
+
+    expect(acceptInvitationMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /accept/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /decline/i })).toBeDisabled();
   });
 
   it("declines an invitation and refreshes the inbox", async () => {
@@ -166,6 +189,32 @@ describe("TeamPage invitation inbox", () => {
 
     expect(await screen.findByText("Invitation is no longer available.")).toBeInTheDocument();
     await waitFor(() => expect(getInvitationsMock).toHaveBeenCalled());
+  });
+
+  it("handles stale invitation conflicts with a clear message", async () => {
+    const user = userEvent.setup();
+    acceptInvitationMock.mockRejectedValue(
+      new ApiError('{"title":"Invitation is no longer pending."}', 409),
+    );
+
+    renderWithQueryClient(<TeamPage />);
+
+    await user.click(await screen.findByRole("button", { name: /accept/i }));
+
+    expect(await screen.findByText("Invitation is no longer pending.")).toBeInTheDocument();
+  });
+
+  it("preserves long song titles on truncated inbox links", async () => {
+    const longTitle =
+      "Night Protocol Extended Director Cut With A Very Long Collaboration Workspace Title";
+    getInvitationsMock.mockResolvedValue([{ ...inboxInvitation, songTitle: longTitle }]);
+
+    renderWithQueryClient(<TeamPage />);
+
+    expect(await screen.findByRole("link", { name: longTitle })).toHaveAttribute(
+      "title",
+      longTitle,
+    );
   });
 
   it("keeps the Team route reachable from protected navigation", async () => {

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type MouseEvent } from "react";
 
 import {
   AlertDialog,
@@ -121,7 +121,7 @@ function SongMembersContent({ songId, access }: { songId: string; access: SongAc
 
   return (
     <div className="space-y-5">
-      {access.canManageMembers ? <InviteMemberForm songId={songId} /> : <ReadOnlyMemberNotice />}
+      {access.canManageMembers ? null : <ReadOnlyMemberNotice />}
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -162,6 +162,8 @@ function SongMembersContent({ songId, access }: { songId: string; access: SongAc
           onRetry={() => invitations.refetch()}
         />
       ) : null}
+
+      {access.canManageMembers ? <InviteMemberForm songId={songId} /> : null}
     </div>
   );
 }
@@ -196,12 +198,19 @@ function InviteMemberForm({ songId }: { songId: string }) {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (invite.isPending) return;
     setMessage("");
     invite.mutate();
   }
 
+  const locked = invite.isPending;
+
   return (
     <form className="border border-border bg-panel p-4" onSubmit={submit}>
+      <div className="mb-3">
+        <p className="label-tech">Invite</p>
+        <h3 className="mt-1 text-sm font-semibold uppercase">Invite collaborator</h3>
+      </div>
       <div className="grid gap-3 md:grid-cols-[1fr_170px_auto] md:items-end">
         <div>
           <label className="label-tech" htmlFor="member-email">
@@ -212,15 +221,26 @@ function InviteMemberForm({ songId }: { songId: string }) {
             className="mt-2"
             type="email"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setMessage("");
+            }}
             placeholder="collaborator@example.com"
             maxLength={254}
             required
+            disabled={locked}
           />
         </div>
         <div>
           <label className="label-tech">Role</label>
-          <Select value={role} onValueChange={(value) => setRole(value as CollaboratorRole)}>
+          <Select
+            value={role}
+            onValueChange={(value) => {
+              setRole(value as CollaboratorRole);
+              setMessage("");
+            }}
+            disabled={locked}
+          >
             <SelectTrigger className="mt-2" aria-label="Invitation role">
               <SelectValue />
             </SelectTrigger>
@@ -233,7 +253,7 @@ function InviteMemberForm({ songId }: { songId: string }) {
             </SelectContent>
           </Select>
         </div>
-        <Button disabled={invite.isPending}>{invite.isPending ? "Inviting" : "Invite"}</Button>
+        <Button disabled={locked}>{locked ? "Inviting" : "Invite collaborator"}</Button>
       </div>
       {message ? <p className="mt-3 text-sm text-muted-foreground">{message}</p> : null}
     </form>
@@ -251,6 +271,7 @@ function MemberRow({
 }) {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
+  const [removeOpen, setRemoveOpen] = useState(false);
   const memberId = member.memberId == null ? "" : String(member.memberId);
   const editable = canManage && member.role !== "OWNER" && memberId !== "";
   const updateRole = useMutation({
@@ -278,62 +299,79 @@ function MemberRow({
     },
   });
 
+  async function confirmRemove(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    if (remove.isPending) return;
+
+    await remove.mutateAsync().catch(() => undefined);
+    setRemoveOpen(false);
+  }
+
+  const name = displayName(member.email, member.displayName);
+
   return (
     <div className="grid gap-3 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-medium">
-            {displayName(member.email, member.displayName)}
+          <p className="truncate text-sm font-medium" title={name}>
+            {name}
           </p>
           <StatusBadge status={roleLabel(member.role)} />
         </div>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{member.email}</p>
+        <p className="mt-1 truncate text-xs text-muted-foreground" title={member.email}>
+          {member.email}
+        </p>
         <p className="mt-1 text-xs uppercase text-muted-foreground">
           {member.role === "OWNER" ? "Workspace owner" : `Joined ${formatDate(member.joinedAt)}`}
         </p>
         {message ? <p className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
       </div>
-      <div className="flex flex-wrap gap-2 sm:justify-end">
-        {editable ? (
-          <>
-            <Select
-              value={member.role === "VIEWER" ? "VIEWER" : "EDITOR"}
-              onValueChange={(value) => updateRole.mutate(value as CollaboratorRole)}
-              disabled={updateRole.isPending || remove.isPending}
-            >
-              <SelectTrigger className="h-9 w-36" aria-label={`Role for ${member.email}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {COLLABORATOR_ROLES.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {roleLabel(value)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" disabled={remove.isPending}>
-                  Remove
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remove member?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {member.email} will lose access to this song workspace.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => remove.mutate()}>Remove</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </>
-        ) : null}
-      </div>
+      {editable ? (
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <Select
+            value={member.role === "VIEWER" ? "VIEWER" : "EDITOR"}
+            onValueChange={(value) => updateRole.mutate(value as CollaboratorRole)}
+            disabled={updateRole.isPending || remove.isPending}
+          >
+            <SelectTrigger className="h-9 w-36" aria-label={`Role for ${member.email}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COLLABORATOR_ROLES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {roleLabel(value)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <AlertDialog
+            open={removeOpen}
+            onOpenChange={(nextOpen) => {
+              if (!remove.isPending) setRemoveOpen(nextOpen);
+            }}
+          >
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" disabled={remove.isPending}>
+                Remove
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove member?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {member.email} will lose access to this song workspace.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={remove.isPending}>Cancel</AlertDialogCancel>
+                <AlertDialogAction disabled={remove.isPending} onClick={confirmRemove}>
+                  {remove.isPending ? "Removing" : "Remove"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -402,6 +440,7 @@ function PendingInvitationRow({
 }) {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
+  const [revokeOpen, setRevokeOpen] = useState(false);
   const revoke = useMutation({
     mutationFn: () => collaborationApi.revokeSongInvitation(songId, String(invitation.id)),
     onSuccess: () => {
@@ -415,16 +454,32 @@ function PendingInvitationRow({
     },
   });
 
+  async function confirmRevoke(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    if (revoke.isPending) return;
+
+    await revoke.mutateAsync().catch(() => undefined);
+    setRevokeOpen(false);
+  }
+
+  const name = displayName(invitation.invitedUser.email, invitation.invitedUser.displayName);
+
   return (
     <div className="grid gap-3 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-medium">
-            {displayName(invitation.invitedUser.email, invitation.invitedUser.displayName)}
+          <p className="truncate text-sm font-medium" title={name}>
+            {name}
           </p>
           <StatusBadge status={roleLabel(invitation.role)} />
+          <span className="border border-border px-2 py-1 text-[10px] uppercase text-muted-foreground">
+            Pending invitation
+          </span>
         </div>
-        <p className="mt-1 truncate text-xs text-muted-foreground">
+        <p
+          className="mt-1 truncate text-xs text-muted-foreground"
+          title={invitation.invitedUser.email}
+        >
           {invitation.invitedUser.email}
         </p>
         <p className="mt-1 text-xs uppercase text-muted-foreground">
@@ -432,7 +487,12 @@ function PendingInvitationRow({
         </p>
         {message ? <p className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
       </div>
-      <AlertDialog>
+      <AlertDialog
+        open={revokeOpen}
+        onOpenChange={(nextOpen) => {
+          if (!revoke.isPending) setRevokeOpen(nextOpen);
+        }}
+      >
         <AlertDialogTrigger asChild>
           <Button variant="outline" size="sm" disabled={revoke.isPending}>
             Revoke
@@ -446,8 +506,10 @@ function PendingInvitationRow({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => revoke.mutate()}>Revoke</AlertDialogAction>
+            <AlertDialogCancel disabled={revoke.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={revoke.isPending} onClick={confirmRevoke}>
+              {revoke.isPending ? "Revoking" : "Revoke"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

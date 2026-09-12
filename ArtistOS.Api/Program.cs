@@ -115,7 +115,7 @@ builder.Services.AddCors(options =>
     {
         policy
             .WithOrigins("http://localhost:8080")
-            .WithMethods("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS")
+            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
             .AllowAnyHeader();
     });
 
@@ -140,7 +140,7 @@ builder.Services.AddCors(options =>
 
         policy
             .WithOrigins(origins.Length == 0 ? ["http://localhost:8080"] : origins)
-            .WithMethods("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS")
+            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
             .AllowAnyHeader();
     });
 });

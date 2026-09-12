@@ -157,7 +157,7 @@ import {
   type VisualAssetType,
 } from "@/types";
 import { cn } from "@/lib/utils";
-import { deriveSongAccess, songRoleLabel } from "./workbench/shared";
+import { deriveSongAccess, parseApiProblemTitle, songRoleLabel } from "./workbench/shared";
 
 const songsQueryKey = ["songs"];
 
@@ -1186,6 +1186,14 @@ function calendarEventLabel(eventType: CalendarEventType) {
 }
 
 export function TeamPage() {
+  return (
+    <AppShell>
+      <InvitationInbox />
+    </AppShell>
+  );
+}
+
+function InvitationInbox() {
   const invitations = useQuery({
     queryKey: invitationInboxQueryKey,
     queryFn: collaborationApi.getInvitations,
@@ -1193,7 +1201,7 @@ export function TeamPage() {
   });
 
   return (
-    <AppShell>
+    <>
       <PageHeader eyebrow="Team" title="Song invitations" />
       <Panel title="Invitation inbox" label="Collaboration">
         {invitations.isLoading ? (
@@ -1217,7 +1225,7 @@ export function TeamPage() {
           />
         )}
       </Panel>
-    </AppShell>
+    </>
   );
 }
 
@@ -1267,6 +1275,7 @@ function InvitationInboxRow({ invitation }: { invitation: InvitationInboxItem })
           to="/songs/$songId"
           params={{ songId: String(invitation.songId) }}
           className="mt-2 block truncate text-lg font-semibold uppercase hover:text-muted-foreground"
+          title={invitation.songTitle}
         >
           {invitation.songTitle}
         </Link>
@@ -1279,18 +1288,26 @@ function InvitationInboxRow({ invitation }: { invitation: InvitationInboxItem })
         {message ? <p className="mt-3 text-sm text-muted-foreground">{message}</p> : null}
       </div>
       <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
-        <Button className="gap-2" disabled={busy} onClick={() => accept.mutate()}>
+        <Button
+          className="gap-2"
+          disabled={busy}
+          onClick={() => {
+            if (!busy) accept.mutate();
+          }}
+        >
           <Check className="h-4 w-4" />
-          Accept
+          {accept.isPending ? "Accepting" : "Accept"}
         </Button>
         <Button
           variant="outline"
           className="gap-2"
           disabled={busy}
-          onClick={() => decline.mutate()}
+          onClick={() => {
+            if (!busy) decline.mutate();
+          }}
         >
           <X className="h-4 w-4" />
-          Decline
+          {decline.isPending ? "Declining" : "Decline"}
         </Button>
       </div>
     </article>
@@ -1307,7 +1324,9 @@ function invitationActionError(error: unknown, fallback: string) {
   if (error instanceof ApiError) {
     if (error.status === 404) return "Invitation is no longer available.";
     if (error.status === 403) return "You no longer have permission to manage this action.";
-    return error.message || fallback;
+    if (error.status === 409)
+      return parseApiProblemTitle(error) || "Invitation is no longer pending.";
+    return parseApiProblemTitle(error) || error.message || fallback;
   }
   return error instanceof Error ? error.message : fallback;
 }

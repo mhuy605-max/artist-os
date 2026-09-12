@@ -4,9 +4,9 @@ Last updated: 2026-09-12
 
 ## Current Phase
 
-Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration member and invitation frontend UX is complete through C8.
+Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration frontend UX hardening is complete through C9.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, and C8 added song workspace Members UI plus the real invitation inbox. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, C8 added song workspace Members UI plus the real invitation inbox, and C9 hardened the C7/C8 frontend collaboration UX, stale-state handling, pending states, responsive edge cases, accessibility/copy, and regression coverage. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
@@ -205,6 +205,16 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - Members UI invite flow submits existing DARKROOM account email plus `EDITOR` or `VIEWER` role to the collaboration API and surfaces backend duplicate, unknown-email, self/owner invite, and stale-permission responses without inventing frontend-only permission rules.
 - The Team route now serves as the real current-user invitation inbox instead of a planned-state team page, with pending song invitations, Accept, Decline, song links, empty/loading/error states, and collaboration cache invalidation after responses.
 - Frontend C8 coverage verifies owner/member/pending invitation rendering, owner management controls, editor/viewer read-only member views, invite errors, role changes, member removal, invitation revocation, inbox accept/decline, stale invitation handling, Team route navigation, and narrow-width usability.
+- V1.1 Song Workspace Collaboration C9 hardened the Members dialog and Team invitation inbox without schema, deployment, commit, or push changes.
+- The Members dialog now orders active workspace members, pending invitations, and invite controls distinctly; owner rows have no management controls or empty action area.
+- Pending invitation rows now visibly identify pending invitations and preserve full long email/name values through accessible `title` attributes while keeping truncated layouts.
+- Invite controls now use `Invite collaborator` copy, clear stale errors on meaningful input changes, disable email/role/submit controls while a request is pending, and continue to invalidate member, pending-invitation, and inbox queries after success.
+- Member remove and pending-invitation revoke confirmations now keep destructive actions disabled while pending and contain rejected mutation promises while still surfacing backend stale/failure messages and refetching affected data.
+- The Team invitation inbox now loads inside the authenticated app shell, preventing invitation API calls before session restore; long song titles preserve full values through `title` attributes.
+- Invitation accept/decline actions now guard against duplicate clicks, mutually disable both row actions while one response is pending, and render clean stale/conflict messages using shared API problem parsing.
+- Development and production CORS method allow-lists now include `PATCH`, fixing browser-based member role updates from the React frontend.
+- Frontend C9 coverage adds regression tests for authenticated-shell query timing, invite pending locks, invite error reset, owner role exclusion, stale remove/revoke failures, stale invitation conflicts, accept/decline mutual exclusion, long email/title handling, and large member rosters.
+- Backend C9 coverage verifies production CORS preflight support for `PATCH`, protecting browser role-update flows.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 - Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
@@ -2641,7 +2651,7 @@ Remote GitHub Actions status:
 
 ## Not Yet Implemented
 
-- Frontend collaboration UI and team-facing permission management.
+- Global organization/team roles and team-facing permission management beyond Song workspace collaboration.
 - Password reset, email verification, social login, MFA, account management, production refresh-token/session hardening, and server-side JWT revocation.
 - Google Drive download-original, Drive browsing, Picker, synchronization, external file deletion, and replacement audit/history views.
 - YouTube integration and automated analytics ingestion.
@@ -2688,10 +2698,10 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-C9 - Frontend Tests + UX Hardening.
+C10 - Final End-to-End Verification + DONE.
 
 Suggested scope:
 
-- Expand high-value frontend regression coverage around the C7/C8 collaboration UX and harden awkward loading, stale-state, and responsive interaction edges.
-- Keep owner-only invite, role-change, revoke, and remove controls explicit and backend-authoritative.
-- Do not add new backend provider features or begin post-C8 collaboration work until explicitly requested.
+- Run final multi-role end-to-end verification for OWNER, EDITOR, and VIEWER collaboration flows before marking V1.1 Song Workspace Collaboration done.
+- Confirm frontend, backend, browser, documentation, git, and deployment-readiness status without expanding collaboration scope.
+- Do not add C11 or new collaboration capabilities unless explicitly requested after C10.

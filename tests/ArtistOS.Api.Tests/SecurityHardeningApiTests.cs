@@ -216,7 +216,7 @@ public class SecurityHardeningApiTests
         });
         using var preflight = new HttpRequestMessage(HttpMethod.Options, "/api/songs");
         preflight.Headers.Add("Origin", "https://app.artistos.test");
-        preflight.Headers.Add("Access-Control-Request-Method", "GET");
+        preflight.Headers.Add("Access-Control-Request-Method", "PATCH");
 
         var unauthorized = await client.GetAsync("/api/auth/me");
         var cors = await client.SendAsync(preflight);
@@ -227,6 +227,8 @@ public class SecurityHardeningApiTests
         Assert.True(cors.Headers.TryGetValues("Access-Control-Allow-Origin", out var origins));
         Assert.Equal("https://app.artistos.test", Assert.Single(origins));
         Assert.DoesNotContain("*", origins);
+        Assert.True(cors.Headers.TryGetValues("Access-Control-Allow-Methods", out var methods));
+        Assert.Contains("PATCH", Assert.Single(methods));
     }
 
     private static ArtistOsApiFactory CreateFactory(
