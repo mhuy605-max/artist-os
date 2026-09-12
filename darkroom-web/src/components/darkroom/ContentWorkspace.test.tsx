@@ -237,7 +237,7 @@ const contentItems: ContentItem[] = [
     dueDate: "2020-01-01",
     scheduledAt: "2020-01-02",
     publishedAt: "2020-01-03",
-    notes: "Already posted manually outside Artist OS.",
+    notes: "Already posted manually outside DARKROOM SYSTEM.",
     createdAt: "2026-09-01T10:00:00Z",
     updatedAt: "2026-09-02T10:00:00Z",
   },
@@ -410,7 +410,7 @@ describe("Content workspace polish", () => {
     expect(screen.queryByText(/connect account/i)).not.toBeInTheDocument();
   });
 
-  it("explains delete behavior as Artist OS metadata only", async () => {
+  it("explains delete behavior as DARKROOM SYSTEM metadata only", async () => {
     const user = userEvent.setup();
 
     await renderContentWorkspace();
@@ -439,7 +439,7 @@ describe("Content workspace polish", () => {
     await renderContentWorkspace();
 
     expect(
-      await screen.findByText("We couldn't load content production from Artist OS."),
+      await screen.findByText("We couldn't load content production from DARKROOM SYSTEM."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });

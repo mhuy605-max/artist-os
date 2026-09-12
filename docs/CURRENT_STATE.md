@@ -4,9 +4,9 @@ Last updated: 2026-09-12
 
 ## Current Phase
 
-Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is DONE. Architecture Stabilization A3 Architecture Cleanup is complete.
+Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is DONE. Architecture Stabilization A4 Branding & Repository Hygiene is complete.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, C8 added song workspace Members UI plus the real invitation inbox, C9 hardened the C7/C8 frontend collaboration UX, stale-state handling, pending states, responsive edge cases, accessibility/copy, and regression coverage, C10 completed final end-to-end verification plus DONE documentation, A0 completed the whole-project architecture and Lovable trace audit, A1 removed the active Lovable build/runtime dependency, A2 removed verified dead mocks, unused UI primitives, stale dependency entries, Bun artifacts, and passive Lovable metadata, and A3 removed the remaining public Workbench facade by extracting standalone pages into focused modules. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, C8 added song workspace Members UI plus the real invitation inbox, C9 hardened the C7/C8 frontend collaboration UX, stale-state handling, pending states, responsive edge cases, accessibility/copy, and regression coverage, C10 completed final end-to-end verification plus DONE documentation, A0 completed the whole-project architecture and Lovable trace audit, A1 removed the active Lovable build/runtime dependency, A2 removed verified dead mocks, unused UI primitives, stale dependency entries, Bun artifacts, and passive Lovable metadata, A3 removed the remaining public Workbench facade by extracting standalone pages into focused modules, and A4 cleaned current repository-facing DARKROOM SYSTEM branding while intentionally retaining stable internal ArtistOS identifiers. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
@@ -232,6 +232,13 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - Shared top-level page query keys now live in `darkroom-web/src/components/darkroom/pages/page-query-keys.ts`.
 - The obsolete public `darkroom-web/src/components/darkroom/Workbench.tsx` facade was removed without changing product behavior, API contracts, backend code, database schema, authentication, Google Drive/media behavior, route URLs, DARKROOM logo assets, README branding, deployment settings, or Song API fallback behavior.
 - A3 verification passed: frontend lint completed with 0 errors and 5 remaining Fast Refresh warnings, frontend tests passed with 18 files and 234 tests, frontend production build succeeded, and backend `dotnet test` passed with 390 tests.
+- Architecture Stabilization A4 Branding & Repository Hygiene made DARKROOM SYSTEM the clear current public/repository-facing product brand in root and frontend documentation.
+- Active agent instructions in `AGENTS.md` and `darkroom-web/AGENTS.md` now describe current DARKROOM SYSTEM architecture and explicitly preserve stable internal `ArtistOS.*` identifiers.
+- The frontend package name changed from `tanstack_start_ts` to `darkroom-system-web`, with `package-lock.json` synchronized through npm tooling and dependency versions left unchanged.
+- The previous Lovable/template favicon was replaced with an `.ico` generated from the existing official `darkroom-web/src/assets/darkroom-logo.png`; the source logo asset was not modified.
+- Browser-facing metadata already used DARKROOM SYSTEM, and A4 preserved that title/meta/favicon route configuration.
+- Historical A0-A3 Lovable records remain in this file where they accurately describe past milestones; current README, frontend README, active agent instructions, package metadata, and favicon no longer present Lovable as the active project identity.
+- A4 verification passed: `npm ci` completed with 0 vulnerabilities, frontend lint completed with 0 errors and 5 remaining Fast Refresh warnings, frontend tests passed with 18 files and 234 tests, frontend production build succeeded, backend `dotnet test` passed with 390 tests, browser smoke confirmed DARKROOM SYSTEM title/logo/favicon/current branding, and `git diff --check` passed.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 - Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
@@ -2661,7 +2668,6 @@ Remote GitHub Actions status:
 - Backend integration tests use SQLite in-memory, so they do not cover PostgreSQL-provider-specific behavior.
 - Frontend automated tests are intentionally focused and do not yet cover the entire app, all routes, all workspace tabs, or visual regression.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
-- Passive Lovable documentation traces remain for later cleanup in `darkroom-web/AGENTS.md` and `darkroom-web/README.md`.
 - Production secret storage is still configuration-provider based; a cloud/provider secret vault is not wired in this repository.
 - Production Data Protection has a filesystem/key-ring configuration hook, but the actual shared durable key store must be selected and mounted by deployment infrastructure.
 - PostgreSQL TLS/private-networking, backup, restore, monitoring, and managed-provider security controls are still deployment responsibilities.
@@ -2715,11 +2721,11 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-A4 — Branding & Repository Hygiene.
+A5 — Final Architecture Verification.
 
 Suggested scope:
 
-- Remove or reconcile remaining passive Lovable documentation traces where they are no longer accurate.
-- Review repository-facing names, docs, and favicon/branding surfaces without changing product behavior.
+- Perform a final whole-repository architecture and hygiene verification after A0-A4.
+- Confirm DARKROOM SYSTEM branding, internal ArtistOS identifier retention, provider-neutral deployment posture, npm/package-lock consistency, frontend/backend tests, and absence of active Lovable runtime/config/workflow residue.
 - Preserve product behavior, security-sensitive backend code, Google Drive/media/collaboration behavior, route URLs, database schema, and deployment settings.
-- Do not begin A4 until explicitly requested.
+- Do not begin A5 until explicitly requested.

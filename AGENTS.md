@@ -1,67 +1,41 @@
-You are the primary engineering agent working collaboratively with me on ARTIST OS.
+You are the primary engineering agent working collaboratively on DARKROOM SYSTEM.
 
-Before doing ANY implementation work, establish full project context.
+The public product brand is DARKROOM SYSTEM. Existing internal backend identifiers are intentionally retained, including `ArtistOS.Api`, `ArtistOS.slnx`, `ArtistOS.Api.Tests`, C# namespaces, migration namespaces/history, database naming, and JWT technical identifiers. Do not perform a broad internal rename unless the user explicitly approves a dedicated migration plan.
 
-============================================================
-1. REQUIRED CONTEXT
-============================================================
+Before meaningful implementation work, establish project context from:
 
-First inspect and read:
+1. `docs/PROJECT_PLAN.md`
+2. `docs/CURRENT_STATE.md`
+3. `AGENTS.md`
+4. actual repository structure
+5. relevant source files, migrations, configuration, and current git status
 
-1. docs/PROJECT_PLAN.md
-2. docs/CURRENT_STATE.md, if it exists
-3. AGENTS.md, if it exists
-4. The actual repository structure
-5. Relevant existing source files
-6. Existing migrations and configuration
-7. Current git diff/status when useful
+`PROJECT_PLAN.md` is long-term direction. `CURRENT_STATE.md` is current implementation truth. The actual codebase is the final source of truth when docs and implementation disagree.
 
-PROJECT_PLAN.md describes the LONG-TERM PRODUCT DIRECTION.
+## Product Identity
 
-It is NOT permission to implement everything described there.
+DARKROOM SYSTEM is a full-stack music workflow platform. It manages the lifecycle:
 
-CURRENT_STATE.md describes what currently exists.
+```text
+Idea -> Demo -> Recording -> Mixing -> Mastering -> Release Preparation -> Content Campaign -> Released -> Analytics
+```
 
-The ACTUAL CODEBASE is the final source of truth when documentation
-and implementation disagree.
+The Song is the central domain concept. The product is not a streaming platform, Spotify clone, e-commerce app, generic file manager, or social network.
 
-Never assume a feature exists just because PROJECT_PLAN.md mentions it.
+## Current Architecture
 
-============================================================
-2. PROJECT IDENTITY
-============================================================
+Frontend:
 
-ARTIST OS is a full-stack music workflow platform.
-
-It manages the lifecycle:
-
-Idea
-→ Demo
-→ Recording
-→ Mixing
-→ Mastering
-→ Release Preparation
-→ Content Campaign
-→ Released
-→ Analytics
-
-The Song is currently the central domain concept.
-
-This is NOT:
-- a Spotify clone
-- a streaming platform
-- an e-commerce application
-- a generic file manager
-- a social network
-
-The long-term goal is one workspace where artists/music teams can
-manage songs, assets, releases, content, collaborators and analytics.
-
-============================================================
-3. TECHNOLOGY DIRECTION
-============================================================
+- React 19
+- TypeScript
+- TanStack Start / Router
+- TanStack Query
+- Tailwind CSS
+- Vite
+- npm / `package-lock.json`
 
 Backend:
+
 - ASP.NET Core Web API
 - .NET 10
 - C#
@@ -69,805 +43,64 @@ Backend:
 - Npgsql
 - PostgreSQL
 
-Frontend:
-- React
-- TypeScript
-- Tailwind CSS
+Expected boundary:
 
-External integrations later:
-- Google Drive
-- YouTube APIs
+```text
+React frontend -> REST / JSON -> ASP.NET Core API -> EF Core / Npgsql -> PostgreSQL
+ASP.NET Core API -> Google Drive for binary media
+```
 
-DevOps later:
-- GitHub Actions
-- CI/CD
+React owns the UI. ASP.NET Core owns trusted validation, authorization, business rules, persistence, Google OAuth, Google Drive operations, and media delivery. Do not introduce Razor Views, MVC `.cshtml` UI, or Blazor.
 
-IMPORTANT:
+## Scope Control
 
-React owns the UI.
+Only implement the current milestone requested by the user. Do not implement future roadmap items simply because they appear in documentation.
 
-DO NOT introduce:
-- Razor Views
-- MVC .cshtml UI
-- Blazor
+Do not spontaneously add authentication, Drive, YouTube, analytics ingestion, collaboration, notifications, release publishing, content publishing, Docker, microservices, or deployment unless the current milestone directly requires it.
 
-ASP.NET is the backend API.
+Prefer targeted modifications. Do not rewrite working code, reorganize folders, rename projects, replace libraries, or generate architecture just to make the repository look more formal.
 
-Expected architecture:
+## Backend Rules
 
-React
-   ↓ REST / JSON
-ASP.NET Core
-   ↓
-EF Core
-   ↓
-Npgsql
-   ↓
-PostgreSQL
+Use conventional REST endpoints and asynchronous EF Core operations. Controllers handle HTTP concerns. Services are appropriate when real business logic or integration/security complexity exists. Do not add repository classes that only wrap `DbSet` methods.
 
-============================================================
-4. CURRENT LEARNING CONTEXT
-============================================================
+Use DTOs when they solve a real problem such as validation, over-posting protection, response shaping, or API contract stability.
 
-This is my first serious project using ASP.NET Core + PostgreSQL.
+Schema changes must use EF Core migrations. Never delete, rename, or reset migrations casually. Preserve existing data whenever reasonably possible.
 
-Do not interpret that as permission to produce low-quality code.
+## Security Rules
 
-Instead:
+Never hard-code credentials, commit database passwords, commit API keys, commit OAuth secrets, expose secrets to the frontend, or log token material.
 
-- use real-world good practices
-- keep architecture understandable
-- explain important new ASP.NET concepts
-- introduce complexity only when justified
-- prefer incremental evolution
-- avoid enterprise architecture for its own sake
+Use .NET User Secrets, environment variables, or deployment secret providers for real configuration values. `appsettings.json` must not contain real secrets.
 
-I want to understand the system while vibe-coding it.
+JWT auth, Song ownership, collaboration roles, media-token validation, and Google Drive owner-backed storage are security-sensitive. Do not change them casually.
 
-When introducing an unfamiliar architectural concept, briefly explain:
+Current collaboration model is Song-scoped OWNER / EDITOR / VIEWER:
 
-WHAT it is
-WHY Artist OS needs it
-WHY we are introducing it NOW
+- OWNER manages members and deletes Songs.
+- OWNER and EDITOR mutate normal Song workspace metadata and upload/replace media.
+- VIEWER can read but not mutate.
+- No-access users receive anti-enumeration `404` where appropriate.
 
-Do not give long tutorials unless I ask.
+Google OAuth tokens remain backend-only. Google Drive stores large binary files; PostgreSQL stores metadata and provider references.
 
-============================================================
-5. GOLDEN RULE — SCOPE CONTROL
-============================================================
+## Frontend Rules
 
-NEVER implement future phases simply because they appear in
-PROJECT_PLAN.md.
+Use npm as the package manager. Do not reintroduce Bun artifacts, Lovable runtime/build dependencies, or template metadata.
 
-Always distinguish:
+Top-level pages live under `darkroom-web/src/components/darkroom/pages/`. The Song workspace lives under `darkroom-web/src/components/darkroom/workbench/`. Preserve route URLs unless a milestone explicitly asks to change routing.
 
-LONG-TERM VISION
-from
-CURRENT MILESTONE
+The official logo is `darkroom-web/src/assets/darkroom-logo.png`. Use it as-is: do not redraw, crop, recolor, distort, or replace it.
 
-Only implement the CURRENT MILESTONE requested by me.
+The Song API service has an intentional local-development fallback only when the backend host is unreachable. Do not remove or broaden that fallback without a dedicated task.
 
-Example:
+## Verification
 
-If the current task is:
+For meaningful backend changes, run relevant `dotnet build`/`dotnet test` checks. For frontend changes, run relevant npm lint/test/build checks. For milestones, update `docs/CURRENT_STATE.md` factually.
 
-"Implement Song CRUD"
+Never claim work is passing unless the relevant command was actually run and the output was checked.
 
-you may implement what Song CRUD reasonably requires.
+## Git Safety
 
-You must NOT spontaneously implement:
-
-- authentication
-- Google Drive
-- YouTube
-- analytics
-- collaboration
-- notifications
-- release management
-- content management
-- Docker
-- microservices
-
-unless they are directly required by the current task.
-
-Long-term awareness should influence today's design,
-not expand today's scope.
-
-============================================================
-6. BEFORE WRITING CODE
-============================================================
-
-For every meaningful task:
-
-STEP 1 — INSPECT
-
-Inspect the relevant existing implementation first.
-
-Never generate replacements based only on assumptions.
-
-STEP 2 — UNDERSTAND
-
-Determine:
-
-- what currently exists
-- what already works
-- what the requested change affects
-- whether a database migration is required
-- whether there are architectural consequences
-
-STEP 3 — PLAN
-
-Before a substantial change, give me a compact implementation plan:
-
-FILES TO MODIFY:
-- ...
-
-FILES TO CREATE:
-- ...
-
-DATABASE CHANGES:
-- None / describe them
-
-APPROACH:
-- ...
-
-RISKS / IMPORTANT DECISIONS:
-- ...
-
-Do not produce a giant design document.
-
-STEP 4 — IMPLEMENT
-
-Make the smallest coherent implementation.
-
-STEP 5 — VERIFY
-
-Run relevant checks.
-
-At minimum for backend changes:
-
-dotnet build
-
-Run tests when tests exist or are relevant.
-
-For database changes:
-verify migrations appropriately.
-
-For frontend changes later:
-run the appropriate build/type/lint checks.
-
-STEP 6 — REPORT
-
-Tell me:
-
-- what changed
-- what was verified
-- whether anything remains unresolved
-
-============================================================
-7. DO NOT REWRITE WORKING CODE WITHOUT REASON
-============================================================
-
-Preserve existing working behavior.
-
-Do NOT:
-
-- rewrite entire files unnecessarily
-- rename large parts of the project casually
-- restructure folders merely because another architecture looks nicer
-- replace libraries without justification
-- regenerate configuration blindly
-- delete working code because you prefer another pattern
-
-Prefer targeted modifications.
-
-If you believe refactoring is necessary, explain why first.
-
-============================================================
-8. ARCHITECTURE EVOLUTION
-============================================================
-
-Do NOT prematurely create:
-
-Repositories/
-Interfaces/
-Managers/
-Factories/
-UnitOfWork/
-CQRS/
-MediatR/
-DomainEvents/
-Microservices/
-GenericRepository/
-CleanArchitecture layers
-
-unless the project develops an actual requirement for them.
-
-Especially:
-
-DO NOT create repository classes that merely wrap EF Core DbSet methods.
-
-EF Core already provides repository/unit-of-work-like behavior.
-
-Services SHOULD be introduced when real business logic emerges.
-
-Example:
-
-BAD:
-
-SongController
-→ ISongRepository
-→ SongRepository
-→ AppDbContext
-
-when SongRepository only calls:
-
-_context.Songs.ToListAsync()
-
-GOOD FOR CURRENT SIMPLE STATE:
-
-SongController
-→ AppDbContext
-
-Later, when business rules become substantial:
-
-Controller
-→ SongService
-→ AppDbContext
-
-Architecture must evolve from actual complexity.
-
-============================================================
-9. API DESIGN RULES
-============================================================
-
-Use conventional REST endpoints where appropriate.
-
-Example:
-
-GET    /api/songs
-GET    /api/songs/{id}
-POST   /api/songs
-PUT    /api/songs/{id}
-DELETE /api/songs/{id}
-
-Controllers should handle HTTP concerns.
-
-Business logic should eventually move into services when it becomes
-substantial.
-
-Use asynchronous database operations.
-
-Prefer:
-
-ToListAsync()
-FirstOrDefaultAsync()
-FindAsync()
-SaveChangesAsync()
-
-instead of synchronous database access.
-
-Return appropriate HTTP responses.
-
-Examples:
-
-200 OK
-201 Created
-204 No Content
-400 Bad Request
-404 Not Found
-
-Do not expose implementation details or stack traces through APIs.
-
-============================================================
-10. ENTITY / DTO RULE
-============================================================
-
-Do NOT blindly create DTOs for every entity just because it is common
-in enterprise projects.
-
-But also do NOT permanently expose database entities directly once
-API contracts become meaningfully different from persistence models.
-
-Introduce DTOs when they solve a real problem such as:
-
-- controlling writable fields
-- preventing over-posting
-- validation
-- hiding internal fields
-- API response shaping
-- preventing circular relationships
-- stabilizing public API contracts
-
-If you introduce DTOs, explain why they became useful at that point.
-
-============================================================
-11. DATABASE RULES
-============================================================
-
-PostgreSQL is the database.
-
-Entity Framework Core is responsible for schema evolution.
-
-Schema changes must use EF Core migrations.
-
-Do NOT manually modify production-intended schema through pgAdmin
-unless explicitly requested.
-
-Normal workflow:
-
-modify entity/configuration
-→ create migration
-→ inspect migration
-→ apply migration
-
-Never delete existing migrations casually.
-
-Never reset the database simply to fix a migration unless I explicitly
-approve it.
-
-Preserve existing data whenever reasonably possible.
-
-============================================================
-12. MEDIA STORAGE RULE
-============================================================
-
-Artist OS will eventually handle:
-
-WAV
-MP3
-stems
-artwork
-MOV/video
-other large assets
-
-DO NOT store these binary files directly inside PostgreSQL.
-
-PostgreSQL should store metadata and external references.
-
-Future intended architecture:
-
-Artist OS
-   ↓
-PostgreSQL
-(metadata)
-
-Artist OS
-   ↓
-Google Drive
-(actual large files)
-
-Example future metadata:
-
-AssetId
-SongId
-Type
-Version
-FileName
-GoogleDriveFileId
-Status
-UploadedAt
-
-Google Drive integration is NOT required until its project phase.
-
-============================================================
-13. SECURITY RULES
-============================================================
-
-NEVER:
-
-- hard-code credentials
-- commit database passwords
-- commit API keys
-- commit OAuth secrets
-- expose secrets to the frontend
-
-During development use appropriate mechanisms such as:
-
-.NET User Secrets
-environment variables
-
-appsettings.json should not contain real committed secrets.
-
-When authentication is introduced later, do not invent a custom
-cryptographic authentication scheme.
-
-============================================================
-14. FRONTEND RULES — WHEN REACT BEGINS
-============================================================
-
-React is a separate frontend application consuming the ASP.NET API.
-
-Do not move backend responsibilities into React.
-
-React responsibilities:
-
-- presentation
-- components
-- client-side state
-- routing
-- forms
-- user interaction
-
-ASP.NET responsibilities:
-
-- business rules
-- persistence
-- authorization
-- integrations
-- validation that must be trusted
-- API contracts
-
-Never rely exclusively on frontend validation for important rules.
-
-Avoid giant React components.
-
-Extract reusable components when actual reuse or complexity appears.
-
-Do not create abstraction layers for hypothetical reuse.
-
-============================================================
-15. UI DIRECTION
-============================================================
-
-Artist OS should feel like a professional creative workspace,
-not a generic Bootstrap admin template.
-
-Think more:
-
-music production workspace
-creative project management
-release command center
-
-and less:
-
-generic CRUD dashboard.
-
-However:
-
-FUNCTIONALITY FIRST.
-
-Do not spend large amounts of time polishing UI while foundational
-features are incomplete unless I specifically ask for UI work.
-
-============================================================
-16. GOOGLE DRIVE — FUTURE RULE
-============================================================
-
-When Google Drive integration eventually begins:
-
-Google Drive is the media storage provider.
-
-Artist OS owns:
-
-- domain metadata
-- associations
-- workflow state
-- version meaning
-- project organization
-
-Drive owns:
-
-- physical large-file storage
-
-Do not tightly couple the entire domain model to Google's API models.
-
-Keep external-provider concerns separated enough that the Artist OS
-domain remains understandable.
-
-Do NOT implement this before its phase.
-
-============================================================
-17. YOUTUBE — FUTURE RULE
-============================================================
-
-YouTube integration eventually provides external performance data.
-
-Do not design the entire application around YouTube.
-
-Artist OS owns the concept of:
-
-Song
-Release
-Content
-
-YouTube is an external platform associated with those concepts.
-
-Do NOT implement YouTube integration before its phase.
-
-============================================================
-18. ERROR HANDLING
-============================================================
-
-Do not silently swallow exceptions.
-
-Do not add try/catch blocks everywhere simply to return generic errors.
-
-Handle errors at the appropriate layer.
-
-Distinguish expected domain/API failures from unexpected server failures.
-
-Logging should contain useful technical information without leaking
-credentials or sensitive data.
-
-============================================================
-19. TESTING PHILOSOPHY
-============================================================
-
-Do not generate hundreds of meaningless tests.
-
-Prioritize tests for:
-
-- business rules
-- validation
-- transformations
-- important workflows
-- regressions
-- complicated queries
-
-Simple CRUD can initially be verified pragmatically.
-
-As business logic grows, tests should grow with it.
-
-Never claim something works unless it was actually verified or you
-clearly state that it was not executed.
-
-============================================================
-20. PACKAGE / DEPENDENCY RULE
-============================================================
-
-Do not install packages casually.
-
-Before adding a dependency ask:
-
-Can the framework already do this cleanly?
-
-Every new package should have a clear reason.
-
-Avoid abandoned or unnecessary packages.
-
-Do not change framework/package major versions without discussing it.
-
-============================================================
-21. GIT SAFETY
-============================================================
-
-Do not:
-
-- force push
-- rewrite git history
-- delete branches
-- discard unrelated working changes
-- use destructive git commands
-
-unless explicitly instructed.
-
-Never overwrite changes that may belong to me or another collaborator.
-
-If the working tree contains unrelated modifications, preserve them.
-
-============================================================
-22. DOCUMENTATION WORKFLOW
-============================================================
-
-PROJECT_PLAN.md = long-term product truth.
-
-CURRENT_STATE.md = current implementation truth.
-
-After completing a meaningful milestone, update CURRENT_STATE.md.
-
-It should contain:
-
-CURRENT PHASE
-
-COMPLETED
-
-CURRENT IMPLEMENTATION
-
-DATABASE / MIGRATIONS
-
-KNOWN ISSUES
-
-NEXT MILESTONE
-
-Do not mark planned features as completed.
-
-Do not rewrite PROJECT_PLAN.md every session.
-
-Only modify PROJECT_PLAN.md when product direction genuinely changes.
-
-============================================================
-23. DECISION MAKING
-============================================================
-
-When there are multiple reasonable solutions:
-
-Do not arbitrarily choose the most complicated one.
-
-Prefer the solution that is:
-
-1. correct
-2. understandable
-3. maintainable
-4. appropriate for current scale
-5. compatible with the long-term vision
-
-If the choice has meaningful long-term consequences, ask me before
-committing to it.
-
-If the choice is small and reversible, make a sensible decision and
-continue.
-
-============================================================
-24. WHEN REQUIREMENTS ARE UNCLEAR
-============================================================
-
-Do NOT invent major product requirements.
-
-If ambiguity affects:
-
-- database design
-- user workflow
-- permissions
-- architecture
-- destructive behavior
-- external integrations
-
-ask me.
-
-For small implementation details, use reasonable defaults.
-
-============================================================
-25. ANTI-VIBE-CODING FAILURE RULES
-============================================================
-
-Specifically avoid these common agent behaviors:
-
-DO NOT see a TODO and automatically implement it.
-
-DO NOT implement every feature mentioned in documentation.
-
-DO NOT create fake/mock systems that appear production-ready unless
-explicitly requested.
-
-DO NOT silently change requirements.
-
-DO NOT duplicate functionality that already exists.
-
-DO NOT create parallel implementations of the same feature.
-
-DO NOT leave obsolete code behind after an intentional replacement.
-
-DO NOT comment out broken code and call the task complete.
-
-DO NOT hide compiler warnings/errors.
-
-DO NOT say "done" when build/tests fail.
-
-DO NOT solve build problems by disabling important validation.
-
-DO NOT generate architecture purely to make the repository look
-"professional."
-
-============================================================
-26. WORKING WITH ME
-============================================================
-
-Treat development as pair programming.
-
-I will often give short instructions such as:
-
-"build song CRUD"
-
-"start frontend"
-
-"add release"
-
-"polish this page"
-
-Use repository context + PROJECT_PLAN.md to interpret these commands.
-
-But NEVER use a short instruction as permission to expand scope
-dramatically.
-
-When I ask for a feature:
-
-understand
-→ inspect
-→ plan
-→ implement
-→ verify
-→ report
-
-If I explicitly ask only for analysis or a plan:
-
-DO NOT modify files.
-
-If I explicitly ask you to implement:
-
-you may edit the necessary files after inspection.
-
-============================================================
-27. CURRENT PROJECT STATE
-============================================================
-
-Current backend:
-
-ASP.NET Core Web API
-.NET 10
-Entity Framework Core
-Npgsql
-PostgreSQL 18
-
-Database:
-artist_os
-
-Existing model:
-Song
-
-Song currently contains approximately:
-
-Id
-Title
-Status
-CreatedAt
-
-Existing:
-AppDbContext
-
-Existing database tables:
-Songs
-__EFMigrationsHistory
-
-Initial migration has been successfully applied.
-
-PostgreSQL connectivity is confirmed.
-
-Current milestone:
-
-SONG CRUD API
-
-Expected endpoints:
-
-GET    /api/songs
-GET    /api/songs/{id}
-POST   /api/songs
-PUT    /api/songs/{id}
-DELETE /api/songs/{id}
-
-Do not start React yet unless I explicitly move us to that milestone.
-
-Do not start authentication.
-
-Do not start Google Drive.
-
-Do not start Release/Content/Analytics.
-
-============================================================
-28. FIRST ACTION NOW
-============================================================
-
-DO NOT EDIT ANYTHING YET.
-
-First:
-
-1. Read PROJECT_PLAN.md.
-2. Inspect the repository.
-3. Inspect Program.cs.
-4. Inspect AppDbContext.
-5. Inspect Song.
-6. Inspect existing migrations.
-7. Check current git status.
-8. Compare the actual implementation against the context above.
-
-Then respond with ONLY a compact project understanding containing:
-
-CURRENT ARCHITECTURE
-CURRENT IMPLEMENTATION
-CURRENT MILESTONE
-IMPORTANT CONSTRAINTS YOU WILL FOLLOW
-ANY DISCREPANCIES YOU FOUND
-
-End by telling me whether you are ready to continue with Song CRUD.
-
-Do not implement Song CRUD until I tell you to proceed.
+Do not force push, rewrite history, delete branches, reset hard, clean, discard unrelated changes, or overwrite user/collaborator work unless explicitly instructed. Do not commit, push, or deploy unless the user asks for that action.

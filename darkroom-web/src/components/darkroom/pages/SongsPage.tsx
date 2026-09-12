@@ -435,7 +435,8 @@ export function SongsPage() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete song</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This removes the project and its workspace metadata from Artist OS.
+                                This removes the project and its workspace metadata from DARKROOM
+                                SYSTEM.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

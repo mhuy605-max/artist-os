@@ -401,7 +401,7 @@ describe("Credits workspace polish", () => {
     });
 
     expect(screen.queryByText(/invite contributor/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/artist os user/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/DARKROOM SYSTEM user/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/contract/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/signature/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/payment details/i)).not.toBeInTheDocument();
@@ -435,7 +435,7 @@ describe("Credits workspace polish", () => {
     expect(screen.getByRole("heading", { name: "Remove credit?" })).toBeInTheDocument();
     expect(
       screen.getByText(
-        "This removes only this contributor credit metadata from this Song. Artist OS users, team access, and external distributor records are not affected.",
+        "This removes only this contributor credit metadata from this Song. DARKROOM SYSTEM users, team access, and external distributor records are not affected.",
       ),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^delete$/i }));
@@ -455,7 +455,7 @@ describe("Credits workspace polish", () => {
     await renderCreditsWorkspace();
 
     expect(
-      await screen.findByText("We couldn't load contributor credits from Artist OS."),
+      await screen.findByText("We couldn't load contributor credits from DARKROOM SYSTEM."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });

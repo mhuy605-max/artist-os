@@ -661,7 +661,7 @@ export function AnalyticsWorkspace({
     return (
       <Panel title="Analytics unavailable" label="ANALYTICS / PERFORMANCE">
         <ErrorState
-          detail="We couldn't load recorded performance snapshots from Artist OS."
+          detail="We couldn't load recorded performance snapshots from DARKROOM SYSTEM."
           onRetry={() => snapshots.refetch()}
         />
       </Panel>

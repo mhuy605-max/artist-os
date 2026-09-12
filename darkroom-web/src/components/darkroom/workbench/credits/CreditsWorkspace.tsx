@@ -529,8 +529,8 @@ function CreditRow({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Remove credit?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This removes only this contributor credit metadata from this Song. Artist OS
-                    users, team access, and external distributor records are not affected.
+                    This removes only this contributor credit metadata from this Song. DARKROOM
+                    SYSTEM users, team access, and external distributor records are not affected.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -606,7 +606,7 @@ export function CreditsWorkspace({
     return (
       <Panel title="Credits unavailable" label="CREDITS / CONTRIBUTORS">
         <ErrorState
-          detail="We couldn't load contributor credits from Artist OS."
+          detail="We couldn't load contributor credits from DARKROOM SYSTEM."
           onRetry={() => credits.refetch()}
         />
       </Panel>

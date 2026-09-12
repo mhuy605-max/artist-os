@@ -66,7 +66,7 @@ export function SettingsPage() {
         {["Profile", "Workspace", "Notifications", "Appearance"].map((section) => (
           <Panel key={section} title={section} label="Frontend-only">
             <p className="text-sm text-muted-foreground">
-              Settings UI placeholder for the current frontend architecture milestone.
+              Expanded workspace controls remain planned for a later DARKROOM SYSTEM milestone.
             </p>
           </Panel>
         ))}

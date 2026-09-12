@@ -1,841 +1,77 @@
-# Artist OS / DARKROOM SYSTEM
+# DARKROOM SYSTEM
 
-Artist OS is a full-stack music workflow platform for managing songs, production assets, release planning, content campaigns, credits, and analytics in one workspace.
+DARKROOM SYSTEM is a full-stack music workflow platform for artists and music teams. It manages songs, production assets, release preparation, content planning, credits, collaboration, and manually recorded analytics in one authenticated workspace.
 
-DARKROOM SYSTEM is the current React frontend experience for Artist OS.
+The public product name is DARKROOM SYSTEM. Existing internal backend identifiers such as `ArtistOS.Api`, `ArtistOS.slnx`, C# namespaces, migration history, database naming, and JWT technical identifiers are intentionally retained.
 
-The product is not a streaming service, Spotify clone, e-commerce app, generic file manager, or social network. The long-term goal is a creative operations workspace centered around the lifecycle of a song.
+## What It Does
 
-## Core Workflow
-
-The intended music project lifecycle:
+DARKROOM SYSTEM centers work around the lifecycle of a song:
 
 ```text
-Idea
-  -> Demo
-  -> Recording
-  -> Mixing
-  -> Mastering
-  -> Release Preparation
-  -> Content Campaign
-  -> Released
-  -> Analytics
+Idea -> Demo -> Recording -> Mixing -> Mastering -> Release Preparation -> Content Campaign -> Released -> Analytics
 ```
 
-The `Song` is currently the central implemented domain concept.
+The product is not a streaming service, Spotify clone, e-commerce app, generic file manager, or social network. It is a creative operations workspace for managing music projects from idea through release and review.
 
-## Current Status
+## Current Stack
 
-Current phase:
-
-```text
-Product V1 Feature Freeze + Application Security Hardening S2
-```
-
-Implemented and verified:
-
-- ASP.NET Core Web API backend
-- PostgreSQL connection through EF Core and Npgsql
-- EF Core migrations for `Song`
-- `AppDbContext`
-- `Song` model with validation constraints
-- Song CRUD API with request/response DTOs
-- Development OpenAPI mapping
-- Development CORS for the local frontend
-- User authentication API with register, login, logout, and current-session endpoints
-- Secure password hashing through ASP.NET Core Identity's `PasswordHasher<TUser>`
-- JWT Bearer authentication for local frontend/backend development
-- Short-lived JWT access tokens returned from login and registration
-- `User` model and nullable Song ownership field
-- Backend resource ownership enforcement for Songs, nested Song workspace resources, Calendar, and Dashboard
-- Two-user ownership checks for cross-user `404` behavior and legacy unowned Song invisibility
-- DARKROOM SYSTEM React frontend
-- Real login/register flow connected to the ASP.NET Core backend
-- Protected frontend app shell routes for authenticated workspace access
-- Real browser-based Song CRUD integration between frontend and backend
-- AudioAsset metadata model related to Song
-- Nested AudioAsset metadata API
-- Real browser-based Audio tab metadata create/read/update/delete
-- VisualAsset metadata model related to Song
-- Nested VisualAsset metadata API
-- Real browser-based Visuals tab metadata create/read/update/delete
-- Release metadata model related to Song
-- Nested Release metadata API
-- Real browser-based Release tab metadata create/read/update/delete
-- ContentItem metadata model related to Song
-- Nested ContentItem metadata API
-- Real browser-based Content tab metadata create/read/update/delete
-- Credit metadata model related to Song
-- Nested Credit metadata API
-- Real browser-based Credits tab metadata create/read/update/delete
-- AnalyticsSnapshot metadata model related to Song
-- Nested AnalyticsSnapshot metadata API
-- Real browser-based Analytics tab metadata create/read/update/delete
-- ReleaseChecklistItem model related to Release
-- Nested Release checklist API
-- Real browser-based Release tab checklist persistence and progress tracking
-- Calendar aggregate API over Release and Content dates
-- Real browser-based Calendar month view backed by persisted Song, Release, and ContentItem metadata
-- Dashboard aggregate API over existing Artist OS source records
-- Real browser-based Dashboard summary, pipeline, upcoming work, release readiness, analytics overview, and recent activity
-- Automated backend integration tests for current Song, AudioAsset, VisualAsset, Release, ReleaseChecklistItem, ContentItem, Credit, AnalyticsSnapshot, Calendar, and Dashboard API behavior
-- Automated backend integration tests for authentication, session behavior, and Song owner assignment
-- Automated frontend test foundation for shared UI, auth flow, Dashboard, Songs, and Create Song behavior
-- GitHub Actions CI workflow for backend build/tests and frontend lint/test/build
-- Google Drive OAuth connection foundation
-- User-owned Google Drive connection persistence
-- Protected Google refresh-token storage using ASP.NET Core Data Protection
-- Settings integration for Google Drive connect/status/disconnect
-- Google Drive API client support through the official Drive v3 package
-- Backend-only Google access-token refresh for Drive API operations
-- Idempotent DARKROOM SYSTEM root folder provisioning
-- Idempotent Song Drive workspace folder provisioning
-- Provider-neutral `ExternalFileReference` persistence for Drive folder references
-- Song workspace Google Drive panel for safe folder provisioning
-- Backend-mediated Google Drive upload for AudioAsset and VisualAsset files
-- Persisted AudioAsset and VisualAsset file association through `ExternalFileReference`
-- Safe linked-file display in the Audio and Visuals tabs
-- Short-lived signed Artist OS media URLs for linked audio, image, and video assets
-- Inline audio playback for linked AudioAsset records
-- Inline image preview for linked PNG, JPEG, and WEBP VisualAsset records
-- Inline video preview attempts for linked MP4, MOV, and WEBM VisualAsset records
-- Explicit AudioAsset and VisualAsset version families through `AssetFamilyId`
-- Create New Version workflow for AudioAsset and VisualAsset records
-- Replace File workflow for already-linked AudioAsset and VisualAsset records
-- Canonical backend Release readiness calculation for Release Workspace, Song Overview, and Dashboard
-- Release readiness derives Master, Cover, Spotify Canvas, Credits, Content Plan, and Metadata readiness from existing Song workspace records
-- Optional Music Video readiness remains manually trackable and is excluded from required readiness unless completed
-- Product Completion Audit found no Product P0 blockers
-- Team route now presents an honest personal-workspace V1 state instead of mock collaborators
-- Application security hardening for auth/API/media/upload abuse protection
-- Production-aware CORS, trusted public URL configuration, forwarded-header handling, generic production exception responses, security headers, and Data Protection key-ring configuration hook
-
-Planned, not implemented yet:
-
-- Password reset, email verification, social login, MFA, and production refresh-token/session infrastructure
-- Infrastructure-level DDoS/WAF/CDN protection, provider secret vault wiring, deployment ingress rules, and reverse-proxy log redaction
-- Google Drive browsing, Picker, download-original, synchronization, external file deletion, and replacement audit/history views
-- YouTube analytics
-- Waveform processing
-- Generated visual thumbnails, posters, optimization, and transcoding
-- Real release publishing or distributor delivery
-- Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync
-- Contributor directory, team permissions, contracts, royalties, or payout workflow
-- YouTube analytics ingestion and automated external platform sync
-- Continuous delivery and production deployment
-
-## Current Implemented Frontend
-
-DARKROOM SYSTEM currently includes:
+Frontend:
 
 - React 19
 - TypeScript
-- Vite
-- TanStack Router / Start
+- TanStack Start / Router
 - TanStack Query
 - Tailwind CSS
-- DARKROOM SYSTEM design system
-- Responsive app shell with desktop sidebar and mobile drawer
-- Real login/register route backed by the ASP.NET Core auth API
-- Authenticated workspace route guard for dashboard, songs, song workspace, calendar, team, and settings
-- Team route remains available as a planned future collaboration surface for the current personal-workspace V1
-- Local transparent logo asset
-
-Current routes:
-
-```text
-/login
-/dashboard
-/songs
-/songs/:id
-/calendar
-/team
-/settings
-```
-
-The `/` route redirects to `/dashboard`.
-
-## Real Backend Integration
-
-Authentication, Song CRUD, AudioAsset metadata, VisualAsset metadata, Release metadata, Release checklist metadata, Release readiness, ContentItem metadata, Credit metadata, AnalyticsSnapshot metadata, the Calendar aggregate, the Dashboard aggregate, Google Drive connection status/connect/disconnect, Song Drive workspace provisioning, AudioAsset/VisualAsset Drive file upload, media playback/preview access, asset versioning, and linked-file replacement are connected to the ASP.NET Core backend.
-
-The frontend sends `Authorization: Bearer <access_token>` on authenticated API requests so the ASP.NET Core backend can identify the current user from validated JWT claims.
-
-Existing Song workspace, Calendar, and Dashboard backend endpoints require an authenticated session. Normal users only receive data owned by their own account. Missing resources, cross-user resources, and legacy unowned Songs return `404 Not Found`; unauthenticated requests return `401 Unauthorized`.
-
-Auth endpoints:
-
-```text
-http://localhost:5178/api/auth/register
-http://localhost:5178/api/auth/login
-http://localhost:5178/api/auth/logout
-http://localhost:5178/api/auth/me
-```
-
-Browser-based create, read, update, and delete works against the current mutable Song workspace APIs:
-
-```text
-http://localhost:5178/api/songs
-http://localhost:5178/api/songs/{songId}/audio-assets
-http://localhost:5178/api/songs/{songId}/visual-assets
-http://localhost:5178/api/songs/{songId}/release
-http://localhost:5178/api/songs/{songId}/release/checklist
-http://localhost:5178/api/songs/{songId}/release/readiness
-http://localhost:5178/api/songs/{songId}/content-items
-http://localhost:5178/api/songs/{songId}/credits
-http://localhost:5178/api/songs/{songId}/analytics
-```
-
-The read-only Calendar aggregate works against:
-
-```text
-http://localhost:5178/api/calendar
-```
-
-The read-only Dashboard aggregate works against:
-
-```text
-http://localhost:5178/api/dashboard
-```
-
-Google Drive connection endpoints:
-
-```text
-http://localhost:5178/api/integrations/google-drive/status
-http://localhost:5178/api/integrations/google-drive/connect
-http://localhost:5178/api/integrations/google-drive/callback
-http://localhost:5178/api/integrations/google-drive/disconnect
-```
-
-Google Drive Song workspace endpoints:
-
-```text
-http://localhost:5178/api/songs/{songId}/drive-workspace
-http://localhost:5178/api/songs/{songId}/drive-workspace/provision
-```
-
-Google Drive media upload endpoints:
-
-```text
-http://localhost:5178/api/songs/{songId}/audio-assets/{audioAssetId}/upload
-http://localhost:5178/api/songs/{songId}/visual-assets/{visualAssetId}/upload
-```
-
-Media access and replacement endpoints:
-
-```text
-http://localhost:5178/api/songs/{songId}/audio-assets/{audioAssetId}/media-access
-http://localhost:5178/api/songs/{songId}/visual-assets/{visualAssetId}/media-access
-http://localhost:5178/api/songs/{songId}/audio-assets/{audioAssetId}/media?token=...
-http://localhost:5178/api/songs/{songId}/visual-assets/{visualAssetId}/media?token=...
-http://localhost:5178/api/songs/{songId}/audio-assets/{audioAssetId}/versions
-http://localhost:5178/api/songs/{songId}/visual-assets/{visualAssetId}/versions
-http://localhost:5178/api/songs/{songId}/audio-assets/{audioAssetId}/replace-file
-http://localhost:5178/api/songs/{songId}/visual-assets/{visualAssetId}/replace-file
-```
-
-The Song workspace loads real Song data by id for the current user. New Songs created while signed in receive the current user's `OwnerUserId` from the backend; the client does not send ownership. The Audio tab loads and writes real AudioAsset metadata for the selected owned Song, groups asset versions by `AssetFamilyId`, can upload one linked Drive file per metadata record, can create metadata-only next versions, can replace files for already-linked records, and can play linked audio through short-lived Artist OS media URLs. The Visuals tab loads and writes real VisualAsset metadata for the selected owned Song, groups asset versions by `AssetFamilyId`, can upload one linked Drive file per metadata record, can create metadata-only next versions, can replace files for already-linked records, and can preview linked images/videos through short-lived Artist OS media URLs. The Release tab loads and writes real Release metadata and Release checklist metadata for the selected owned Song, while readiness is calculated by the backend from current asset, credit, content, checklist, and Release records. The Content tab loads and writes real ContentItem metadata for the selected owned Song. The Credits tab loads and writes real Credit metadata for the selected owned Song. The Analytics tab loads and writes real manually entered AnalyticsSnapshot metadata for the selected owned Song. The Calendar route reads the current user's Release and ContentItem dates from the backend and links entries back to the Song workspace. The Dashboard route reads real user-scoped aggregate data from the backend, including the canonical Release readiness summary. The frontend stores the current access token in `sessionStorage`, so refresh works within the browser session; invalid/expired tokens and logout clear that token. Local CORS is configured for frontend development from:
-
-```text
-http://localhost:8080
-```
-
-If the backend is unreachable during local development, the Song API service uses an explicit in-memory fallback so the frontend remains navigable. The UI shows a fallback notice in that mode. Other API errors are surfaced instead of hidden.
-
-Google Drive OAuth tokens remain backend-only and are not exposed to the React frontend. Drive folder provisioning, AudioAsset/VisualAsset upload association, backend-mediated media delivery, version creation, and linked-file replacement are implemented for owned Songs. Drive browsing, Picker, download-original, automatic folder rename, external file deletion, and replacement audit/history views are still planned.
-
-## Application Security
-
-Artist OS currently includes app-owned security hardening for the implemented backend/API surface:
-
-- strict rate limiting for register/login
-- general API and aggregate endpoint rate limits
-- concurrency limiting for upload and replace-file operations
-- dedicated media-access and media-stream abuse limits
-- login/register password length bounds on both backend DTOs and frontend form input
-- production generic exception responses with server-side logging
-- API security headers, including production HSTS and CSP on API responses
-- trusted public API/frontend URL configuration for generated OAuth, callback, redirect, and media URLs
-- production CORS based on exact configured frontend origins, without wildcard or credentialed browser cookies
-- ASP.NET Core Data Protection application name and key-ring path configuration hook for production
-
-For production-like environments, configure these non-secret deployment values outside source control:
-
-```text
-PublicUrls:ApiBaseUrl
-PublicUrls:FrontendBaseUrl
-Cors:AllowedOrigins:0
-DataProtection:KeyRingPath
-AllowedHosts
-```
-
-The current frontend still stores the short-lived Artist OS access token in `sessionStorage`. Future production session hardening, refresh-token rotation, account recovery, MFA, infrastructure DDoS protection, provider secret vault wiring, and reverse-proxy query-string redaction are still planned.
-
-## Mock-Only Areas
-
-These areas are visible or planned in the frontend but are not backend-backed yet:
-
-- Audio waveform display, download-original, replacement audit/history views, and external file deletion
-- Generated visual thumbnails/posters, transcoding, download-original, replacement audit/history views, and external file deletion
-- Real release publishing and distributor delivery
-- Release publishing and distributor delivery
-- Content publishing and platform delivery
-- Contributor directory, team permissions, contracts, royalties, and payout workflow
-- YouTube analytics ingestion and automated external platform sync
-- Standalone calendar events, reminders, drag/drop rescheduling, and external calendar sync
-- Settings
-- Team roles, collaboration permissions, and multi-user workspace management
-
-### Authentication API
-
-The backend supports minimal first-party authentication for local Artist OS users.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `POST` | `/api/auth/register` | Create a user, hash the password, and return a JWT auth response. |
-| `POST` | `/api/auth/login` | Verify credentials and return a JWT auth response. |
-| `POST` | `/api/auth/logout` | Return success so the frontend can clear its token. Does not revoke an already-issued JWT. |
-| `GET` | `/api/auth/me` | Return the current authenticated user without password/hash fields. |
-
-Current `User` shape:
-
-```csharp
-public class User
-{
-    public int Id { get; set; }
-    public string Email { get; set; } = string.Empty;
-    public string NormalizedEmail { get; set; } = string.Empty;
-    public string PasswordHash { get; set; } = string.Empty;
-    public string? DisplayName { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-    public ICollection<Song> Songs { get; set; } = [];
-}
-```
-
-`PasswordHash` is stored only in the database model and is not returned by auth responses.
-
-Successful login/register responses use this shape:
-
-```json
-{
-  "accessToken": "<jwt>",
-  "tokenType": "Bearer",
-  "expiresAt": "2026-08-31T12:00:00Z",
-  "user": {
-    "id": 1,
-    "email": "artist@example.com",
-    "displayName": "Artist"
-  }
-}
-```
-
-Current access tokens use `sub` for the stable `User.Id`, expire after 20 minutes, and are stored by the frontend in `sessionStorage`. Refresh tokens and server-side JWT revocation are not implemented yet.
-
-## Current Features
-
-### Song CRUD API
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/songs` | List the current user's songs ordered by `Id`. |
-| `GET` | `/api/songs/{id}` | Get one owned song by id. Returns `404` when missing or not owned. |
-| `POST` | `/api/songs` | Create a new song. Returns `201 Created`. |
-| `PUT` | `/api/songs/{id}` | Update an existing song. Returns `204 No Content`. |
-| `DELETE` | `/api/songs/{id}` | Delete an owned song. Returns `204 No Content` or `404` when missing or not owned. |
-
-Current `Song` shape:
-
-```csharp
-public class Song
-{
-    public int Id { get; set; }
-
-    [MaxLength(200)]
-    public string Title { get; set; } = string.Empty;
-
-    [MaxLength(40)]
-    public string Status { get; set; } = "Demo";
-
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    public int? OwnerUserId { get; set; }
-    public User? OwnerUser { get; set; }
-
-    public ICollection<AudioAsset> AudioAssets { get; set; } = [];
-
-    public ICollection<VisualAsset> VisualAssets { get; set; } = [];
-
-    public Release? Release { get; set; }
-
-    public ICollection<ContentItem> ContentItems { get; set; } = [];
-
-    public ICollection<Credit> Credits { get; set; } = [];
-
-    public ICollection<AnalyticsSnapshot> AnalyticsSnapshots { get; set; } = [];
-}
-```
-
-Allowed Song statuses:
-
-```text
-Idea
-Demo
-Recording
-Mixing
-Mastering
-ReleasePreparation
-ContentCampaign
-Released
-Analytics
-```
-
-### AudioAsset Metadata API
-
-The backend supports metadata-only audio assets nested under a Song.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/songs/{songId}/audio-assets` | List audio asset metadata for a Song. |
-| `GET` | `/api/songs/{songId}/audio-assets/{audioAssetId}` | Get one audio asset metadata record. |
-| `POST` | `/api/songs/{songId}/audio-assets` | Create an audio asset metadata record. Returns `201 Created`. |
-| `PUT` | `/api/songs/{songId}/audio-assets/{audioAssetId}` | Update an audio asset metadata record. Returns `204 No Content`. |
-| `DELETE` | `/api/songs/{songId}/audio-assets/{audioAssetId}` | Delete an audio asset metadata record. Returns `204 No Content` or `404` when missing. |
-| `POST` | `/api/songs/{songId}/audio-assets/{audioAssetId}/upload` | Upload the first linked file for an unlinked audio asset. |
-| `POST` | `/api/songs/{songId}/audio-assets/{audioAssetId}/versions` | Create the next metadata-only version in the same asset family and make it current. |
-| `POST` | `/api/songs/{songId}/audio-assets/{audioAssetId}/replace-file` | Replace the linked file for an already-linked audio asset without changing its version identity. |
-| `POST` | `/api/songs/{songId}/audio-assets/{audioAssetId}/media-access` | Issue a short-lived Artist OS media URL for linked audio playback. |
-| `GET` / `HEAD` | `/api/songs/{songId}/audio-assets/{audioAssetId}/media?token=...` | Stream owned linked audio through a short-lived signed media token. |
-
-Current `AudioAsset` shape:
-
-```csharp
-public class AudioAsset
-{
-    public int Id { get; set; }
-    public int SongId { get; set; }
-    public Song Song { get; set; } = null!;
-    public Guid AssetFamilyId { get; set; } = Guid.NewGuid();
-    public string Type { get; set; } = "Demo";
-    public string FileName { get; set; } = string.Empty;
-    public int Version { get; set; } = 1;
-    public string Status { get; set; } = "Draft";
-    public int? DurationSeconds { get; set; }
-    public long? FileSizeBytes { get; set; }
-    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
-    public bool IsCurrent { get; set; }
-    public int? ExternalFileReferenceId { get; set; }
-    public ExternalFileReference? ExternalFileReference { get; set; }
-}
-```
-
-`AssetFamilyId` is the stable version-lineage identifier. Normal Add creates a new family at version `1`; Create New Version creates the next version in the same family and makes it current. Updating metadata does not let the client change version number or current state.
-
-Allowed AudioAsset types:
-
-```text
-Demo
-Recording
-Mix
-Master
-```
-
-Allowed AudioAsset statuses:
-
-```text
-Draft
-Review
-Approved
-Final
-```
-
-### VisualAsset Metadata API
-
-The backend supports metadata-only visual assets nested under a Song.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/songs/{songId}/visual-assets` | List visual asset metadata for a Song. |
-| `GET` | `/api/songs/{songId}/visual-assets/{visualAssetId}` | Get one visual asset metadata record. |
-| `POST` | `/api/songs/{songId}/visual-assets` | Create a visual asset metadata record. Returns `201 Created`. |
-| `PUT` | `/api/songs/{songId}/visual-assets/{visualAssetId}` | Update a visual asset metadata record. Returns `204 No Content`. |
-| `DELETE` | `/api/songs/{songId}/visual-assets/{visualAssetId}` | Delete a visual asset metadata record. Returns `204 No Content` or `404` when missing. |
-| `POST` | `/api/songs/{songId}/visual-assets/{visualAssetId}/upload` | Upload the first linked file for an unlinked visual asset. |
-| `POST` | `/api/songs/{songId}/visual-assets/{visualAssetId}/versions` | Create the next metadata-only version in the same asset family and make it current. |
-| `POST` | `/api/songs/{songId}/visual-assets/{visualAssetId}/replace-file` | Replace the linked file for an already-linked visual asset without changing its version identity. |
-| `POST` | `/api/songs/{songId}/visual-assets/{visualAssetId}/media-access` | Issue a short-lived Artist OS media URL for linked image/video preview. |
-| `GET` / `HEAD` | `/api/songs/{songId}/visual-assets/{visualAssetId}/media?token=...` | Stream owned linked visual media through a short-lived signed media token. |
-
-Current `VisualAsset` shape:
-
-```csharp
-public class VisualAsset
-{
-    public int Id { get; set; }
-    public int SongId { get; set; }
-    public Song Song { get; set; } = null!;
-    public Guid AssetFamilyId { get; set; } = Guid.NewGuid();
-    public string Type { get; set; } = "CoverArt";
-    public string FileName { get; set; } = string.Empty;
-    public int Version { get; set; } = 1;
-    public string Status { get; set; } = "Draft";
-    public int? Width { get; set; }
-    public int? Height { get; set; }
-    public long? FileSizeBytes { get; set; }
-    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
-    public bool IsCurrent { get; set; }
-    public int? ExternalFileReferenceId { get; set; }
-    public ExternalFileReference? ExternalFileReference { get; set; }
-}
-```
-
-`AssetFamilyId` is the stable version-lineage identifier. Normal Add creates a new family at version `1`; Create New Version creates the next version in the same family and makes it current. Updating metadata does not let the client change version number or current state.
-
-Allowed VisualAsset types:
-
-```text
-CoverArt
-MusicVideo
-Visualizer
-SpotifyCanvas
-PromoAsset
-SocialContent
-```
-
-Allowed VisualAsset statuses:
-
-```text
-Draft
-InProgress
-Review
-Approved
-Final
-```
-
-### Release Metadata API
-
-The backend supports one metadata-only release plan per Song.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/songs/{songId}/release` | Get release metadata for a Song. Returns `404` when the Song or release plan is missing. |
-| `POST` | `/api/songs/{songId}/release` | Create a release metadata record. Returns `201 Created` or `409 Conflict` when one already exists. |
-| `PUT` | `/api/songs/{songId}/release` | Update the release metadata record. Returns `204 No Content`. |
-| `DELETE` | `/api/songs/{songId}/release` | Delete the release metadata record only. Returns `204 No Content` or `404` when missing. |
-
-Current `Release` shape:
-
-```csharp
-public class Release
-{
-    public int Id { get; set; }
-    public int SongId { get; set; }
-    public Song Song { get; set; } = null!;
-    public DateOnly? ReleaseDate { get; set; }
-    public string ReleaseType { get; set; } = "Single";
-    public string? Distributor { get; set; }
-    public string? Isrc { get; set; }
-    public string? Upc { get; set; }
-    public string Status { get; set; } = "Planning";
-    public string Platforms { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-    public ICollection<ReleaseChecklistItem> ChecklistItems { get; set; } = [];
-}
-```
-
-Allowed Release type:
-
-```text
-Single
-```
-
-Allowed Release statuses:
-
-```text
-Planning
-Preparing
-Ready
-Scheduled
-Released
-```
-
-Allowed Release platforms:
-
-```text
-Spotify
-AppleMusic
-YouTube
-YouTubeMusic
-SoundCloud
-TikTok
-Other
-```
-
-### Release Checklist Metadata API
-
-The backend supports a fixed preparation checklist for each Release plan. Items are initialized automatically when a Release is created. Master, Cover, and Spotify Canvas completion are derived by Release readiness and cannot be manually overridden through the checklist API.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/songs/{songId}/release/checklist` | List checklist items for a Song's Release, ordered by `SortOrder`. |
-| `GET` | `/api/songs/{songId}/release/checklist/{checklistItemId}` | Get one checklist item. |
-| `PUT` | `/api/songs/{songId}/release/checklist/{checklistItemId}` | Update completion state and optional notes. Returns `204 No Content`. |
-
-### Release Readiness API
-
-The backend calculates canonical Release readiness from existing Song workspace records. It does not persist readiness percentages or write derived readiness back to checklist rows.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/songs/{songId}/release/readiness` | Return required-ready count, required count, total item count, percentage, and item-level state/source/reason for a Song's Release. |
-
-Current `ReleaseChecklistItem` shape:
-
-```csharp
-public class ReleaseChecklistItem
-{
-    public int Id { get; set; }
-    public int ReleaseId { get; set; }
-    public Release Release { get; set; } = null!;
-    public string Key { get; set; } = string.Empty;
-    public string Label { get; set; } = string.Empty;
-    public bool IsCompleted { get; set; }
-    public DateTime? CompletedAt { get; set; }
-    public string? Notes { get; set; }
-    public int SortOrder { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-}
-```
-
-Default checklist keys:
-
-```text
-Master
-Cover
-Metadata
-Credits
-Canvas
-MusicVideo
-ContentPlan
-```
-
-`CompletedAt` is controlled by the server. Checklist progress is derived in the frontend and is not stored as a separate percentage.
-
-### ContentItem Metadata API
-
-The backend supports metadata-only content campaign items nested under a Song.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/songs/{songId}/content-items` | List content item metadata for a Song. |
-| `GET` | `/api/songs/{songId}/content-items/{contentItemId}` | Get one content item metadata record. |
-| `POST` | `/api/songs/{songId}/content-items` | Create a content item metadata record. Returns `201 Created`. |
-| `PUT` | `/api/songs/{songId}/content-items/{contentItemId}` | Update a content item metadata record. Returns `204 No Content`. |
-| `DELETE` | `/api/songs/{songId}/content-items/{contentItemId}` | Delete a content item metadata record. Returns `204 No Content` or `404` when missing. |
-
-Current `ContentItem` shape:
-
-```csharp
-public class ContentItem
-{
-    public int Id { get; set; }
-    public int SongId { get; set; }
-    public Song Song { get; set; } = null!;
-    public string Title { get; set; } = string.Empty;
-    public string Type { get; set; } = "Teaser";
-    public string Status { get; set; } = "Idea";
-    public string? Platform { get; set; }
-    public string? OwnerName { get; set; }
-    public DateOnly? DueDate { get; set; }
-    public DateOnly? ScheduledAt { get; set; }
-    public DateOnly? PublishedAt { get; set; }
-    public string? Notes { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-}
-```
-
-Allowed ContentItem types:
-
-```text
-Teaser
-Snippet
-MusicVideo
-Visualizer
-BehindTheScenes
-TikTok
-InstagramReel
-YouTubeShort
-ArtworkPost
-```
-
-Allowed ContentItem statuses:
-
-```text
-Idea
-Planned
-InProduction
-Editing
-Ready
-Scheduled
-Published
-```
-
-Allowed ContentItem platforms:
-
-```text
-Instagram
-TikTok
-YouTube
-YouTubeShorts
-Spotify
-CrossPlatform
-Other
-```
-
-### Credit Metadata API
-
-The backend supports metadata-only contributor credits nested under a Song.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/songs/{songId}/credits` | List credit metadata for a Song. |
-| `GET` | `/api/songs/{songId}/credits/{creditId}` | Get one credit metadata record. |
-| `POST` | `/api/songs/{songId}/credits` | Create a credit metadata record. Returns `201 Created`. |
-| `PUT` | `/api/songs/{songId}/credits/{creditId}` | Update a credit metadata record. Returns `204 No Content`. |
-| `DELETE` | `/api/songs/{songId}/credits/{creditId}` | Delete a credit metadata record. Returns `204 No Content` or `404` when missing. |
-
-Current `Credit` shape:
-
-```csharp
-public class Credit
-{
-    public int Id { get; set; }
-    public int SongId { get; set; }
-    public Song Song { get; set; } = null!;
-    public string ContributorName { get; set; } = string.Empty;
-    public string Role { get; set; } = "Artist";
-    public string? Contact { get; set; }
-    public string Status { get; set; } = "Pending";
-    public decimal? SplitPercentage { get; set; }
-    public string? Notes { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-}
-```
-
-Allowed Credit roles:
-
-```text
-Artist
-FeaturedArtist
-Producer
-Songwriter
-RecordingEngineer
-MixEngineer
-MasteringEngineer
-Director
-Designer
-```
-
-Allowed Credit statuses:
-
-```text
-Pending
-Confirmed
-```
-
-`SplitPercentage` is optional planned split metadata only. It does not represent payment processing, royalty settlement, accounting, or a legal split agreement.
-
-### Analytics Snapshot Metadata API
-
-The backend supports manually entered analytics snapshots nested under a Song.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/songs/{songId}/analytics` | List analytics snapshot metadata for a Song, ordered by measurement date. |
-| `GET` | `/api/songs/{songId}/analytics/{analyticsSnapshotId}` | Get one analytics snapshot metadata record. |
-| `POST` | `/api/songs/{songId}/analytics` | Create an analytics snapshot metadata record. Returns `201 Created` or `409 Conflict` for a duplicate Song/platform/date snapshot. |
-| `PUT` | `/api/songs/{songId}/analytics/{analyticsSnapshotId}` | Update an analytics snapshot metadata record. Returns `204 No Content`. |
-| `DELETE` | `/api/songs/{songId}/analytics/{analyticsSnapshotId}` | Delete an analytics snapshot metadata record. Returns `204 No Content` or `404` when missing. |
-
-Current `AnalyticsSnapshot` shape:
-
-```csharp
-public class AnalyticsSnapshot
-{
-    public int Id { get; set; }
-    public int SongId { get; set; }
-    public Song Song { get; set; } = null!;
-    public string Platform { get; set; } = "YouTube";
-    public DateOnly SnapshotDate { get; set; }
-    public long Views { get; set; }
-    public long Likes { get; set; }
-    public long Comments { get; set; }
-    public long WatchTimeMinutes { get; set; }
-    public long SubscribersGained { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-}
-```
-
-Allowed analytics platforms:
-
-```text
-YouTube
-Spotify
-TikTok
-Instagram
-Other
-```
-
-`SnapshotDate` is the measurement date supplied by the client. `CreatedAt` is controlled by the server. Analytics snapshots are metadata-only and do not sync with YouTube or any external platform yet.
-
-### Calendar Aggregate API
-
-The backend exposes a read-only Calendar aggregate assembled from existing persisted Release and ContentItem dates. There is no standalone CalendarEvent table in the current implementation.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/calendar` | List calendar entries from Release and ContentItem dates. Supports optional inclusive `from` and `to` `DateOnly` query filters. |
-
-Current event types:
-
-```text
-ReleaseDate
-ContentDue
-ContentScheduled
-ContentPublished
-```
-
-Entries include source type, source id, Song id, Song title, event type, title, date, status, optional platform, read-only editability metadata, and a navigation target back to `/songs/{songId}`.
-
-### Dashboard Aggregate API
-
-The backend exposes a read-only Dashboard aggregate assembled from existing persisted Artist OS records. There is no Dashboard table, cached KPI table, ActivityLog, or audit history in the current implementation.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/dashboard` | Return portfolio summary, Song pipeline counts, upcoming Release/Content work, canonical Release readiness, latest analytics snapshots, and derived recent activity. |
-
-Current summary definitions:
-
-- `TotalSongs`: current user's persisted Songs.
-- `ActiveSongs`: current user's Songs whose status is not `Released`.
-- `UpcomingReleases`: current user's Releases with `ReleaseDate >=` current UTC date and status not `Released`.
-- `ScheduledContent`: current user's ContentItems with `ScheduledAt >=` current UTC date and status not `Published`.
-
-Analytics overview uses latest-snapshot-per-Song-and-platform semantics. It does not sum historical snapshots or imply live external analytics sync.
+- Vite
+- npm / `package-lock.json`
+
+Backend:
+
+- ASP.NET Core Web API
+- .NET 10
+- C#
+- Entity Framework Core
+- Npgsql
+- PostgreSQL
+
+Storage and integrations:
+
+- PostgreSQL stores workflow metadata, ownership, collaboration, and provider references.
+- Google Drive stores binary media files such as audio, artwork, and video.
+- Google OAuth is handled by the backend; Google tokens are never exposed to React.
+- YouTube and automated external analytics ingestion remain future work.
+
+## Core Capabilities
+
+Implemented application capabilities include:
+
+- Authenticated user registration, login, logout cleanup, and current-session restore.
+- Song catalog and Song workspace routes.
+- Song-scoped OWNER / EDITOR / VIEWER collaboration with member management and invitation inbox.
+- Audio asset metadata, version families, Google Drive upload, linked playback access, and Replace File.
+- Visual asset metadata, version families, Google Drive upload, linked image/video preview access, and Replace File.
+- Release metadata, release checklist records, and backend-derived release readiness.
+- Content planning metadata.
+- Credit contributor metadata and optional planned split metadata.
+- Manual analytics snapshots.
+- Dashboard aggregate over existing source records.
+- Calendar aggregate over Release and Content dates.
+- Backend-mediated signed media URLs with short-lived access tokens.
+
+Not yet implemented:
+
+- Password reset, email verification, MFA, refresh-token rotation, and server-side JWT revocation.
+- Google Drive Picker, browsing, download-original, synchronization, and external file deletion.
+- YouTube ingestion, publishing, distributor delivery, waveform processing, generated thumbnails, image optimization, and video transcoding.
+- Production deployment and infrastructure security controls.
 
 ## Architecture
-
-Current architecture:
 
 ```text
 DARKROOM SYSTEM React frontend
         |
-        | REST / JSON
+        | REST / JSON with JWT Bearer auth
         v
 ASP.NET Core Web API
         |
@@ -843,374 +79,67 @@ ASP.NET Core Web API
 EF Core / Npgsql
         |
         v
-PostgreSQL
+PostgreSQL metadata
+
+ASP.NET Core API
+        |
+        v
+Google Drive binary media storage
 ```
 
-Future integrations:
+React owns presentation, routing, client state, and forms. ASP.NET Core owns trusted validation, authorization, persistence, Google OAuth, Google Drive operations, and media delivery. PostgreSQL stores metadata; large media binaries are stored externally in Google Drive.
 
-- Google Drive
-- YouTube
+## Local Development
 
-## Tech Stack
-
-### Backend
-
-- ASP.NET Core Web API
-- .NET 10
-- C#
-- Entity Framework Core
-- Npgsql Entity Framework Core provider
-- PostgreSQL
-
-Current backend packages:
-
-| Package | Version |
-| --- | --- |
-| `Microsoft.AspNetCore.OpenApi` | `10.0.11` |
-| `Microsoft.AspNetCore.Authentication.JwtBearer` | `10.0.11` |
-| `Google.Apis.Auth` | `1.76.0` |
-| `Google.Apis.Drive.v3` | `1.75.0.4218` |
-| `Microsoft.EntityFrameworkCore.Design` | `10.0.11` |
-| `Npgsql.EntityFrameworkCore.PostgreSQL` | `10.0.3` |
-
-### Frontend
-
-- React 19
-- TypeScript
-- Vite
-- TanStack Router / Start
-- TanStack Query
-- Tailwind CSS
-- Radix/shadcn-style UI primitives
-- Lucide icons
-
-### Tests
-
-- xUnit
-- ASP.NET Core `WebApplicationFactory`
-- EF Core SQLite in-memory test database
-- Vitest
-- React Testing Library
-- jest-dom
-- user-event
-- jsdom
-
-### CI
-
-GitHub Actions is configured to verify pushes to `main` and pull requests targeting `main`.
-
-The CI workflow checks:
-
-- Backend restore, build, and tests
-- Frontend dependency install, lint, tests, and build
-
-No PostgreSQL credentials or production secrets are required for the CI foundation. Backend tests use an isolated in-memory SQLite database.
-
-## Development URLs
-
-Local development defaults:
-
-| App | URL |
-| --- | --- |
-| Frontend | `http://localhost:8080` |
-| Backend | `http://localhost:5178` |
-
-These are local development URLs, not production deployment URLs.
-
-## API
-
-All endpoints below, except `POST /api/auth/register` and `POST /api/auth/login`, require a valid JWT Bearer token. Song-scoped endpoints only return data owned by the current user.
-
-Song endpoints:
-
-```text
-GET    /api/songs
-GET    /api/songs/{id}
-POST   /api/songs
-PUT    /api/songs/{id}
-DELETE /api/songs/{id}
-```
-
-Auth endpoints:
-
-```text
-POST   /api/auth/register
-POST   /api/auth/login
-POST   /api/auth/logout
-GET    /api/auth/me
-```
-
-Audio asset metadata endpoints:
-
-```text
-GET    /api/songs/{songId}/audio-assets
-GET    /api/songs/{songId}/audio-assets/{audioAssetId}
-POST   /api/songs/{songId}/audio-assets
-PUT    /api/songs/{songId}/audio-assets/{audioAssetId}
-DELETE /api/songs/{songId}/audio-assets/{audioAssetId}
-POST   /api/songs/{songId}/audio-assets/{audioAssetId}/upload
-POST   /api/songs/{songId}/audio-assets/{audioAssetId}/versions
-POST   /api/songs/{songId}/audio-assets/{audioAssetId}/replace-file
-POST   /api/songs/{songId}/audio-assets/{audioAssetId}/media-access
-GET    /api/songs/{songId}/audio-assets/{audioAssetId}/media?token=...
-HEAD   /api/songs/{songId}/audio-assets/{audioAssetId}/media?token=...
-```
-
-Visual asset metadata endpoints:
-
-```text
-GET    /api/songs/{songId}/visual-assets
-GET    /api/songs/{songId}/visual-assets/{visualAssetId}
-POST   /api/songs/{songId}/visual-assets
-PUT    /api/songs/{songId}/visual-assets/{visualAssetId}
-DELETE /api/songs/{songId}/visual-assets/{visualAssetId}
-POST   /api/songs/{songId}/visual-assets/{visualAssetId}/upload
-POST   /api/songs/{songId}/visual-assets/{visualAssetId}/versions
-POST   /api/songs/{songId}/visual-assets/{visualAssetId}/replace-file
-POST   /api/songs/{songId}/visual-assets/{visualAssetId}/media-access
-GET    /api/songs/{songId}/visual-assets/{visualAssetId}/media?token=...
-HEAD   /api/songs/{songId}/visual-assets/{visualAssetId}/media?token=...
-```
-
-Release metadata endpoints:
-
-```text
-GET    /api/songs/{songId}/release
-POST   /api/songs/{songId}/release
-PUT    /api/songs/{songId}/release
-DELETE /api/songs/{songId}/release
-```
-
-Release checklist metadata endpoints:
-
-```text
-GET    /api/songs/{songId}/release/checklist
-GET    /api/songs/{songId}/release/checklist/{checklistItemId}
-PUT    /api/songs/{songId}/release/checklist/{checklistItemId}
-```
-
-Release readiness endpoint:
-
-```text
-GET    /api/songs/{songId}/release/readiness
-```
-
-Content item metadata endpoints:
-
-```text
-GET    /api/songs/{songId}/content-items
-GET    /api/songs/{songId}/content-items/{contentItemId}
-POST   /api/songs/{songId}/content-items
-PUT    /api/songs/{songId}/content-items/{contentItemId}
-DELETE /api/songs/{songId}/content-items/{contentItemId}
-```
-
-Credit metadata endpoints:
-
-```text
-GET    /api/songs/{songId}/credits
-GET    /api/songs/{songId}/credits/{creditId}
-POST   /api/songs/{songId}/credits
-PUT    /api/songs/{songId}/credits/{creditId}
-DELETE /api/songs/{songId}/credits/{creditId}
-```
-
-Analytics snapshot metadata endpoints:
-
-```text
-GET    /api/songs/{songId}/analytics
-GET    /api/songs/{songId}/analytics/{analyticsSnapshotId}
-POST   /api/songs/{songId}/analytics
-PUT    /api/songs/{songId}/analytics/{analyticsSnapshotId}
-DELETE /api/songs/{songId}/analytics/{analyticsSnapshotId}
-```
-
-Calendar aggregate endpoint:
-
-```text
-GET    /api/calendar
-GET    /api/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
-```
-
-Dashboard aggregate endpoint:
-
-```text
-GET    /api/dashboard
-```
-
-Example create request:
-
-```bash
-curl -X POST http://localhost:5178/api/songs \
-  -H "Content-Type: application/json" \
-  -d "{\"title\":\"After Hours\",\"status\":\"Demo\"}"
-```
-
-Example list request:
-
-```bash
-curl http://localhost:5178/api/songs
-```
-
-## Repository Structure
-
-Current concise structure:
-
-```text
-ArtistOS/
-├── ArtistOS.Api/
-│   ├── Controllers/
-│   │   ├── AnalyticsSnapshotsController.cs
-│   │   ├── AuthController.cs
-│   │   ├── AudioAssetsController.cs
-│   │   ├── CalendarController.cs
-│   │   ├── ContentItemsController.cs
-│   │   ├── CreditsController.cs
-│   │   ├── DashboardController.cs
-│   │   ├── ReleaseChecklistController.cs
-│   │   ├── ReleasesController.cs
-│   │   ├── SongsController.cs
-│   │   └── VisualAssetsController.cs
-│   ├── Data/
-│   │   └── AppDbContext.cs
-│   ├── Dtos/
-│   ├── Migrations/
-│   ├── Models/
-│   │   ├── AnalyticsSnapshot.cs
-│   │   ├── AudioAsset.cs
-│   │   ├── ContentItem.cs
-│   │   ├── Credit.cs
-│   │   ├── Release.cs
-│   │   ├── ReleaseChecklistItem.cs
-│   │   ├── Song.cs
-│   │   ├── User.cs
-│   │   └── VisualAsset.cs
-│   ├── Properties/
-│   │   └── launchSettings.json
-│   ├── appsettings.Development.json
-│   ├── appsettings.json
-│   ├── ArtistOS.Api.csproj
-│   └── Program.cs
-├── darkroom-web/
-│   ├── src/
-│   │   ├── assets/
-│   │   ├── components/
-│   │   ├── routes/
-│   │   ├── services/
-│   │   └── types/
-│   ├── .env.example
-│   └── package.json
-├── docs/
-│   ├── CURRENT_STATE.md
-│   └── PROJECT_PLAN.md
-├── tests/
-│   └── ArtistOS.Api.Tests/
-├── ArtistOS.slnx
-├── AGENTS.md
-└── README.md
-```
-
-Generated `bin/`, `obj/`, `node_modules/`, and frontend build output folders are intentionally omitted from this tree.
-
-## Getting Started
-
-### Prerequisites
+Prerequisites:
 
 - .NET SDK compatible with `net10.0`
-- PostgreSQL running locally
-- EF Core CLI tools, if you need to create or apply migrations
-- Node.js/npm for the frontend
+- PostgreSQL running locally on port `5432`
+- Node.js and npm
+- EF Core CLI tools when creating or applying migrations
 
-### 1. Clone The Repository
+Create the local PostgreSQL database:
 
 ```bash
-git clone <repository-url>
-cd ArtistOS
+createdb artist_os
 ```
 
-### 2. Create The PostgreSQL Database
-
-Create a local database named:
-
-```text
-artist_os
-```
-
-The current development setup expects PostgreSQL to be available on port `5432`.
-
-### 3. Configure The Connection String Safely
-
-Do not commit real database passwords to `appsettings.json`.
-
-From the backend project folder:
+Configure backend secrets from `ArtistOS.Api/` using .NET User Secrets or equivalent environment variables. Do not commit real values.
 
 ```bash
 cd ArtistOS.Api
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=artist_os;Username=postgres;Password=YOUR_PASSWORD"
-```
-
-Replace `YOUR_PASSWORD` with your local PostgreSQL password.
-
-Configure the local JWT signing key with User Secrets too:
-
-```bash
 dotnet user-secrets set "Jwt:SigningKey" "YOUR_LONG_DEVELOPMENT_SIGNING_KEY"
-```
-
-Use a long random development value. Do not commit the signing key or expose it to the React frontend.
-
-Configure Google Drive OAuth credentials with User Secrets before real OAuth browser verification:
-
-```bash
 dotnet user-secrets set "GoogleDrive:ClientId" "YOUR_GOOGLE_OAUTH_CLIENT_ID"
 dotnet user-secrets set "GoogleDrive:ClientSecret" "YOUR_GOOGLE_OAUTH_CLIENT_SECRET"
 ```
 
-The local Google OAuth callback URI is:
-
-```text
-http://localhost:5178/api/integrations/google-drive/callback
-```
-
-Do not commit Google OAuth credentials or expose them to the React frontend.
-
-### 4. Apply EF Core Migrations
+Apply migrations from `ArtistOS.Api/` when needed:
 
 ```bash
 dotnet ef database update
 ```
 
-### 5. Run The Backend
+Run the backend:
 
 ```bash
+cd ArtistOS.Api
 dotnet run --launch-profile http
 ```
 
-The API should listen at:
+The local API defaults to `http://localhost:5178`.
 
-```text
-http://localhost:5178
-```
-
-### 6. Run The Frontend
-
-From the frontend project folder:
+Run the frontend:
 
 ```bash
 cd darkroom-web
-npm install
+npm ci
 npm run dev -- --host localhost --port 8080
 ```
 
-The frontend should listen at:
+The local frontend defaults to `http://localhost:8080`. The frontend API base URL defaults to `http://localhost:5178`; override it with `VITE_API_BASE_URL` in a local `.env` file based on `darkroom-web/.env.example`.
 
-```text
-http://localhost:8080
-```
-
-The default API base URL is `http://localhost:5178`. To override it, create a local `.env` file from `darkroom-web/.env.example`.
-
-### 7. Run Backend Tests
+## Verification
 
 From the repository root:
 
@@ -1218,185 +147,43 @@ From the repository root:
 dotnet test
 ```
 
-The backend tests use an isolated in-memory SQLite database through `WebApplicationFactory`; they do not connect to or wipe the local `artist_os` PostgreSQL database.
-
-### 8. Run Frontend Tests
-
-From the frontend project folder:
+From `darkroom-web/`:
 
 ```bash
-cd darkroom-web
+npm ci
+npm run lint
 npm run test
+npm run build
 ```
 
-The frontend tests use mocked frontend API services. They do not require the ASP.NET backend, PostgreSQL, or network access.
+Backend tests use an isolated SQLite in-memory test database through `WebApplicationFactory`; they do not connect to or wipe the local PostgreSQL `artist_os` database. Frontend tests mock the frontend API service boundary and do not require the ASP.NET backend, PostgreSQL, localhost, or network access.
 
-## Database
-
-Artist OS currently uses PostgreSQL for persistence and EF Core migrations for schema evolution.
-
-Current database:
+## Repository Structure
 
 ```text
-artist_os
+ArtistOS/
+├── ArtistOS.Api/              # ASP.NET Core backend; internal name intentionally retained
+├── darkroom-web/              # DARKROOM SYSTEM React frontend
+├── docs/                      # project plan, current state, architecture notes
+├── tests/ArtistOS.Api.Tests/  # backend integration-style tests
+├── ArtistOS.slnx              # solution file; internal name intentionally retained
+├── AGENTS.md                  # root collaboration instructions
+└── README.md
 ```
 
-Current tables:
-
-- `AnalyticsSnapshots`
-- `AudioAssets`
-- `ContentItems`
-- `Credits`
-- `ExternalFileReferences`
-- `GoogleDriveConnections`
-- `ReleaseChecklistItems`
-- `Releases`
-- `Songs`
-- `Users`
-- `VisualAssets`
-- `__EFMigrationsHistory`
-
-Calendar currently has no dedicated table. It is a read model assembled from `Releases.ReleaseDate`, `ContentItems.DueDate`, `ContentItems.ScheduledAt`, and `ContentItems.PublishedAt`.
-
-Dashboard currently has no dedicated table. It is a read model assembled from existing Songs, Releases, ReleaseChecklistItems, ContentItems, Credits, AudioAssets, VisualAssets, and AnalyticsSnapshots.
-
-Current migrations:
+Key frontend areas:
 
 ```text
-20260828171115_InitialCreate
-20260828180003_AddSongValidationConstraints
-20260829071423_AddAudioAssetMetadata
-20260829075405_AddVisualAssetMetadata
-20260829130234_AddReleaseMetadata
-20260829133738_AddContentItemMetadata
-20260830055757_AddCreditMetadata
-20260830061847_AddAnalyticsSnapshotMetadata
-20260830104509_AddReleaseChecklistItems
-20260830165052_AddUserAuthenticationFoundation
-20260831103457_AddGoogleDriveConnectionFoundation
-20260831115419_AddExternalFileReferenceFoundation
-20260831185232_AddAssetFileUploadReferences
-20260908063034_AddAssetVersionFamilies
+darkroom-web/src/routes/                    # TanStack routes
+darkroom-web/src/components/darkroom/pages/ # top-level page modules
+darkroom-web/src/components/darkroom/workbench/ # Song workspace modules
+darkroom-web/src/services/api/              # backend API clients
+darkroom-web/src/services/mock/             # remaining future-only support data
+darkroom-web/src/assets/darkroom-logo.png   # official logo asset
 ```
 
-Large media files such as WAV, MP3, stems, artwork, and video files are not stored directly in PostgreSQL. AudioAsset and VisualAsset upload stores the binary file in Google Drive, then PostgreSQL stores Artist OS metadata, ownership, and a provider-neutral `ExternalFileReference`.
+## Project Status
 
-Current upload limits:
+Product V1 and V1.1 application work is complete. Architecture stabilization has passed A0, A1, A2, and A3; A4 handles branding and repository hygiene. A5 is the next verification milestone after A4.
 
-```text
-Audio: 500 MB
-Visual images: 100 MB
-Visual video: 2 GB
-```
-
-Supported audio upload types: WAV, MP3, FLAC, M4A.
-
-Supported visual upload types: PNG, JPG/JPEG, WEBP, MP4, MOV, WEBM.
-
-After a successful upload, Google Drive is the source of truth for the binary file, Drive file id, actual filename, MIME type, and actual size. Artist OS remains the source of truth for workflow metadata such as asset type, asset family, version, status, and current flag. Upload and Replace File synchronize cached `FileName`, `FileSizeBytes`, and `UploadedAt` from the confirmed Drive upload result.
-
-Deleting an AudioAsset or VisualAsset metadata record does not automatically delete the external Google Drive binary. Replace File creates a new provider file and new `ExternalFileReference`, detaches the old active file reference from the asset, and intentionally leaves the old Google Drive binary in place. If Drive upload succeeds but database persistence fails, Artist OS attempts best-effort cleanup of the newly-created Drive file and logs a reconciliation warning if cleanup fails.
-
-## Roadmap
-
-### Foundation
-
-- [x] Backend foundation
-- [x] PostgreSQL + EF Core setup
-- [x] Initial Song model and migration
-- [x] Song validation constraints
-- [x] Song CRUD API
-- [x] AudioAsset metadata model and migration
-- [x] Nested AudioAsset metadata API
-- [x] VisualAsset metadata model and migration
-- [x] Nested VisualAsset metadata API
-- [x] Release metadata model and migration
-- [x] Nested Release metadata API
-- [x] Release checklist metadata model and migration
-- [x] Nested Release checklist API
-- [x] Canonical Release readiness API
-- [x] ContentItem metadata model and migration
-- [x] Nested ContentItem metadata API
-- [x] Credit metadata model and migration
-- [x] Nested Credit metadata API
-- [x] AnalyticsSnapshot metadata model and migration
-- [x] Nested AnalyticsSnapshot metadata API
-- [x] Calendar aggregate API
-- [x] Dashboard aggregate API
-- [x] User authentication model and migration
-- [x] JWT Bearer auth API
-- [x] Backend resource ownership enforcement
-- [x] Google Drive connection model and migration
-- [x] Protected Google refresh-token storage foundation
-- [x] ExternalFileReference model and migration
-- [x] Optional AudioAsset/VisualAsset external file reference links
-- [x] AudioAsset/VisualAsset version family migration
-- [x] Local frontend development CORS
-- [x] Application security hardening S2
-- [x] Automated backend tests
-- [x] Automated frontend tests
-
-### Product
-
-- [x] React frontend foundation
-- [x] DARKROOM SYSTEM app shell
-- [x] Song list UI
-- [x] Song detail workspace UI
-- [x] Browser-based real Song CRUD integration
-- [x] Browser-based real AudioAsset metadata integration
-- [x] Browser-based real VisualAsset metadata integration
-- [x] Browser-based real Release metadata integration
-- [x] Browser-based real Release checklist integration
-- [x] Browser-based canonical Release readiness integration
-- [x] Browser-based real ContentItem metadata integration
-- [x] Browser-based real Credit metadata integration
-- [x] Browser-based real AnalyticsSnapshot metadata integration
-- [x] Browser-based real Calendar integration from Release and Content dates
-- [x] Browser-based real Dashboard aggregation
-- [x] Real login/register frontend integration
-- [x] Authenticated frontend route guard
-- [x] Browser-based Google Drive connection Settings integration
-- [x] Song workspace Google Drive folder provisioning panel
-- [x] Real audio file upload and external file association
-- [x] Real visual file upload and external file association
-- [x] Inline audio playback for linked audio assets
-- [x] Inline image/video preview for linked visual assets
-- [x] Audio/Visual asset family grouping and Create New Version workflow
-- [x] Linked Audio/Visual Replace File workflow
-- [ ] Release publishing and distributor delivery
-- [ ] Content publishing and platform delivery
-- [ ] Standalone calendar events, reminders, and drag/drop rescheduling
-- [ ] Contributor directory, contracts, royalties, and payout workflow
-- [ ] Automated external analytics ingestion
-- [ ] Team collaboration permissions
-
-### Integrations / Delivery
-
-- [x] Google Drive connection foundation
-- [x] Google Drive API client foundation
-- [x] Google Drive folder provisioning
-- [x] Provider-neutral external folder reference persistence
-- [x] Google Drive file upload and asset file association
-- [x] Backend-mediated media delivery for linked audio/image/video assets
-- [x] Google Drive linked-file replacement for AudioAsset and VisualAsset records
-- [ ] Google Drive browsing and Picker
-- [ ] Google Drive download-original, synchronization, and external file deletion
-- [ ] YouTube analytics
-- [x] GitHub Actions CI foundation
-- [ ] Infrastructure security hardening, WAF/CDN/rate-limit edge protection, and production secret-provider wiring
-- [ ] CD and production deployment
-
-## Development Principles
-
-- Keep changes focused, incremental, and verified.
-- Let the current milestone control scope.
-- Use EF Core migrations for schema changes.
-- Keep secrets out of source control.
-- Store large media files externally; PostgreSQL stores metadata and references.
-- Keep React responsible for the frontend UI and ASP.NET responsible for the backend API.
-
-## Project Documentation
-
-- `docs/PROJECT_PLAN.md` describes the long-term product direction and roadmap.
-- `docs/CURRENT_STATE.md` describes what is actually implemented now.
-- `AGENTS.md` captures the engineering workflow and collaboration rules for this project.
+Current implementation truth lives in `docs/CURRENT_STATE.md`. Long-term product direction lives in `docs/PROJECT_PLAN.md`.

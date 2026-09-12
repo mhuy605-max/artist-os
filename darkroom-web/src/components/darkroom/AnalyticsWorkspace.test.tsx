@@ -452,7 +452,9 @@ describe("Analytics workspace polish", () => {
     await renderAnalyticsWorkspace();
 
     expect(
-      await screen.findByText("We couldn't load recorded performance snapshots from Artist OS."),
+      await screen.findByText(
+        "We couldn't load recorded performance snapshots from DARKROOM SYSTEM.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });

@@ -106,7 +106,7 @@ describe("Visual image preview", () => {
     });
   });
 
-  it("uses the signed Artist OS media URL as the image source", async () => {
+  it("uses the signed DARKROOM SYSTEM media URL as the image source", async () => {
     render(<VisualImagePreview songId="1" asset={baseVisual} />);
 
     const image = await renderedImage();

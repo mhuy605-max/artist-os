@@ -246,7 +246,7 @@ describe("Visual video preview", () => {
     expect(getVisualMediaAccessMock).not.toHaveBeenCalled();
   });
 
-  it("requests media access on first Play and uses the signed Artist OS URL", async () => {
+  it("requests media access on first Play and uses the signed DARKROOM SYSTEM URL", async () => {
     const { container } = renderVideoPreview();
 
     await userEvent.click(screen.getByRole("button", { name: /play official-video-v1.mp4/i }));

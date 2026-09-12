@@ -209,7 +209,7 @@ describe("Audio playback", () => {
     expect(await screen.findByRole("button", { name: /play master.wav/i })).toBeInTheDocument();
   });
 
-  it("requests media access on first Play and uses the signed Artist OS URL as audio source", async () => {
+  it("requests media access on first Play and uses the signed DARKROOM SYSTEM URL as audio source", async () => {
     const { container } = renderAudioWorkspace();
 
     await userEvent.click(await screen.findByRole("button", { name: /play master.wav/i }));

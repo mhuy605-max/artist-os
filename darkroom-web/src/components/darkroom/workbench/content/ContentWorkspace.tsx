@@ -405,7 +405,7 @@ function ContentItemFormDialog({
             {mode === "create" ? "Add content item" : "Edit content item"}
           </DialogTitle>
           <DialogDescription>
-            Plan a piece of content for this Song. Scheduled and Published dates are Artist OS
+            Plan a piece of content for this Song. Scheduled and Published dates are DARKROOM SYSTEM
             metadata only.
           </DialogDescription>
         </DialogHeader>
@@ -709,7 +709,7 @@ export function ContentWorkspace({
     return (
       <Panel title="Content unavailable" label="CONTENT / PRODUCTION">
         <ErrorState
-          detail="We couldn't load content production from Artist OS."
+          detail="We couldn't load content production from DARKROOM SYSTEM."
           onRetry={() => contentItems.refetch()}
         />
       </Panel>
