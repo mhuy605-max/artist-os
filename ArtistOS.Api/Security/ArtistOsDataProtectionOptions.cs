@@ -5,4 +5,6 @@ public class ArtistOsDataProtectionOptions
     public string ApplicationName { get; set; } = "ArtistOS.Api";
 
     public string? KeyRingPath { get; set; }
+
+    public string? BlobUri { get; set; }
 }

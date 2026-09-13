@@ -1,16 +1,21 @@
-# Artist OS Current State
+# DARKROOM SYSTEM Current State
 
 Last updated: 2026-09-12
 
 ## Current Phase
 
-Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is DONE. Architecture Stabilization A4 Branding & Repository Hygiene is complete.
+Product V1 Feature Freeze Complete. Security S4A local application verification completed. V1.1 Song Workspace Collaboration is DONE. Architecture Stabilization A5 Final Architecture Verification is complete. D1C Student / Free Hosting Optimization is complete.
 
-Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, C8 added song workspace Members UI plus the real invitation inbox, C9 hardened the C7/C8 frontend collaboration UX, stale-state handling, pending states, responsive edge cases, accessibility/copy, and regression coverage, C10 completed final end-to-end verification plus DONE documentation, A0 completed the whole-project architecture and Lovable trace audit, A1 removed the active Lovable build/runtime dependency, A2 removed verified dead mocks, unused UI primitives, stale dependency entries, Bun artifacts, and passive Lovable metadata, A3 removed the remaining public Workbench facade by extracting standalone pages into focused modules, and A4 cleaned current repository-facing DARKROOM SYSTEM branding while intentionally retaining stable internal ArtistOS identifiers. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
+Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Product Completion Audit, Team surface honesty cleanup, app-owned Security S2 hardening, and S4A local attack-oriented application verification. The audit found no Product P0 blockers; the only accepted Product P1 gap was the visible Team route showing mock collaborators and an Invite action even though collaboration was not implemented for V1. S4A found no remaining application-owned P0/P1 security findings. V1.1 Song Workspace Collaboration C0 passed, C1 added the backend collaboration foundation, C2 added member/invitation lifecycle APIs, C3 added collaborator-aware top-level Song visibility plus Dashboard/Calendar aggregate visibility, C4 converted normal nested Song-domain metadata authorization, C5 converted media plus Google Drive provider operations to the collaboration model, C6 verified the backend collaboration security/regression baseline without finding remaining P0/P1 defects, C7 added frontend role-aware workspace behavior using backend Song access metadata, C8 added song workspace Members UI plus the real invitation inbox, C9 hardened the C7/C8 frontend collaboration UX, stale-state handling, pending states, responsive edge cases, accessibility/copy, and regression coverage, C10 completed final end-to-end verification plus DONE documentation, A0 completed the whole-project architecture and Lovable trace audit, A1 removed the active Lovable build/runtime dependency, A2 removed verified dead mocks, unused UI primitives, stale dependency entries, Bun artifacts, and passive Lovable metadata, A3 removed the remaining public Workbench facade by extracting standalone pages into focused modules, A4 cleaned current repository-facing DARKROOM SYSTEM branding while intentionally retaining stable internal ArtistOS identifiers, A5 verified the post-cleanup architecture freeze, D1C-F re-selected Azure Student-first hosting for approximately USD 0/month initial staging, D1D-A0 verified the Azure Student design gate, and D1D-A1 prepared local container deployment assets. Generated thumbnails, image optimization/transcoding, video transcoding/codec normalization, external Drive deletion, download-original, Drive browsing, Picker, synchronization, waveform processing, YouTube, publishing, distributor delivery, infrastructure security verification, and production deployment remain future work.
 
 ## Completed
 
 - ASP.NET Core Web API project created.
+- D1D-A1 local Azure deployment preparation added backend and frontend Dockerfiles without creating Azure resources.
+- Backend health endpoints added at `GET /api/health/live` and `GET /api/health/ready`.
+- Staging/production Data Protection can now use either durable filesystem key storage or Azure Blob-backed key storage through `DataProtection:BlobUri`.
+- Frontend Nitro server health endpoint added at `GET /healthz`.
+- Azure staging configuration, container commands, cost guardrails, and manual deployment boundary are documented in `docs/AZURE_LOCAL_DEPLOYMENT_PREP.md`.
 - .NET 10 target framework configured.
 - API controllers enabled with `app.MapControllers()`.
 - Entity Framework Core configured.
@@ -239,6 +244,18 @@ Current focus: DARKROOM SYSTEM is product feature frozen for V1 after the Produc
 - Browser-facing metadata already used DARKROOM SYSTEM, and A4 preserved that title/meta/favicon route configuration.
 - Historical A0-A3 Lovable records remain in this file where they accurately describe past milestones; current README, frontend README, active agent instructions, package metadata, and favicon no longer present Lovable as the active project identity.
 - A4 verification passed: `npm ci` completed with 0 vulnerabilities, frontend lint completed with 0 errors and 5 remaining Fast Refresh warnings, frontend tests passed with 18 files and 234 tests, frontend production build succeeded, backend `dotnet test` passed with 390 tests, browser smoke confirmed DARKROOM SYSTEM title/logo/favicon/current branding, and `git diff --check` passed.
+- Architecture Stabilization A5 Final Architecture Verification passed and freezes the current architecture for D1C hosting/deployment planning.
+- A5 verified repository integrity, frontend page/Song workspace boundaries, query/API client consistency, backend controller/service/EF Core architecture, authorization semantics, collaboration behavior, Google Drive/media contracts, asset versioning, release readiness, migrations, branding, Lovable independence, CI parity, package/tooling consistency, dependency health, route smoke, and secret hygiene.
+- A5 verification passed: `npm ci` completed with 0 vulnerabilities, `npm run lint` completed with 0 errors and 5 remaining Fast Refresh warnings, `npm run test` passed with 18 files and 234 tests, `npm run build` succeeded, `dotnet restore ArtistOS.slnx` succeeded, `dotnet build ArtistOS.slnx -c Release --no-restore` succeeded with 0 warnings/errors, `dotnet test ArtistOS.slnx -c Release --no-build` passed with 390 tests, `npm audit` found 0 vulnerabilities, `.NET` vulnerable-package scan found none, route smoke passed on `http://localhost:8080`, and `git diff --check` passed.
+- A5 did not perform deployment, hosting selection, commits, pushes, schema changes, API changes, route changes, security behavior changes, provider changes, or cleanup/refactor work beyond this state update.
+- Remaining accepted debt is non-blocking for D1C and includes the Song API unreachable-backend fallback, Fast Refresh lint warnings, SQLite-based backend integration tests, no live Google Drive provider smoke in this pass, production secret-vault selection, production Data Protection key storage, PostgreSQL hosting controls, large-upload infrastructure limits, and media URL/query log redaction.
+- D1C Student / Free Hosting Optimization completed as research and architecture decision only.
+- D1C created `docs/STUDENT_HOSTING_EVALUATION.md` with student-benefit findings, provider comparison, upload/media/security matrices, cost assumptions, recommended target, fallback target, required staging tests, and provider risks.
+- D1C selected Fly.io application hosting for the frontend node-server and ASP.NET Core API, durable Data Protection keys through a mounted volume, and managed PostgreSQL as the recommended target, with AWS D1B retained as the fallback security baseline.
+- D1C explicitly rejected GitHub Pages for the current architecture because the frontend currently builds as a TanStack Start / Nitro `node-server`, not a static-only site.
+- D1C classified Appwrite as partially useful but not a replacement for the existing ASP.NET Core / EF Core / PostgreSQL / Google Drive backend without a major future rewrite.
+- D1C preserved the Song API unreachable-backend fallback decision as `ACCEPTABLE FOR D1C` and `REVIEW BEFORE STAGING`.
+- D1C did not deploy, provision infrastructure, change code, change CI, change DNS, create databases, create secrets, modify OAuth credentials, commit, or push.
 - Cookie authentication transport was removed from backend runtime code.
 - JWT logout endpoint returns success for frontend cleanup, but does not server-revoke already-issued stateless access tokens.
 - Google Drive architecture discovery documented in `docs/GOOGLE_DRIVE_ARCHITECTURE.md`.
@@ -2605,7 +2622,7 @@ Latest browser Release Workspace Product Polish checks confirmed:
 - Resumable upload session URIs are not logged or returned.
 - Google OAuth state is protected and expiring, and callback handling does not depend on the browser supplying an Artist OS Bearer header.
 - Production deployment must configure persistent/shared Data Protection keys appropriate to the hosting topology.
-- Production-like startup validates trusted public URLs, exact CORS origins, non-wildcard `AllowedHosts`, and a Data Protection key-ring path.
+- Production-like startup validates trusted public URLs, exact CORS origins, non-wildcard `AllowedHosts`, and durable Data Protection key storage through either `DataProtection:KeyRingPath` or `DataProtection:BlobUri`.
 - Register/login, normal API, aggregate API, media-access, media-stream, and upload/replace-file operations have app-level rate/concurrency protection.
 - Production/non-Development API responses include generic exception bodies for unexpected failures while logging server-side details.
 - API security headers are applied, including production HSTS and API CSP.
@@ -2617,7 +2634,7 @@ Latest browser Release Workspace Product Polish checks confirmed:
 
 ## Git Status Notes
 
-Current AudioAsset, VisualAsset, Release, ReleaseChecklist, ContentItem, Credit, AnalyticsSnapshot, Calendar aggregate, Dashboard aggregate, Frontend Test Foundation, Authentication / User Ownership Foundation, Backend Resource Ownership Enforcement, and Cookie Auth -> JWT Bearer Auth Migration work is uncommitted.
+The A4 cleanup is committed as `72929db A4 Cleanup`. The A5 verification update is the only expected working-tree change after the final verification gate.
 
 The frontend build generated route/output artifacts as expected. Build output remains ignored.
 
@@ -2641,7 +2658,7 @@ Remote GitHub Actions status:
 - Password reset, email verification, account management, refresh-token/session rotation, and server-side JWT revocation are not implemented yet.
 - The API now enforces one current AudioAsset per `AssetFamilyId`; it intentionally does not enforce one current AudioAsset per Song + Type because type is classification, not version lineage.
 - The API now enforces one current VisualAsset per `AssetFamilyId`; it intentionally does not enforce one current VisualAsset per Song + Type because type is classification, not version lineage.
-- Current upload limits are MVP/development application limits only; production hosting and reverse proxies will need matching request-size configuration.
+- Current upload limits are MVP/development application limits only; production hosting and reverse proxies will need matching request-size configuration. Large 2 GB video upload remains deferred for the Azure Student-first staging target.
 - Current rate limits are app-level protections only; production still needs edge/CDN/WAF protection and provider ingress controls.
 - Drive upload and PostgreSQL persistence are not one atomic transaction; the backend attempts best-effort Drive cleanup if persistence fails after upload succeeds.
 - Deleting AudioAsset or VisualAsset metadata does not automatically delete linked external Drive binaries.
@@ -2669,7 +2686,7 @@ Remote GitHub Actions status:
 - Frontend automated tests are intentionally focused and do not yet cover the entire app, all routes, all workspace tabs, or visual regression.
 - `npm run lint` still reports fast-refresh warnings from helper exports and existing UI primitive patterns.
 - Production secret storage is still configuration-provider based; a cloud/provider secret vault is not wired in this repository.
-- Production Data Protection has a filesystem/key-ring configuration hook, but the actual shared durable key store must be selected and mounted by deployment infrastructure.
+- Production Data Protection has filesystem and Azure Blob key-ring configuration hooks, but the actual shared durable key store must be provisioned by deployment infrastructure.
 - PostgreSQL TLS/private-networking, backup, restore, monitoring, and managed-provider security controls are still deployment responsibilities.
 
 ## Not Yet Implemented
@@ -2721,11 +2738,13 @@ Main Artist OS JWTs and Google OAuth tokens are not exposed in media URLs.
 
 ## Recommended Next Milestone
 
-A5 — Final Architecture Verification.
+D1D-A2 — Azure Student Manual Staging Provisioning.
 
 Suggested scope:
 
-- Perform a final whole-repository architecture and hygiene verification after A0-A4.
-- Confirm DARKROOM SYSTEM branding, internal ArtistOS identifier retention, provider-neutral deployment posture, npm/package-lock consistency, frontend/backend tests, and absence of active Lovable runtime/config/workflow residue.
-- Preserve product behavior, security-sensitive backend code, Google Drive/media/collaboration behavior, route URLs, database schema, and deployment settings.
-- Do not begin A5 until explicitly requested.
+- Provision the approved Azure Student-first staging resources manually.
+- Use Azure Container Apps Consumption for the frontend and API, Azure Database for PostgreSQL Flexible Server B1ms, Azure Blob-backed Data Protection keys, and Azure Container Registry Standard.
+- Configure runtime secrets, public URLs, exact CORS origins, explicit `AllowedHosts`, health probes, PostgreSQL TLS, and `Maximum Pool Size=10`.
+- Run staging verification for health, auth, Song CRUD, collaboration, Google OAuth / Drive, representative image/audio/small-video upload, media `GET` / `HEAD` / `Range` behavior, private `no-store` media responses, Data Protection persistence across redeploys, database backup/restore posture, and signed-query-token logging controls.
+- Keep 2 GB video upload deferred.
+- Do not implement GitHub Actions CD until D2 after manual staging verification passes.

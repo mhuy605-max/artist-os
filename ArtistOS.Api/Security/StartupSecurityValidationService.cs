@@ -20,10 +20,11 @@ public class StartupSecurityValidationService : IHostedService
             return Task.CompletedTask;
         }
 
-        if (string.IsNullOrWhiteSpace(_configuration["DataProtection:KeyRingPath"]))
+        if (string.IsNullOrWhiteSpace(_configuration["DataProtection:KeyRingPath"]) &&
+            string.IsNullOrWhiteSpace(_configuration["DataProtection:BlobUri"]))
         {
             throw new InvalidOperationException(
-                "DataProtection:KeyRingPath must be configured outside Development.");
+                "DataProtection:KeyRingPath or DataProtection:BlobUri must be configured outside Development.");
         }
 
         if (string.Equals(_configuration["AllowedHosts"], "*", StringComparison.Ordinal))

@@ -8,6 +8,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using ArtistOS.Api.Auth;
+using Azure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
@@ -54,6 +55,12 @@ var dataProtectionBuilder = builder.Services
 if (!string.IsNullOrWhiteSpace(dataProtectionOptions.KeyRingPath))
 {
     dataProtectionBuilder.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyRingPath));
+}
+else if (!string.IsNullOrWhiteSpace(dataProtectionOptions.BlobUri))
+{
+    dataProtectionBuilder.PersistKeysToAzureBlobStorage(
+        new Uri(dataProtectionOptions.BlobUri),
+        new DefaultAzureCredential());
 }
 builder.Services.Configure<GoogleDriveOptions>(builder.Configuration.GetSection("GoogleDrive"));
 builder.Services.AddHostedService<StartupSecurityValidationService>();
