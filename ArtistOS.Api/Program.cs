@@ -86,6 +86,13 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.ForwardLimit = 1;
+    if (builder.Configuration.GetValue<bool>("ForwardedHeaders:TrustSingleHopProxyHeaders"))
+    {
+        // Opt-in for trusted single-hop proxy platforms such as Azure Container Apps.
+        // This accepts forwarded headers from the immediate peer; it does not verify proxy identity.
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    }
 });
 
 builder.Services

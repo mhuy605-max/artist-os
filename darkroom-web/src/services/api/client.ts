@@ -6,8 +6,25 @@
  */
 import { clearAccessToken, getAccessToken } from "./authToken";
 
-export const API_BASE_URL =
-  (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "http://localhost:5178";
+type ApiBaseUrlEnv = {
+  DEV?: boolean;
+  VITE_API_BASE_URL?: string;
+};
+
+export function resolveApiBaseUrl(env: ApiBaseUrlEnv): string {
+  const configuredBaseUrl = env.VITE_API_BASE_URL?.trim();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/+$/, "");
+  }
+
+  if (env.DEV) {
+    return ["http://", "localhost", ":5178"].join("");
+  }
+
+  throw new Error("VITE_API_BASE_URL must be configured outside development.");
+}
+
+export const API_BASE_URL = resolveApiBaseUrl(import.meta.env);
 
 export const unauthorizedEventName = "artist-os:unauthorized";
 

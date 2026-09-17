@@ -5,8 +5,12 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using ArtistOS.Api.Data;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace ArtistOS.Api.Tests;
@@ -42,6 +46,82 @@ public class AuthApiTests
         Assert.DoesNotContain("password", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("passwordHash", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(ArtistOsApiFactory.TestJwtSigningKey, body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Register_WithSpoofedForwardedHttpsInDefaultMode_DoesNotReachControllerAsHttps()
+    {
+        await using var factory = new ArtistOsApiFactory(configureTestServices: services =>
+        {
+            services.AddSingleton<IStartupFilter>(_ =>
+                new RemoteIpStartupFilter(IPAddress.Parse("203.0.113.10")));
+        });
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var request = CreateRegisterRequest("spoofed-forwarded@example.com");
+        request.Headers.Add("X-Forwarded-Proto", "https");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.NotNull(response.Headers.Location);
+        Assert.NotEqual("https", response.Headers.Location?.Scheme);
+    }
+
+    [Fact]
+    public async Task Register_WithForwardedHttpsInExplicitSingleHopProxyMode_UsesHttpsLocationHeader()
+    {
+        await using var factory = new ArtistOsApiFactory(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:TrustSingleHopProxyHeaders"] = "true"
+        }, services =>
+        {
+            services.AddSingleton<IStartupFilter>(_ =>
+                new RemoteIpStartupFilter(IPAddress.Parse("203.0.113.10")));
+        });
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var request = CreateRegisterRequest("trusted-forwarded@example.com");
+        request.Headers.Add("X-Forwarded-Proto", "https");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.NotNull(response.Headers.Location);
+        Assert.Equal("https", response.Headers.Location!.Scheme);
+    }
+
+    [Fact]
+    public void ForwardedHeaders_DefaultMode_KeepsForwardLimitOne()
+    {
+        using var factory = new ArtistOsApiFactory();
+
+        var options = factory.Services
+            .GetRequiredService<IOptions<ForwardedHeadersOptions>>()
+            .Value;
+
+        Assert.Equal(1, options.ForwardLimit);
+    }
+
+    [Fact]
+    public void ForwardedHeaders_ExplicitSingleHopProxyMode_KeepsForwardLimitOne()
+    {
+        using var factory = new ArtistOsApiFactory(new Dictionary<string, string?>
+        {
+            ["ForwardedHeaders:TrustSingleHopProxyHeaders"] = "true"
+        });
+
+        var options = factory.Services
+            .GetRequiredService<IOptions<ForwardedHeadersOptions>>()
+            .Value;
+
+        Assert.Equal(1, options.ForwardLimit);
     }
 
     [Fact]
@@ -282,6 +362,36 @@ public class AuthApiTests
         var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
         TestAuth.UseBearerToken(client, auth.AccessToken);
         return auth.User;
+    }
+
+    private static HttpRequestMessage CreateRegisterRequest(string email)
+    {
+        return new HttpRequestMessage(HttpMethod.Post, "/api/auth/register")
+        {
+            Content = JsonContent.Create(new
+            {
+                email,
+                password = "password123",
+                displayName = "Forwarded Artist"
+            })
+        };
+    }
+
+    private sealed class RemoteIpStartupFilter(IPAddress remoteIpAddress) : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
+        {
+            return app =>
+            {
+                app.Use((context, nextMiddleware) =>
+                {
+                    context.Connection.RemoteIpAddress = remoteIpAddress;
+                    return nextMiddleware(context);
+                });
+
+                next(app);
+            };
+        }
     }
 
     private static string CreateExpiredToken(int userId)

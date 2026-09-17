@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { authApi } from "./auth";
 import { clearAccessToken, getAccessToken, setAccessToken } from "./authToken";
-import { http, unauthorizedEventName } from "./client";
+import { http, resolveApiBaseUrl, unauthorizedEventName } from "./client";
 
 describe("JWT auth API client", () => {
   beforeEach(() => {
@@ -46,6 +46,7 @@ describe("JWT auth API client", () => {
   });
 
   it("shared requests send the Bearer token when one is stored", async () => {
+    const expectedBaseUrl = resolveApiBaseUrl(import.meta.env);
     setAccessToken("jwt-stored-token");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify({ ok: true }), {
@@ -57,13 +58,51 @@ describe("JWT auth API client", () => {
     await http.get("/api/auth/me");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:5178/api/auth/me",
+      `${expectedBaseUrl}/api/auth/me`,
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer jwt-stored-token",
         }),
       }),
     );
+  });
+
+  it("uses the local API fallback only during development", () => {
+    expect(resolveApiBaseUrl({ DEV: true })).toBe("http://localhost:5178");
+  });
+
+  it("uses the configured API base URL outside development", () => {
+    expect(
+      resolveApiBaseUrl({
+        DEV: false,
+        VITE_API_BASE_URL: "https://darkroom-stg-api.example.test",
+      }),
+    ).toBe("https://darkroom-stg-api.example.test");
+  });
+
+  it("normalizes trailing slashes from the configured API base URL", () => {
+    expect(
+      resolveApiBaseUrl({
+        DEV: false,
+        VITE_API_BASE_URL: "https://darkroom-stg-api.example.test/",
+      }),
+    ).toBe("https://darkroom-stg-api.example.test");
+  });
+
+  it("fails clearly outside development when the API base URL is missing", () => {
+    expect(() => resolveApiBaseUrl({ DEV: false })).toThrow(
+      "VITE_API_BASE_URL must be configured outside development.",
+    );
+  });
+
+  it("fails clearly outside development when the API base URL is blank", () => {
+    expect(() => resolveApiBaseUrl({ DEV: false, VITE_API_BASE_URL: "   " })).toThrow(
+      "VITE_API_BASE_URL must be configured outside development.",
+    );
+  });
+
+  it("does not fall back to localhost outside development", () => {
+    expect(() => resolveApiBaseUrl({ DEV: false })).toThrow();
   });
 
   it("stored token plus successful me restores the safe user", async () => {
